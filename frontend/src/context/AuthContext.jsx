@@ -7,22 +7,39 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const applySession = async (nextSession) => {
+    if (!nextSession) {
+      setSession(null)
+      return
+    }
+
+    const { data: { session: refreshed } } = await supabase.auth.refreshSession()
+    const activeSession = refreshed ?? nextSession
+
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (!error && user) {
+      setSession({ ...activeSession, user })
+      return
+    }
+
+    setSession(activeSession)
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setLoading(false)
+      applySession(session).finally(() => setLoading(false))
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
+      applySession(session)
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
   const signIn = (email, password) =>
-    supabase.auth.signInWithPassword({ email, password }).then((result) => {
-      if (result.data.session) setSession(result.data.session)
+    supabase.auth.signInWithPassword({ email, password }).then(async (result) => {
+      if (result.data.session) await applySession(result.data.session)
       return result
     })
 
@@ -36,7 +53,7 @@ export function AuthProvider({ children }) {
   const signOut = () => supabase.auth.signOut()
 
   const user = session?.user ?? null
-  const role = getUserRole(user)
+  const role = getUserRole(user, session)
 
   return (
     <AuthContext.Provider value={{ session, user, role, loading, signIn, signUp, signOut }}>

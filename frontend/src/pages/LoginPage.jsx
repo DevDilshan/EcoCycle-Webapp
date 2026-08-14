@@ -28,7 +28,7 @@ export default function LoginPage() {
       return
     }
 
-    const userRole = getUserRole(data.user)
+    const userRole = getUserRole(data.user, data.session)
     navigate(userRole === 'admin' ? '/admin' : '/dashboard')
   }
 

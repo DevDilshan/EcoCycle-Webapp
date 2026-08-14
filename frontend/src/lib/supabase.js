@@ -9,8 +9,34 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export function getUserRole(user) {
-  return user?.app_metadata?.role
-    ?? user?.user_metadata?.role
-    ?? 'user'
+function normalizeRole(role) {
+  return role ? String(role).toLowerCase() : null
+}
+
+function roleFromToken(accessToken) {
+  try {
+    const payload = JSON.parse(atob(accessToken.split('.')[1]))
+    return normalizeRole(payload.app_metadata?.role ?? payload.user_metadata?.role)
+  } catch {
+    return null
+  }
+}
+
+export function getUserRole(user, session) {
+  const fromAppMeta = normalizeRole(user?.app_metadata?.role)
+  if (fromAppMeta) return fromAppMeta
+
+  const fromUserMeta = normalizeRole(user?.user_metadata?.role)
+  if (fromUserMeta) return fromUserMeta
+
+  if (session?.access_token) {
+    const fromToken = roleFromToken(session.access_token)
+    if (fromToken) return fromToken
+  }
+
+  return 'user'
+}
+
+export function isAdmin(user, session) {
+  return getUserRole(user, session) === 'admin'
 }

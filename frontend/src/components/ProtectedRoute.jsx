@@ -13,7 +13,18 @@ export default function ProtectedRoute({ children, requiredRole }) {
   }
 
   if (requiredRole === 'admin' && role !== 'admin') {
-    return <Navigate to="/dashboard" replace />
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1>Access denied</h1>
+          <p className="auth-subtitle">
+            Your account does not have admin access. Ask a team member to set{' '}
+            <code>app_metadata.role</code> to <code>admin</code> in Supabase.
+          </p>
+          <a href="/dashboard" className="btn-primary">Go to Dashboard</a>
+        </div>
+      </div>
+    )
   }
 
   return children

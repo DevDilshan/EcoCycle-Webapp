@@ -74,7 +74,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var role = ExtractRole(context.Principal);
                 if (!string.IsNullOrEmpty(role))
                 {
-                    identity.AddClaim(new Claim(ClaimTypes.Role, role));
+                    identity.AddClaim(new Claim(ClaimTypes.Role, role.ToLowerInvariant()));
                 }
 
                 return Task.CompletedTask;
@@ -183,4 +183,4 @@ static string? ParseRoleFromJson(string json)
 }
 
 static bool IsAppRole(string? role) =>
-    role is "admin" or "resident" or "collector" or "user";
+    role?.ToLowerInvariant() is "admin" or "resident" or "collector" or "user";

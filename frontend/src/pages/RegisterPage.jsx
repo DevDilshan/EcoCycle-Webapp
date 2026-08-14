@@ -49,7 +49,7 @@ export default function RegisterPage() {
     <div className="auth-page">
       <form className="auth-card" onSubmit={handleSubmit}>
         <h1>Create account</h1>
-        <p className="auth-subtitle">Register as a resident or collector</p>
+        <p className="auth-subtitle">Choose your account type</p>
 
         <label htmlFor="email">Email</label>
         <input
@@ -75,6 +75,7 @@ export default function RegisterPage() {
           <option value="user">User</option>
           <option value="resident">Resident</option>
           <option value="collector">Collector</option>
+          <option value="admin">Admin</option>
         </select>
 
         {error && <p className="auth-error">{error}</p>}
