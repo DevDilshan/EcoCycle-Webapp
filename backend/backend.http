@@ -1,6 +1,14 @@
-@backend_HostAddress = http://localhost:5050
+@backend_HostAddress = http://localhost:5000
+@token = your-supabase-access-token
 
-GET {{backend_HostAddress}}/weatherforecast/
-Accept: application/json
+GET {{backend_HostAddress}}/api/health
 
 ###
+
+GET {{backend_HostAddress}}/api/me
+Authorization: Bearer {{token}}
+
+###
+
+GET {{backend_HostAddress}}/api/admin
+Authorization: Bearer {{token}}
