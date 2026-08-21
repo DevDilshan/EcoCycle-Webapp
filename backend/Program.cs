@@ -2,13 +2,21 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using backend.Data;
 
 LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
+
+var connectionStringSupabase = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING")
+    ?? throw new InvalidOperationException("SUPABASE_CONNECTION_STRING not found in environment/.env file");
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionStringSupabase));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
