@@ -22,6 +22,77 @@ namespace backend.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("backend.Models.ApprovalRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FlagReason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("PickupRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByAdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PickupRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("ReviewedByAdminId");
+
+                    b.ToTable("ApprovalRequests");
+                });
+
+            modelBuilder.Entity("backend.Models.Complaint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("PickupRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PickupRequestId");
+
+                    b.HasIndex("ResidentId");
+
+                    b.ToTable("Complaints");
+                });
+
             modelBuilder.Entity("backend.Models.PickupRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -180,6 +251,43 @@ namespace backend.Migrations
                     b.HasIndex("AssignedCollectorId");
 
                     b.ToTable("Zones");
+                });
+
+            modelBuilder.Entity("backend.Models.ApprovalRequest", b =>
+                {
+                    b.HasOne("backend.Models.PickupRequest", "PickupRequest")
+                        .WithMany()
+                        .HasForeignKey("PickupRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.Profile", "ReviewedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("PickupRequest");
+
+                    b.Navigation("ReviewedByAdmin");
+                });
+
+            modelBuilder.Entity("backend.Models.Complaint", b =>
+                {
+                    b.HasOne("backend.Models.PickupRequest", "PickupRequest")
+                        .WithMany()
+                        .HasForeignKey("PickupRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.Profile", "Resident")
+                        .WithMany()
+                        .HasForeignKey("ResidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PickupRequest");
+
+                    b.Navigation("Resident");
                 });
 
             modelBuilder.Entity("backend.Models.PickupRequest", b =>

@@ -12,6 +12,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Zone> Zones => Set<Zone>();
     public DbSet<RouteAssignment> RouteAssignments => Set<RouteAssignment>();
+    public DbSet<Complaint> Complaints => Set<Complaint>();
+    public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,5 +51,33 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(r => r.ZoneId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Complaint>()
+            .HasOne(c => c.Resident)
+            .WithMany()
+            .HasForeignKey(c => c.ResidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Complaint>()
+            .HasOne(c => c.PickupRequest)
+            .WithMany()
+            .HasForeignKey(c => c.PickupRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ApprovalRequest>()
+            .HasOne(a => a.PickupRequest)
+            .WithMany()
+            .HasForeignKey(a => a.PickupRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ApprovalRequest>()
+            .HasOne(a => a.ReviewedByAdmin)
+            .WithMany()
+            .HasForeignKey(a => a.ReviewedByAdminId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<ApprovalRequest>()
+            .HasIndex(a => a.PickupRequestId)
+            .IsUnique();
     }
 }
