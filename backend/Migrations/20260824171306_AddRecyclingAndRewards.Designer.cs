@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using backend.Data;
@@ -11,9 +12,11 @@ using backend.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260824171306_AddRecyclingAndRewards")]
+    partial class AddRecyclingAndRewards
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,7 +25,6 @@ namespace backend.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("backend.Models.ApprovalRequest", b =>
             modelBuilder.Entity("backend.Models.ComplianceViolation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -32,58 +34,12 @@ namespace backend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("FlagReason")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<Guid>("PickupRequestId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ReviewedByAdminId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PickupRequestId")
-                        .IsUnique();
-
-                    b.HasIndex("ReviewedByAdminId");
-
-                    b.ToTable("ApprovalRequests");
-                });
-
-            modelBuilder.Entity("backend.Models.Complaint", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
                     b.Property<Guid>("PickupRequestId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ResidentId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("ResolvedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
                     b.Property<string>("RuleViolated")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -95,7 +51,6 @@ namespace backend.Migrations
 
                     b.HasIndex("ResidentId");
 
-                    b.ToTable("Complaints");
                     b.ToTable("ComplianceViolations");
                 });
 
@@ -291,25 +246,6 @@ namespace backend.Migrations
                     b.ToTable("Zones");
                 });
 
-            modelBuilder.Entity("backend.Models.ApprovalRequest", b =>
-                {
-                    b.HasOne("backend.Models.PickupRequest", "PickupRequest")
-                        .WithMany()
-                        .HasForeignKey("PickupRequestId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("backend.Models.Profile", "ReviewedByAdmin")
-                        .WithMany()
-                        .HasForeignKey("ReviewedByAdminId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("PickupRequest");
-
-                    b.Navigation("ReviewedByAdmin");
-                });
-
-            modelBuilder.Entity("backend.Models.Complaint", b =>
             modelBuilder.Entity("backend.Models.ComplianceViolation", b =>
                 {
                     b.HasOne("backend.Models.PickupRequest", "PickupRequest")
