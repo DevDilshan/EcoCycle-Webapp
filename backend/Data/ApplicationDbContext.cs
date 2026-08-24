@@ -12,6 +12,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Zone> Zones => Set<Zone>();
     public DbSet<RouteAssignment> RouteAssignments => Set<RouteAssignment>();
+    public DbSet<RewardPoint> RewardPoints => Set<RewardPoint>();
+    public DbSet<ComplianceViolation> ComplianceViolations => Set<ComplianceViolation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +50,30 @@ public class ApplicationDbContext : DbContext
             .HasOne(r => r.Zone)
             .WithMany()
             .HasForeignKey(r => r.ZoneId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RewardPoint>()
+            .HasOne(r => r.Resident)
+            .WithMany()
+            .HasForeignKey(r => r.ResidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RewardPoint>()
+            .HasOne(r => r.PickupRequest)
+            .WithMany()
+            .HasForeignKey(r => r.PickupRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ComplianceViolation>()
+            .HasOne(v => v.Resident)
+            .WithMany()
+            .HasForeignKey(v => v.ResidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ComplianceViolation>()
+            .HasOne(v => v.PickupRequest)
+            .WithMany()
+            .HasForeignKey(v => v.PickupRequestId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
