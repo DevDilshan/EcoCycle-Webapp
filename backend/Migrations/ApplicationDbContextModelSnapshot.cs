@@ -23,7 +23,6 @@ namespace backend.Migrations
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("backend.Models.ApprovalRequest", b =>
-            modelBuilder.Entity("backend.Models.ComplianceViolation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -84,6 +83,31 @@ namespace backend.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PickupRequestId");
+
+                    b.HasIndex("ResidentId");
+
+                    b.ToTable("Complaints");
+                });
+
+            modelBuilder.Entity("backend.Models.ComplianceViolation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PickupRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ResidentId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("RuleViolated")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -95,7 +119,6 @@ namespace backend.Migrations
 
                     b.HasIndex("ResidentId");
 
-                    b.ToTable("Complaints");
                     b.ToTable("ComplianceViolations");
                 });
 
@@ -310,6 +333,24 @@ namespace backend.Migrations
                 });
 
             modelBuilder.Entity("backend.Models.Complaint", b =>
+                {
+                    b.HasOne("backend.Models.PickupRequest", "PickupRequest")
+                        .WithMany()
+                        .HasForeignKey("PickupRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.Profile", "Resident")
+                        .WithMany()
+                        .HasForeignKey("ResidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PickupRequest");
+
+                    b.Navigation("Resident");
+                });
+
             modelBuilder.Entity("backend.Models.ComplianceViolation", b =>
                 {
                     b.HasOne("backend.Models.PickupRequest", "PickupRequest")
