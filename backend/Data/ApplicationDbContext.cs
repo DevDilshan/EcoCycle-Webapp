@@ -16,6 +16,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
     public DbSet<RewardPoint> RewardPoints => Set<RewardPoint>();
     public DbSet<ComplianceViolation> ComplianceViolations => Set<ComplianceViolation>();
+    public DbSet<WasteClassification> WasteClassifications => Set<WasteClassification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -104,5 +105,12 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(v => v.PickupRequestId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WasteClassification>()
+              .HasOne(w => w.PickupRequest)
+              .WithMany()
+              .HasForeignKey(w => w.PickupRequestId)
+              .OnDelete(DeleteBehavior.Cascade);
+
     }
 }
