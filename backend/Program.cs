@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using backend.Data;
+using backend.Services;
 
 LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"));
@@ -18,6 +19,10 @@ var connectionStringSupabase = Environment.GetEnvironmentVariable("SUPABASE_CONN
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionStringSupabase));
 
+builder.Services.AddScoped<ZoneService>();
+builder.Services.AddScoped<RouteAssignmentService>();
+
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -130,6 +135,8 @@ app.MapGet("/api/me", (ClaimsPrincipal user) =>
 
 app.MapGet("/api/admin", () => Results.Ok(new { message = "Admin access granted" }))
     .RequireAuthorization("Admin");
+
+app.MapControllers();
 
 app.Run();
 
