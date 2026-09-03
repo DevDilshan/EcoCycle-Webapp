@@ -24,7 +24,37 @@ builder.Services.AddScoped<RouteAssignmentService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+builder.Services.AddSwaggerGen(options =>
+{
+    var scheme = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Paste ONLY the JWT (no 'Bearer ' prefix).",
+        Reference = new Microsoft.OpenApi.Models.OpenApiReference
+        {
+            Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+            Id = "Bearer"
+        }
+    };
+    options.AddSecurityDefinition("Bearer", scheme);
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        { scheme, Array.Empty<string>() }
+    });
+});
+
+builder.Services.AddControllers();
+
+// Pickup requests
+builder.Services.AddScoped<backend.Services.IPickupRequestService, backend.Services.PickupRequestService>();
+
+// Recycling rewards
+builder.Services.AddScoped<backend.Services.IRewardService, backend.Services.RewardService>();
 
 builder.Services.AddCors(options =>
 {
@@ -62,9 +92,29 @@ if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(jwtSecre
         "(or Supabase:Url and Supabase:JwtSecret in appsettings.Development.json).");
 }
 
+// Collect the keys we'll accept: legacy HS256 secret + Supabase's asymmetric (ES256) public keys
+var signingKeys = new List<SecurityKey>
+{
+    new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)) // legacy HS256 / service tokens
+};
+
+var jwksUrl = $"{supabaseUrl.TrimEnd('/')}/auth/v1/.well-known/jwks.json";
+try
+{
+    using var http = new HttpClient();
+    var jwksJson = http.GetStringAsync(jwksUrl).GetAwaiter().GetResult();
+    foreach (var key in new JsonWebKeySet(jwksJson).GetSigningKeys())
+        signingKeys.Add(key); // ES256 public keys
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[WARN] Could not load Supabase JWKS from {jwksUrl}: {ex.Message}");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -72,7 +122,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidAudience = "authenticated",
             ValidateLifetime = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            IssuerSigningKeys = signingKeys,
         };
 
         options.Events = new JwtBearerEvents
