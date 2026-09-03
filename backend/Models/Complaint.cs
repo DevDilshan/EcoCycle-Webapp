@@ -37,5 +37,8 @@ public class Complaint
 
     public DateTime? ResolvedAt { get; set; }
 
+    [MaxLength(2000)]
+    public string? AdminNotes { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

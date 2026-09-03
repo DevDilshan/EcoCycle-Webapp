@@ -51,6 +51,10 @@ builder.Services.AddScoped<backend.Services.IPickupRequestService, backend.Servi
 // Recycling rewards
 builder.Services.AddScoped<backend.Services.IRewardService, backend.Services.RewardService>();
 
+// Complaints & approvals
+builder.Services.AddScoped<backend.Services.IComplaintService, backend.Services.ComplaintService>();
+builder.Services.AddScoped<backend.Services.IApprovalService, backend.Services.ApprovalService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
