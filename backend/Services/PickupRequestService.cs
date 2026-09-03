@@ -18,7 +18,8 @@ public class PickupRequestService : IPickupRequestService
             ResidentId = residentId,
             PhotoUrl = dto.PhotoUrl,
             Description = dto.Description,
-            PreferredDate = dto.PreferredDate,
+            // Npgsql 8 requires Kind=Utc for timestamptz columns; treat offset-less input as UTC, convert the rest
+            PreferredDate = dto.PreferredDate.Kind == DateTimeKind.Unspecified? DateTime.SpecifyKind(dto.PreferredDate, DateTimeKind.Utc): dto.PreferredDate.ToUniversalTime(),
             IsRecurring = dto.IsRecurring,
             RecurrenceInterval = dto.RecurrenceInterval,
             Status = PickupStatus.Pending
@@ -100,7 +101,8 @@ public class PickupRequestService : IPickupRequestService
 
         entity.PhotoUrl = dto.PhotoUrl;
         entity.Description = dto.Description;
-        entity.PreferredDate = dto.PreferredDate;
+        // Npgsql 8 requires Kind=Utc for timestamptz columns; treat offset-less input as UTC, convert the rest
+        entity.PreferredDate = dto.PreferredDate.Kind == DateTimeKind.Unspecified? DateTime.SpecifyKind(dto.PreferredDate, DateTimeKind.Utc): dto.PreferredDate.ToUniversalTime();
         entity.IsRecurring = dto.IsRecurring;
         entity.RecurrenceInterval = dto.RecurrenceInterval;
 
