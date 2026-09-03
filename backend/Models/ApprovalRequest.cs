@@ -37,5 +37,8 @@ public class ApprovalRequest
 
     public DateTime? ReviewedAt { get; set; }
 
+    [MaxLength(2000)]
+    public string? ReviewNotes { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -1,14 +1,77 @@
 @backend_HostAddress = http://localhost:5000
-@token = your-supabase-access-token
+@residentToken = your-resident-supabase-access-token
+@adminToken = your-admin-supabase-access-token
+@complaintId = 00000000-0000-0000-0000-000000000001
+@approvalId = 00000000-0000-0000-0000-000000000002
+@pickupRequestId = 00000000-0000-0000-0000-000000000003
 
 GET {{backend_HostAddress}}/api/health
 
 ###
 
 GET {{backend_HostAddress}}/api/me
-Authorization: Bearer {{token}}
+Authorization: Bearer {{residentToken}}
 
 ###
 
-GET {{backend_HostAddress}}/api/admin
-Authorization: Bearer {{token}}
+# Complaints — resident files a complaint
+POST {{backend_HostAddress}}/api/complaints
+Authorization: Bearer {{residentToken}}
+Content-Type: application/json
+
+{
+  "pickupRequestId": "{{pickupRequestId}}",
+  "description": "Collector missed the scheduled pickup."
+}
+
+###
+
+# Complaints — admin list (filter/sort/pagination)
+GET {{backend_HostAddress}}/api/complaints?status=Open&sortBy=createdAt&sortDir=desc&page=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+
+###
+
+# Complaints — view one (admin or owning resident)
+GET {{backend_HostAddress}}/api/complaints/{{complaintId}}
+Authorization: Bearer {{adminToken}}
+
+###
+
+# Complaints — admin update status/notes
+PUT {{backend_HostAddress}}/api/complaints/{{complaintId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "InProgress",
+  "adminNotes": "Investigating with the collector."
+}
+
+###
+
+# Complaints — admin delete
+DELETE {{backend_HostAddress}}/api/complaints/{{complaintId}}
+Authorization: Bearer {{adminToken}}
+
+###
+
+# Approvals — admin approve flagged request
+POST {{backend_HostAddress}}/api/approvals/{{approvalId}}/approve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "notes": "Verified and approved."
+}
+
+###
+
+# Approvals — admin reject with reason
+POST {{backend_HostAddress}}/api/approvals/{{approvalId}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Photo does not show recyclable waste."
+}
