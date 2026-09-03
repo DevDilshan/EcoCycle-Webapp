@@ -48,6 +48,9 @@ builder.Services.AddControllers();
 // Pickup requests
 builder.Services.AddScoped<backend.Services.IPickupRequestService, backend.Services.PickupRequestService>();
 
+// Recycling rewards
+builder.Services.AddScoped<backend.Services.IRewardService, backend.Services.RewardService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
