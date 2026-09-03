@@ -18,8 +18,7 @@ public class PickupRequestService : IPickupRequestService
             ResidentId = residentId,
             PhotoUrl = dto.PhotoUrl,
             Description = dto.Description,
-            // Npgsql 8 requires Kind=Utc for timestamptz columns; treat offset-less input as UTC, convert the rest
-            PreferredDate = dto.PreferredDate.Kind == DateTimeKind.Unspecified? DateTime.SpecifyKind(dto.PreferredDate, DateTimeKind.Utc): dto.PreferredDate.ToUniversalTime(),
+            PreferredDate = NormalizeToUtc(dto.PreferredDate),
             IsRecurring = dto.IsRecurring,
             RecurrenceInterval = dto.RecurrenceInterval,
             Status = PickupStatus.Pending
@@ -40,12 +39,17 @@ public class PickupRequestService : IPickupRequestService
             q = q.Where(p => p.ResidentId == residentId);
 
         // Filtering
-        if (query.Status.HasValue)
-            q = q.Where(p => p.Status == query.Status.Value);
-        if (query.FromDate.HasValue)
-            q = q.Where(p => p.PreferredDate >= query.FromDate.Value);
-        if (query.ToDate.HasValue)
-            q = q.Where(p => p.PreferredDate <= query.ToDate.Value);
+        if (query.FromDate.HasValue) {
+        
+            var from = NormalizeToUtc(query.FromDate.Value);
+            q = q.Where(p => p.PreferredDate >= from);
+        }
+        if (query.ToDate.HasValue){
+        
+            var to = NormalizeToUtc(query.ToDate.Value);
+            q = q.Where(p => p.PreferredDate <= to);
+        }
+
 
         // Sorting
         bool desc = string.Equals(query.SortDir, "desc", StringComparison.OrdinalIgnoreCase);
@@ -101,8 +105,7 @@ public class PickupRequestService : IPickupRequestService
 
         entity.PhotoUrl = dto.PhotoUrl;
         entity.Description = dto.Description;
-        // Npgsql 8 requires Kind=Utc for timestamptz columns; treat offset-less input as UTC, convert the rest
-        entity.PreferredDate = dto.PreferredDate.Kind == DateTimeKind.Unspecified? DateTime.SpecifyKind(dto.PreferredDate, DateTimeKind.Utc): dto.PreferredDate.ToUniversalTime();
+        entity.PreferredDate = NormalizeToUtc(dto.PreferredDate);
         entity.IsRecurring = dto.IsRecurring;
         entity.RecurrenceInterval = dto.RecurrenceInterval;
 
@@ -122,6 +125,11 @@ public class PickupRequestService : IPickupRequestService
         return PickupOperationResult.Success;
     }
 
+    // Npgsql 8 requires Kind=Utc for timestamptz; treat offset-less input as UTC, convert the rest
+    private static DateTime NormalizeToUtc(DateTime value) =>
+        value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            : value.ToUniversalTime();
     private static PickupRequestResponseDto ToDto(PickupRequest p) => new()
     {
         Id = p.Id,

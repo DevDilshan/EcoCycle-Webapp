@@ -73,6 +73,9 @@ private Guid CurrentUserId
     [Authorize(Roles = "resident")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePickupRequestDto dto)
     {
+        if (dto.PreferredDate.Date < DateTime.UtcNow.Date)
+            return BadRequest(new { message = "PreferredDate cannot be in the past." });
+            
         try
         {
             var updated = await _service.UpdateAsync(id, CurrentUserId, IsAdmin, dto);
