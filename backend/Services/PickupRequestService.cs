@@ -39,6 +39,11 @@ public class PickupRequestService : IPickupRequestService
             q = q.Where(p => p.ResidentId == residentId);
 
         // Filtering
+        if (query.Status.HasValue)
+        {
+            q = q.Where(p => p.Status == query.Status.Value);
+        }
+
         if (query.FromDate.HasValue) {
         
             var from = NormalizeToUtc(query.FromDate.Value);
