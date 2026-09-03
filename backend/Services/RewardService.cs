@@ -195,8 +195,8 @@ public class RewardService : IRewardService
         Guid residentId,
         RedeemRewardPointsDto dto)
     {
-        ValidateIds(residentId, dto.PickupRequestId);
-        await EnsurePickupBelongsToResidentAsync(dto.PickupRequestId, residentId);
+        if (residentId == Guid.Empty)
+            throw new ArgumentException("ResidentId is required.");
 
         var balance = await _db.RewardPoints
             .Where(r => r.ResidentId == residentId)
@@ -208,7 +208,7 @@ public class RewardService : IRewardService
         var redemption = new RewardPoint
         {
             ResidentId = residentId,
-            PickupRequestId = dto.PickupRequestId,
+            PickupRequestId = null, // a redemption isn't tied to a pickup
             PointsEarned = -dto.Points,
             Reason = $"Redemption: {RequireReason(dto.Reason)}",
             CreatedAt = DateTime.UtcNow

@@ -29,9 +29,6 @@ public class UpdateRewardPointDto
 
 public class RedeemRewardPointsDto
 {
-    [Required]
-    public Guid PickupRequestId { get; set; }
-
     [Range(1, int.MaxValue)]
     public int Points { get; set; }
 
@@ -44,7 +41,7 @@ public class RewardPointResponseDto
 {
     public Guid Id { get; set; }
     public Guid ResidentId { get; set; }
-    public Guid PickupRequestId { get; set; }
+    public Guid? PickupRequestId { get; set; }   // null for redemptions
     public int PointsEarned { get; set; }
     public string Reason { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }

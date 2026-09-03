@@ -15,8 +15,9 @@ public class RewardPoint
     [ForeignKey(nameof(ResidentId))]
     public Profile? Resident { get; set; }
 
-    [Required]
-    public Guid PickupRequestId { get; set; }
+    // Null for redemptions: spending points isn't tied to any one pickup.
+    // Awards always set this - enforced on the award DTO, not in the schema.
+    public Guid? PickupRequestId { get; set; }
 
     [ForeignKey(nameof(PickupRequestId))]
     public PickupRequest? PickupRequest { get; set; }
