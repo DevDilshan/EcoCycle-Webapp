@@ -62,4 +62,24 @@ public class RoutesController : ControllerBase
         var report = await _routeService.GetLoadReportAsync();
         return Ok(report);
     }
+
+    [HttpPost("assign/{pickupRequestId:guid}")]
+    [Authorize(Roles = "admin,collector")]
+    [ProducesResponseType(typeof(RouteAssignmentDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<RouteAssignmentDto>> AssignPickupToRoute(Guid pickupRequestId)
+    {
+        try
+        {
+            var route = await _routeService.AssignPickupToRouteAsync(pickupRequestId);
+            return route is null
+                ? NotFound(new { message = "Pickup request not found." })
+                : CreatedAtAction(nameof(GetTodayRoute), new { collectorId = route.CollectorId }, route);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
