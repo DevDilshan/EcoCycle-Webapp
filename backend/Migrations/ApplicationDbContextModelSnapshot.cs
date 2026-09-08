@@ -39,15 +39,15 @@ namespace backend.Migrations
                     b.Property<Guid>("PickupRequestId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<DateTime?>("ReviewedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ReviewedByAdminId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("ReviewNotes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -454,7 +454,7 @@ namespace backend.Migrations
                     b.HasOne("backend.Models.Zone", "Zone")
                         .WithMany()
                         .HasForeignKey("ZoneId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Collector");
