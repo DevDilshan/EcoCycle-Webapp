@@ -97,6 +97,38 @@ public class RouteAssignmentService
             .ToListAsync();
     }
 
+    public async Task<RouteAssignmentDto?> AssignPickupToRouteAsync(Guid pickupRequestId)
+    {
+        var pickupExists = await _context.PickupRequests
+            .AnyAsync(p => p.Id == pickupRequestId);
+        if (!pickupExists)
+        {
+            return null;
+        }
+
+        var zone = await _context.Zones
+            .FirstOrDefaultAsync(z => z.IsActive && z.AssignedCollectorId != null);
+        if (zone is null)
+        {
+            throw new InvalidOperationException("No active zone with an assigned collector is available.");
+        }
+
+        var route = new RouteAssignment
+        {
+            PickupRequestId = pickupRequestId,
+            ZoneId = zone.Id,
+            CollectorId = zone.AssignedCollectorId!.Value,
+            ScheduledDate = DateTime.UtcNow.Date.AddDays(1),
+            CompletionStatus = RouteCompletionStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.RouteAssignments.Add(route);
+        await _context.SaveChangesAsync();
+
+        return MapToDto(route);
+    }
+
     private static RouteAssignmentDto MapToDto(RouteAssignment route) => new()
     {
         Id = route.Id,
