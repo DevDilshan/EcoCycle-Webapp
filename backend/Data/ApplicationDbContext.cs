@@ -53,7 +53,7 @@ public class ApplicationDbContext : DbContext
             .HasOne(r => r.Zone)
             .WithMany()
             .HasForeignKey(r => r.ZoneId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Complaint>()
             .HasOne(c => c.Resident)
