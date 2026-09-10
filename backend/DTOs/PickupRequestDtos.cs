@@ -53,3 +53,12 @@ public class PickupStatusDto
     public Guid Id { get; set; }
     public string Status { get; set; } = string.Empty;
 }
+
+// Returned by POST /api/pickuprequests/{id}/classify
+public class ClassifyResponseDto
+{
+    public Guid PickupRequestId { get; set; }
+    public string Category { get; set; } = string.Empty;   // e.g. "Recyclable"
+    public double Confidence { get; set; }
+    public string Status { get; set; } = string.Empty;     // new pickup status, e.g. "Classified"
+}
