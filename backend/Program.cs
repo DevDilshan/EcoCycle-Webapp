@@ -60,6 +60,9 @@ builder.Services.AddScoped<backend.Services.IRewardService, backend.Services.Rew
 builder.Services.AddScoped<backend.Services.IComplaintService, backend.Services.ComplaintService>();
 builder.Services.AddScoped<backend.Services.IApprovalService, backend.Services.ApprovalService>();
 
+// Compliance & classification (Student 3 rules → auto-create approval tasks)
+builder.Services.AddScoped<backend.Services.IComplianceService, backend.Services.ComplianceService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>

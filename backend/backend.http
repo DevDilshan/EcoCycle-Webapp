@@ -56,6 +56,32 @@ Authorization: Bearer {{adminToken}}
 
 ###
 
+# Classify pickup (fake flagged input) — triggers compliance rules + auto-creates ApprovalRequest
+POST {{backend_HostAddress}}/api/pickuprequests/{{pickupRequestId}}/classify
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "category": "Hazardous",
+  "confidence": 0.45,
+  "reasoning": "Image shows mixed batteries and organic waste — possible contamination"
+}
+
+###
+
+# Classify pickup (clean input) — no approval task created, pickup auto-approved
+POST {{backend_HostAddress}}/api/pickuprequests/{{pickupRequestId}}/classify
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "category": "Recyclable",
+  "confidence": 0.92,
+  "reasoning": "Clear plastic bottles and cardboard only"
+}
+
+###
+
 # Approvals — admin approve flagged request
 POST {{backend_HostAddress}}/api/approvals/{{approvalId}}/approve
 Authorization: Bearer {{adminToken}}
