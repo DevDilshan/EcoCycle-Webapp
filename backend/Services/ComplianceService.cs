@@ -23,24 +23,28 @@ public class ComplianceService : IComplianceService
         var classification = new WasteClassification
         {
             PickupRequestId = pickup.Id,
-            Category = dto.Category,
-            Confidence = dto.Confidence,
+            // [Required] + [ApiController] reject a missing category/confidence before we get here.
+            Category = dto.Category!.Value,
+            Confidence = dto.Confidence!.Value,
             Reasoning = dto.Reasoning.Trim()
         };
         _db.WasteClassifications.Add(classification);
 
         pickup.Status = PickupStatus.Classified;
 
-        var violations = ComplianceRules.Evaluate(dto.Category, dto.Confidence, dto.Reasoning);
+        var findings = ComplianceRules.Evaluate(classification.Category, classification.Confidence, dto.Reasoning);
+        var violations = findings.Select(f => f.Message).ToList();
         ApprovalRequest? approval = null;
 
-        foreach (var rule in violations)
+        // Every finding goes to admin review, but only the ones the resident caused
+        // go on their compliance record.
+        foreach (var finding in findings.Where(f => f.ChargedToResident))
         {
             _db.ComplianceViolations.Add(new ComplianceViolation
             {
                 ResidentId = pickup.ResidentId,
                 PickupRequestId = pickup.Id,
-                RuleViolated = rule
+                RuleViolated = finding.Message
             });
         }
 

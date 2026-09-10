@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using backend.Models;
 
 namespace backend.DTOs;
@@ -8,12 +9,14 @@ namespace backend.DTOs;
 /// </summary>
 public class ClassifyPickupRequestDto
 {
+    // Accepts "Hazardous" or 2. Nullable so [Required] actually rejects a missing value.
     [Required]
-    public WasteCategory Category { get; set; }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public WasteCategory? Category { get; set; }
 
     [Required]
     [Range(0, 1)]
-    public double Confidence { get; set; }
+    public double? Confidence { get; set; }
 
     [Required]
     [MaxLength(2000)]

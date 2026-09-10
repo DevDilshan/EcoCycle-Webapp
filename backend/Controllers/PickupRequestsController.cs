@@ -130,8 +130,9 @@ private Guid CurrentUserId
         };
     }
 
-    // POST /api/pickuprequests/{id}/classify — simulate AI classification + compliance flagging
-    [HttpPost("{id:guid}/classify")]
+    // POST /api/pickuprequests/{id}/classify-evaluate — simulate AI classification + compliance flagging
+    // (/classify itself is the Student 1 stub above; two actions on one route break Swagger and routing)
+    [HttpPost("{id:guid}/classify-evaluate")]
     [Authorize(Roles = "admin,collector")]
     public async Task<IActionResult> Classify(Guid id, [FromBody] ClassifyPickupRequestDto dto)
     {

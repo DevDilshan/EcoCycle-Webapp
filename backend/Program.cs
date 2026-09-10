@@ -55,6 +55,7 @@ builder.Services.AddScoped<backend.Services.IPickupRequestService, backend.Servi
 
 // Recycling rewards
 builder.Services.AddScoped<backend.Services.IRewardService, backend.Services.RewardService>();
+builder.Services.AddScoped<backend.Services.IValidationService, backend.Services.ValidationService>();
 
 // Complaints & approvals
 builder.Services.AddScoped<backend.Services.IComplaintService, backend.Services.ComplaintService>();
