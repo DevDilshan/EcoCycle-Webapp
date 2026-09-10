@@ -130,6 +130,39 @@ public class PickupRequestService : IPickupRequestService
         return PickupOperationResult.Success;
     }
 
+    public async Task<ClassifyResponseDto?> ClassifyAsync(Guid id) {
+
+        var entity = await _db.PickupRequests.FirstOrDefaultAsync(p => p.Id == id);
+        if (entity is null) return null;
+
+        // Status-flow guard: only a Pending request can be classified
+        if (entity.Status != PickupStatus.Pending)
+            throw new InvalidOperationException("Only pending requests can be classified.");
+
+        // --- STUB: always Recyclable. Swap for a real classifier later. ---
+        var category = WasteCategory.Recyclable;
+
+        _db.WasteClassifications.Add(new WasteClassification
+        {
+            PickupRequestId = entity.Id,
+            Category = category,
+            Confidence = 1.0,                                   // stub confidence
+            Reasoning = "Stub classification — manually set to Recyclable."
+        });
+
+        entity.Status = PickupStatus.Classified;               // Pending -> Classified
+
+        await _db.SaveChangesAsync();
+
+        return new ClassifyResponseDto
+        {
+            PickupRequestId = entity.Id,
+            Category = category.ToString(),
+            Confidence = 1.0,
+            Status = entity.Status.ToString()
+        };
+    }
+
     // Npgsql 8 requires Kind=Utc for timestamptz; treat offset-less input as UTC, convert the rest
     private static DateTime NormalizeToUtc(DateTime value) =>
         value.Kind == DateTimeKind.Unspecified

@@ -19,6 +19,10 @@ public interface IPickupRequestService
         Guid id, Guid residentId, bool isAdmin, UpdatePickupRequestDto dto);
 
     Task<PickupOperationResult> DeleteAsync(Guid id, Guid residentId, bool isAdmin);
+
+    // Stub classifier: sets a category and moves Pending -> Classified.
+    // null = not found; throws InvalidOperationException if not Pending.
+    Task<ClassifyResponseDto?> ClassifyAsync(Guid id);
 }
 
 public enum PickupOperationResult

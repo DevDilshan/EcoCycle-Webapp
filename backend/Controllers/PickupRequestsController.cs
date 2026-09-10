@@ -48,6 +48,22 @@ private Guid CurrentUserId
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
+    // POST /api/pickuprequests/{id}/classify — stub classifier: sets category + moves Pending -> Classified
+    [HttpPost("{id:guid}/classify")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> Classify(Guid id)
+    {
+        try
+        {
+            var result = await _service.ClassifyAsync(id);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message }); // 409: not in Pending state
+        }
+    }
+
     // GET /api/pickuprequests  — admin sees all, resident sees own (filter/sort/paging)
     [HttpGet]
     [Authorize(Roles = "admin,resident")]
