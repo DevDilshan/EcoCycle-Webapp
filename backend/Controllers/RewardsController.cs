@@ -12,8 +12,13 @@ namespace backend.Controllers;
 public class RewardsController : ControllerBase
 {
     private readonly IRewardService _service;
+    private readonly IValidationService _validation;
 
-    public RewardsController(IRewardService service) => _service = service;
+    public RewardsController(IRewardService service, IValidationService validation)
+    {
+        _service = service;
+        _validation = validation;
+    }
 
     private Guid CurrentUserId
     {
@@ -125,6 +130,22 @@ public class RewardsController : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    // POST /api/rewards/validate/{pickupRequestId} - run the Student 3 rules on a classified pickup.
+    [HttpPost("validate/{pickupRequestId:guid}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> Validate(Guid pickupRequestId)
+    {
+        try
+        {
+            var result = await _validation.ValidateAsync(pickupRequestId);
+            return result is null ? NotFound() : Ok(result);
         }
         catch (InvalidOperationException ex)
         {

@@ -33,6 +33,8 @@ frontend/dist-ssr/
 backend/bin/
 backend/obj/
 backend/.vs/
+backend.Tests/bin/
+backend.Tests/obj/
 *.user
 *.suo
 *.userosscache
@@ -41,3 +43,71 @@ backend/.vs/
 # Build / publish output
 publish/
 *.nupkg
+
+# ---------------------------------------------------------------------------
+# AI coding assistants - all local state, caches AND instruction/config files
+# ---------------------------------------------------------------------------
+
+# Instruction / rules files
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+AGENT.md
+GEMINI.md
+QWEN.md
+.cursorrules
+.clinerules
+.windsurfrules
+.aiderignore
+.cursorignore
+.roomodes
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+
+# MCP server config
+.mcp.json
+mcp.json
+
+# Claude Code
+.claude/
+.claude.json
+.claude.json.backup
+
+# OpenAI Codex
+.codex/
+codex.md
+
+# Cursor
+.cursor/
+
+# Aider
+.aider*
+.aider.tags.cache.v*/
+
+# Windsurf / Codeium
+.windsurf/
+.codeium/
+
+# Cline / Roo Code
+.cline/
+.roo/
+
+# Continue
+.continue/
+.continuerc.json
+
+# Gemini CLI
+.gemini/
+
+# Zed AI
+.zed/
+
+# SpecStory / chat transcript exports
+.specstory/
+
+# Generic AI scratch, prompt and context dumps
+.ai/
+ai-scratch/
+*.prompt.local
+*.local.md

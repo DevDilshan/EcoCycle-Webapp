@@ -57,7 +57,7 @@ Authorization: Bearer {{adminToken}}
 ###
 
 # Classify pickup (fake flagged input) — triggers compliance rules + auto-creates ApprovalRequest
-POST {{backend_HostAddress}}/api/pickuprequests/{{pickupRequestId}}/classify
+POST {{backend_HostAddress}}/api/pickuprequests/{{pickupRequestId}}/classify-evaluate
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -70,7 +70,7 @@ Content-Type: application/json
 ###
 
 # Classify pickup (clean input) — no approval task created, pickup auto-approved
-POST {{backend_HostAddress}}/api/pickuprequests/{{pickupRequestId}}/classify
+POST {{backend_HostAddress}}/api/pickuprequests/{{pickupRequestId}}/classify-evaluate
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -101,3 +101,11 @@ Content-Type: application/json
 {
   "reason": "Photo does not show recyclable waste."
 }
+
+###
+
+# Validate a classified pickup against the Student 3 rules (run after /assign)
+POST {{backend_HostAddress}}/api/rewards/validate/{{pickupRequestId}}
+Authorization: Bearer {{adminToken}}
+
+###
