@@ -12,8 +12,15 @@ namespace backend.Controllers;
 public class PickupRequestsController : ControllerBase
 {
     private readonly IPickupRequestService _service;
+    private readonly IComplianceService _complianceService;
 
-    public PickupRequestsController(IPickupRequestService service) => _service = service;
+    public PickupRequestsController(
+        IPickupRequestService service,
+        IComplianceService complianceService)
+    {
+        _service = service;
+        _complianceService = complianceService;
+    }
 
    // "sub" gets remapped to NameIdentifier by default; check both to be safe
 private Guid CurrentUserId
@@ -105,5 +112,25 @@ private Guid CurrentUserId
             PickupOperationResult.NotEditable => Conflict(new { message = "Only pending requests can be cancelled." }),
             _ => StatusCode(500)
         };
+    }
+
+    // POST /api/pickuprequests/{id}/classify — simulate AI classification + compliance flagging
+    [HttpPost("{id:guid}/classify")]
+    [Authorize(Roles = "admin,collector")]
+    public async Task<IActionResult> Classify(Guid id, [FromBody] ClassifyPickupRequestDto dto)
+    {
+        try
+        {
+            var result = await _complianceService.ClassifyAndEvaluateAsync(id, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 }
