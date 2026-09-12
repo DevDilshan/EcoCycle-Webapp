@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using backend.Models;
 
 namespace backend.DTOs;
@@ -15,7 +16,7 @@ public class CreateComplaintDto
 
 public class UpdateComplaintDto
 {
-    [Required]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public ComplaintStatus Status { get; set; }
 
     [MaxLength(2000)]
