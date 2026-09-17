@@ -9,7 +9,8 @@ using System.ComponentModel.DataAnnotations;
       Recyclable,
       Hazardous,
       EWaste,
-      General
+      General,
+      Bulk
   }
 
   [Table("WasteClassifications")]
