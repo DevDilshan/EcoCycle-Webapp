@@ -77,9 +77,21 @@ public class ValidationServiceTests
     }
 
     [Fact]
-    public async Task Second_bulk_pickup_this_month_is_flagged()
+    public async Task Second_bulk_pickup_this_month_is_allowed()
     {
         AddPickup(_resident, StartOfThisMonth.AddMinutes(10), RewardRules.BulkCategory);
+        var current = AddPickup(_resident, StartOfThisMonth.AddMinutes(20), RewardRules.BulkCategory);
+
+        var result = await Service.ValidateAsync(current.Id);
+
+        Assert.True(result!.IsValid);
+    }
+
+    [Fact]
+    public async Task Third_bulk_pickup_this_month_is_flagged()
+    {
+        AddPickup(_resident, StartOfThisMonth.AddMinutes(10), RewardRules.BulkCategory);
+        AddPickup(_resident, StartOfThisMonth.AddMinutes(15), RewardRules.BulkCategory);
         var current = AddPickup(_resident, StartOfThisMonth.AddMinutes(20), RewardRules.BulkCategory);
 
         var result = await Service.ValidateAsync(current.Id);
@@ -88,9 +100,10 @@ public class ValidationServiceTests
     }
 
     [Fact]
-    public async Task Bulk_pickup_from_last_month_does_not_count()
+    public async Task Bulk_pickups_from_last_month_do_not_count()
     {
         AddPickup(_resident, StartOfThisMonth.AddDays(-3), RewardRules.BulkCategory);
+        AddPickup(_resident, StartOfThisMonth.AddDays(-2), RewardRules.BulkCategory);
         var current = AddPickup(_resident, StartOfThisMonth.AddMinutes(20), RewardRules.BulkCategory);
 
         var result = await Service.ValidateAsync(current.Id);
@@ -102,6 +115,7 @@ public class ValidationServiceTests
     public async Task Another_residents_bulk_pickups_do_not_count()
     {
         AddPickup(Guid.NewGuid(), StartOfThisMonth.AddMinutes(10), RewardRules.BulkCategory);
+        AddPickup(Guid.NewGuid(), StartOfThisMonth.AddMinutes(15), RewardRules.BulkCategory);
         var current = AddPickup(_resident, StartOfThisMonth.AddMinutes(20), RewardRules.BulkCategory);
 
         var result = await Service.ValidateAsync(current.Id);
@@ -112,8 +126,9 @@ public class ValidationServiceTests
     [Fact]
     public async Task Pickup_classified_twice_counts_as_one_bulk_pickup()
     {
-        var current = AddPickup(_resident, StartOfThisMonth.AddMinutes(20),
+        AddPickup(_resident, StartOfThisMonth.AddMinutes(10),
             RewardRules.BulkCategory, RewardRules.BulkCategory);
+        var current = AddPickup(_resident, StartOfThisMonth.AddMinutes(20), RewardRules.BulkCategory);
 
         var result = await Service.ValidateAsync(current.Id);
 
