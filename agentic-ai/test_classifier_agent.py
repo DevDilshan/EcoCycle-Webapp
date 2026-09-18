@@ -8,10 +8,11 @@ Replace PHOTO_URL with a real, public image URL (e.g. a Supabase Storage URL)
 to test Gemini. With the placeholder URL below, the image fetch fails on
 purpose, so you'll see the graceful fallback (image_used = False).
 """
-
+import logging
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 from agents.classifier_agent import classify_waste
 
-PHOTO_URL = "https://example.com/pickups/old-fridge.jpg"  # replace with a real URL
+PHOTO_URL = "https://upload.wikimedia.org/wikipedia/commons/8/89/Refrigerator.jpg"  # replace with a real URL
 DESCRIPTION = "An old broken refrigerator, about 1.7 metres tall, that no longer works."
 RUNS = 3
 
