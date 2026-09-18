@@ -5,19 +5,28 @@ The local Ollama model is text-only, so when we want the system to actually
 description of what is in it. That description is then fed to the local
 Classifier model as extra evidence.
 
-This module is deliberately fail-soft: describe_image returns None (never
-raises) whenever the key is missing, the SDK is absent, the network is down,
-the photo cannot be fetched, or Gemini errors -- so the caller can fall back to
-description-only classification instead of the whole pipeline crashing.
+Fail-soft by design: describe_image returns None (never raises) on any failure,
+so the caller can fall back to description-only classification. But every
+failure is now LOGGED (at WARNING) rather than swallowed silently, so a
+misconfigured key or an unavailable model is visible instead of mysterious.
 """
 
+import logging
 import os
 from typing import Optional, Tuple
 
 import requests
 
-GEMINI_MODEL = "gemini-2.5-flash"
+logger = logging.getLogger(__name__)
+
+# Read the model from the environment so we are not hard-locked to one that
+# Google may gate or retire. gemini-2.5-flash is unavailable to new API keys;
+# gemini-3.5-flash is the current working default.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+
 IMAGE_FETCH_TIMEOUT_SECONDS = 30
+# Some image hosts reject the default python-requests UA.
+IMAGE_FETCH_HEADERS = {"User-Agent": "EcoCycle-Classifier/1.0 (waste-pickup classifier)"}
 
 _DESCRIBE_PROMPT = (
     "You are helping a waste-management system. Look at this photo and describe "
@@ -30,17 +39,19 @@ _DESCRIBE_PROMPT = (
 def describe_image(photo_url: str) -> Optional[str]:
     """Return a short description of the waste in `photo_url`, or None on failure.
 
-    Every failure mode collapses to None so the classifier can fall back to the
-    resident's text description. Nothing here raises.
+    Never raises. Every failure path logs why it fell back.
     """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
+        # Not an error -- just not configured. Info, not warning.
+        logger.info("GEMINI_API_KEY not set; skipping image recognition.")
         return None
 
     try:
         image_bytes, mime_type = _fetch_image(photo_url)
-    except Exception:
-        return None  # unreachable URL, timeout, non-image, etc.
+    except Exception as error:
+        logger.warning("Could not fetch image %s: %s", photo_url, error)
+        return None
 
     try:
         from google import genai
@@ -55,20 +66,29 @@ def describe_image(photo_url: str) -> Optional[str]:
             ],
         )
         description = (response.text or "").strip()
-        return description or None
-    except Exception:
-        # Missing SDK, bad key, quota, network, safety block -- all non-fatal.
+        if not description:
+            logger.warning("Gemini (%s) returned an empty description.", GEMINI_MODEL)
+            return None
+        return description
+    except Exception as error:
+        # Missing SDK, bad key, unavailable model (404), quota, safety block...
+        logger.warning(
+            "Gemini image recognition failed (model=%s): %s", GEMINI_MODEL, error
+        )
         return None
 
 
 def _fetch_image(photo_url: str) -> Tuple[bytes, str]:
     """Download the image bytes and detect a usable MIME type."""
-    response = requests.get(photo_url, timeout=IMAGE_FETCH_TIMEOUT_SECONDS)
+    response = requests.get(
+        photo_url,
+        timeout=IMAGE_FETCH_TIMEOUT_SECONDS,
+        headers=IMAGE_FETCH_HEADERS,
+    )
     response.raise_for_status()
 
     content_type = response.headers.get("Content-Type", "")
     mime_type = content_type.split(";")[0].strip()
     if not mime_type.startswith("image/"):
         mime_type = "image/jpeg"  # sensible default when the server is vague
-
     return response.content, mime_type
