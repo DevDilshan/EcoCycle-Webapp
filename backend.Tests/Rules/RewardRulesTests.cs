@@ -43,18 +43,34 @@ public class RewardRulesTests
     }
 
     [Fact]
-    public void Second_bulk_pickup_this_month_is_flagged()
+    public void Second_bulk_pickup_this_month_is_allowed()
     {
         var result = Evaluate(RewardRules.BulkCategory, bulkPickupsThisMonth: 2);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Third_bulk_pickup_this_month_is_flagged()
+    {
+        var result = Evaluate(RewardRules.BulkCategory, bulkPickupsThisMonth: 3);
 
         Assert.True(result.RequiresApproval);
         Assert.Equal(new[] { RewardRules.ExcessiveBulkPickups }, result.ViolatedRules);
     }
 
     [Fact]
+    public void EWaste_is_not_treated_as_bulk()
+    {
+        var result = Evaluate(WasteCategory.EWaste, bulkPickupsThisMonth: 3);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
     public void Non_bulk_pickup_is_not_flagged_for_the_residents_bulk_history()
     {
-        var result = Evaluate(WasteCategory.Recyclable, bulkPickupsThisMonth: 2);
+        var result = Evaluate(WasteCategory.Recyclable, bulkPickupsThisMonth: 3);
 
         Assert.True(result.IsValid);
     }
