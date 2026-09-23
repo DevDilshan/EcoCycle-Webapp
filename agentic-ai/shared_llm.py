@@ -1,35 +1,53 @@
-"""Shared helpers for talking to a local Ollama LLM.
+"""Shared helpers for talking to the OpenAI API.
 
 Every agent in this package needs the same two things: a way to send a prompt
-to the local model, and a way to get structured JSON back out of the reply.
+to the model, and a way to get structured JSON back out of the reply.
 Keeping both here avoids each agent re-implementing (and re-breaking) them.
+
+The API key is read from OPENAI_API_KEY, which is loaded from a .env file in
+this folder (see .env.example) so the key never lands in source control.
 """
 
 import json
+import os
 
 import requests
+from dotenv import load_dotenv
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 REQUEST_TIMEOUT_SECONDS = 30
 
 
-def call_llm(prompt: str, model: str = "phi3") -> str:
-    """Send `prompt` to the local Ollama server and return the model's text.
+def call_llm(prompt: str, model: str = "gpt-4o-mini") -> str:
+    """Send `prompt` to OpenAI's chat completions endpoint and return the text.
 
-    Streaming is disabled so the whole answer arrives in one JSON payload,
-    which keeps callers simple: they get a plain string back instead of
-    having to consume a chunked response.
+    Callers get a plain string back rather than the full response envelope,
+    which keeps every agent's code the same shape it had under Ollama.
 
-    The 30-second timeout means a hung or unresponsive Ollama server raises
+    The 30-second timeout means a hung or unresponsive API call raises
     requests.exceptions.Timeout instead of blocking the caller forever.
     """
+    if not OPENAI_API_KEY:
+        raise RuntimeError(
+            "OPENAI_API_KEY is not set. Create a .env file in the agentic-ai "
+            "folder containing a line like OPENAI_API_KEY=sk-... (or set the "
+            "variable in your environment) before calling the LLM."
+        )
+
     response = requests.post(
-        OLLAMA_URL,
-        json={"model": model, "prompt": prompt, "stream": False},
+        OPENAI_URL,
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={"model": model, "messages": [{"role": "user", "content": prompt}]},
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
-    return response.json()["response"]
+    return response.json()["choices"][0]["message"]["content"]
 
 
 def parse_json_response(text: str) -> dict:

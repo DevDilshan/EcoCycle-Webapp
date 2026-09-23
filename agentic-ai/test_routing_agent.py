@@ -1,6 +1,6 @@
 """Manual smoke test for the Routing Agent.
 
-Run from the agentic-ai folder with a local Ollama server up:
+Run from the agentic-ai folder with a .env holding OPENAI_API_KEY:
     python test_routing_agent.py
 
 collector-B has the lighter load, so a correct run should pick it.

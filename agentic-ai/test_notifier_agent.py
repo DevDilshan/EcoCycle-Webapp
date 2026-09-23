@@ -1,6 +1,6 @@
 """Manual smoke test for the Notifier / Approval Agent.
 
-Run from the agentic-ai folder with a local Ollama server up:
+Run from the agentic-ai folder with a .env holding OPENAI_API_KEY:
     python test_notifier_agent.py
 
 Uses a flagged hazardous pickup with low confidence and a resident complaint,

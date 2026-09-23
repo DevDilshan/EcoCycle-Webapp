@@ -1,7 +1,7 @@
 """Manual smoke test for the Classifier Agent.
 
-Run from the agentic-ai folder with a local Ollama server up (ollama run phi3),
-and GEMINI_API_KEY exported if you want to exercise real image recognition:
+Run from the agentic-ai folder with a .env holding OPENAI_API_KEY, and
+GEMINI_API_KEY set too if you want to exercise real image recognition:
     python test_classifier_agent.py
 
 Replace PHOTO_URL with a real, public image URL (e.g. a Supabase Storage URL)
