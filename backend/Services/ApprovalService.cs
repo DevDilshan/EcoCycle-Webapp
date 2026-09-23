@@ -11,6 +11,32 @@ public class ApprovalService : IApprovalService
 
     public ApprovalService(ApplicationDbContext db) => _db = db;
 
+    public async Task<PagedResult<ApprovalResponseDto>> GetListAsync(ApprovalQueryParams query)
+    {
+        var q = _db.ApprovalRequests.AsNoTracking().AsQueryable();
+
+        if (query.Status.HasValue)
+            q = q.Where(a => a.Status == query.Status.Value);
+
+        q = q.OrderByDescending(a => a.CreatedAt);
+
+        var total = await q.CountAsync();
+        var entities = await q
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToListAsync();
+
+        var items = entities.Select(ToDto).ToList();
+
+        return new PagedResult<ApprovalResponseDto>
+        {
+            Items = items,
+            Page = query.Page,
+            PageSize = query.PageSize,
+            TotalCount = total,
+        };
+    }
+
     public async Task<ApprovalResponseDto?> ApproveAsync(Guid id, Guid adminId, ApproveApprovalDto dto)
     {
         var entity = await _db.ApprovalRequests
