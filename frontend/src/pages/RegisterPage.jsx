@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { getHomePath } from '../lib/roles'
 
 export default function RegisterPage() {
-  const { signUp, user } = useAuth()
+  const { signUp, user, role } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('user')
+  const [selectedRole, setSelectedRole] = useState('resident')
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   if (user) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={getHomePath(role)} replace />
   }
 
   const handleSubmit = async (e) => {
@@ -20,7 +21,7 @@ export default function RegisterPage() {
     setError(null)
     setLoading(true)
 
-    const { error: authError } = await signUp(email, password, role)
+    const { error: authError } = await signUp(email, password, selectedRole)
     setLoading(false)
 
     if (authError) {
@@ -71,8 +72,7 @@ export default function RegisterPage() {
         />
 
         <label htmlFor="role">Role</label>
-        <select id="role" value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="user">User</option>
+        <select id="role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
           <option value="resident">Resident</option>
           <option value="collector">Collector</option>
           <option value="admin">Admin</option>
