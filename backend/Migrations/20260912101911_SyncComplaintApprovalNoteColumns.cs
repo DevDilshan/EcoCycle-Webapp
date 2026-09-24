@@ -1,12 +1,19 @@
-using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace backend.Migrations
 {
-    public partial class AddComplaintAndApprovalNotes : Migration
+    /// <summary>
+    /// Reconstruction of a migration that was applied to the shared database on
+    /// 2026-09-12 but whose file was never committed. Its id is reproduced exactly
+    /// so that databases carrying the original row in __EFMigrationsHistory treat
+    /// it as already applied, while a fresh database runs it and gets the columns.
+    /// Do not renumber it.
+    /// </summary>
+    public partial class SyncComplaintApprovalNoteColumns : Migration
     {
+        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
@@ -24,6 +31,7 @@ namespace backend.Migrations
                 nullable: true);
         }
 
+        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
