@@ -43,7 +43,7 @@ export function AuthProvider({ children }) {
       return result
     })
 
-  const signUp = (email, password, role = 'user') =>
+  const signUp = (email, password, role = 'resident') =>
     supabase.auth.signUp({
       email,
       password,
@@ -52,11 +52,30 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
+  const updatePassword = (password) => supabase.auth.updateUser({ password })
+
+  const sendPasswordResetEmail = (email) =>
+    supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    })
+
   const user = session?.user ?? null
   const role = getUserRole(user, session)
 
   return (
-    <AuthContext.Provider value={{ session, user, role, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        role,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        updatePassword,
+        sendPasswordResetEmail,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
