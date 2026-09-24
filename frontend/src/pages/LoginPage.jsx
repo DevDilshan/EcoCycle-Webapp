@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getUserRole } from '../lib/supabase'
+import { getHomePath } from '../lib/roles'
 
 export default function LoginPage() {
   const { signIn, user, role } = useAuth()
@@ -12,7 +13,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   if (user) {
-    return <Navigate to={role === 'admin' ? '/admin' : '/dashboard'} replace />
+    return <Navigate to={getHomePath(role)} replace />
   }
 
   const handleSubmit = async (e) => {
@@ -29,7 +30,7 @@ export default function LoginPage() {
     }
 
     const userRole = getUserRole(data.user, data.session)
-    navigate(userRole === 'admin' ? '/admin' : '/dashboard')
+    navigate(getHomePath(userRole))
   }
 
   return (
