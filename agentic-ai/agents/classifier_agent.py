@@ -26,7 +26,7 @@ RETRY_DELAY_SECONDS = 1
 
 # The only categories the downstream system understands (must match the C#
 # WasteCategory enum). Checked so a hallucinated category never reaches the DB.
-VALID_CATEGORIES = ["General", "Recyclable", "Organic", "Hazardous", "Bulk"]
+VALID_CATEGORIES = ["General", "Recyclable", "Organic", "Hazardous", "EWaste", "Bulk"]
 
 
 def classify_waste(photo_url: str, description: str) -> dict:
@@ -83,8 +83,17 @@ Categories:
 - General: ordinary household rubbish, not recyclable, organic, or hazardous
 - Recyclable: paper, cardboard, glass, plastics, metal cans
 - Organic: food scraps, garden and plant waste
-- Hazardous: chemicals, batteries, paint, electronics, coolant, anything toxic
-- Bulk: large items such as furniture, mattresses, or appliances
+- Hazardous: chemicals, paint, coolant, solvents, loose batteries, anything toxic or corrosive
+- EWaste: discarded electrical or electronic devices -- phones, laptops, TVs, monitors,
+  cables, printers, small appliances with a plug or a circuit board
+- Bulk: large items such as furniture or mattresses, with no electronics inside
+
+Choosing between the similar categories:
+- An electronic device goes in EWaste, NOT Hazardous, even though it contains toxic parts.
+  Hazardous is for loose chemicals and substances.
+- A large electrical appliance (fridge, washing machine, oven) goes in EWaste, NOT Bulk.
+  Bulk is for large items with no electronics, such as a sofa or a mattress.
+- A broken TV is EWaste, not General, however worthless it is.
 
 Rules:
 - The category must be copied EXACTLY from this list: {categories_text}

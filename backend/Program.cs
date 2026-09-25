@@ -61,6 +61,26 @@ builder.Services.AddScoped<backend.Services.IValidationService, backend.Services
 builder.Services.AddScoped<backend.Services.IComplaintService, backend.Services.ComplaintService>();
 builder.Services.AddScoped<backend.Services.IApprovalService, backend.Services.ApprovalService>();
 
+// Python agent service (Classifier -> Validator -> Routing -> Notifier).
+// A short timeout on purpose: the pipeline makes several LLM calls, but a
+// resident submitting a pickup must not wait on them indefinitely. If it is
+// exceeded the client returns null and the caller degrades to Pending.
+var agentServiceUrl = Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
+    ?? "http://localhost:8000";
+var agentServiceKey = Environment.GetEnvironmentVariable("INTERNAL_API_KEY");
+
+if (string.IsNullOrWhiteSpace(agentServiceKey))
+    Console.WriteLine(
+        "[WARN] INTERNAL_API_KEY is not set. Calls to the agent service will be " +
+        "rejected with 401; pickups will fall back to manual classification.");
+
+builder.Services.AddHttpClient<backend.Services.IAgentPipelineClient, backend.Services.AgentPipelineClient>(client =>
+{
+    client.BaseAddress = new Uri(agentServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(60);
+    client.DefaultRequestHeaders.Add("X-Internal-Key", agentServiceKey ?? string.Empty);
+});
+
 // Compliance & classification (Student 3 rules → auto-create approval tasks)
 builder.Services.AddScoped<backend.Services.IComplianceService, backend.Services.ComplianceService>();
 

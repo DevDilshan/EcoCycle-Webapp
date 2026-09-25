@@ -8,9 +8,31 @@ namespace backend.Services;
 public class PickupRequestService : IPickupRequestService
 {
     private readonly ApplicationDbContext _db;
+    private readonly IAgentPipelineClient _agents;
+    private readonly RouteAssignmentService _routes;
+    private readonly ILogger<PickupRequestService> _logger;
 
-    public PickupRequestService(ApplicationDbContext db) => _db = db;
+    public PickupRequestService(
+        ApplicationDbContext db,
+        IAgentPipelineClient agents,
+        RouteAssignmentService routes,
+        ILogger<PickupRequestService> logger)
+    {
+        _db = db;
+        _agents = agents;
+        _routes = routes;
+        _logger = logger;
+    }
 
+    /// <summary>
+    /// Creates a pickup request and runs it through the Python agent pipeline.
+    /// </summary>
+    /// <remarks>
+    /// The pickup is always saved first, and every later step is best-effort: if
+    /// the agent service is slow, down, or misconfigured, the resident's request
+    /// still lands as Pending and an admin can classify it by hand. Nothing here
+    /// may fail the resident's submission because of an AI outage.
+    /// </remarks>
     public async Task<PickupRequestResponseDto> CreateAsync(Guid residentId, CreatePickupRequestDto dto)
     {
         var entity = new PickupRequest
@@ -24,10 +46,188 @@ public class PickupRequestService : IPickupRequestService
             Status = PickupStatus.Pending
         };
 
+        // TODO: residents cannot choose a zone yet, so every pickup lands in the
+        // first active zone. Replace with a resident-selected or address-derived
+        // zone -- see PickupRequest.ZoneId.
+        entity.ZoneId = await _db.Zones
+            .Where(z => z.IsActive)
+            .OrderBy(z => z.CreatedAt).ThenBy(z => z.Id)
+            .Select(z => (Guid?)z.Id)
+            .FirstOrDefaultAsync();
+
         _db.PickupRequests.Add(entity);
         await _db.SaveChangesAsync();
+
+        await TryRunAgentPipelineAsync(entity);
+
         return ToDto(entity);
     }
+
+    /// <summary>
+    /// Best-effort pass through the agent pipeline. Logs and swallows every
+    /// failure: the pickup already exists, and Pending is a valid state an admin
+    /// can resolve by hand.
+    /// </summary>
+    private async Task TryRunAgentPipelineAsync(PickupRequest entity)
+    {
+        if (entity.ZoneId is null)
+        {
+            _logger.LogWarning(
+                "Pickup {PickupId} has no zone (no active zones exist); skipping the agent " +
+                "pipeline and leaving it Pending for manual handling.", entity.Id);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(entity.Description))
+        {
+            // The classifier rejects an empty description outright, so there is
+            // nothing to send and no point paying for the call.
+            _logger.LogInformation(
+                "Pickup {PickupId} has no description; skipping the agent pipeline.", entity.Id);
+            return;
+        }
+
+        PipelineResultDto? result;
+        try
+        {
+            var loads = await GetCollectorLoadsAsync();
+            if (loads.Count == 0)
+            {
+                _logger.LogWarning(
+                    "No collector has any route assignments, so the routing agent would have " +
+                    "nothing to choose from; leaving pickup {PickupId} Pending.", entity.Id);
+                return;
+            }
+
+            result = await _agents.RunPipelineAsync(new RunPipelineRequestDto
+            {
+                Description = entity.Description,
+                ResidentZoneId = entity.ZoneId.Value.ToString(),
+                CollectorLoads = loads,
+                PhotoUrl = entity.PhotoUrl
+            });
+        }
+        catch (Exception ex)
+        {
+            // The client throws when the service answers but rejects us -- a bad
+            // internal key, a contract mismatch. That is our bug, not the
+            // resident's problem, so it is logged loudly and swallowed here.
+            _logger.LogError(ex, "Agent pipeline call failed for pickup {PickupId}.", entity.Id);
+            return;
+        }
+
+        if (result is null)
+        {
+            _logger.LogWarning(
+                "Agent service unavailable; pickup {PickupId} stays Pending for manual classification.",
+                entity.Id);
+            return;
+        }
+
+        try
+        {
+            await ApplyPipelineResultAsync(entity, result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not apply the pipeline result to pickup {PickupId}.", entity.Id);
+        }
+    }
+
+    /// <summary>
+    /// Records the classification, runs the C#-only compliance rules as a second
+    /// pass, then either raises an approval task or schedules the pickup.
+    /// </summary>
+    private async Task ApplyPipelineResultAsync(PickupRequest entity, PipelineResultDto result)
+    {
+        if (!Enum.TryParse<WasteCategory>(result.Classification.Category, ignoreCase: true, out var category))
+        {
+            _logger.LogError(
+                "Agent returned category {Category} for pickup {PickupId}, which is not a WasteCategory; " +
+                "leaving it Pending.", result.Classification.Category, entity.Id);
+            return;
+        }
+
+        var reasoning = Truncate(result.Classification.Reasoning, 2000);
+
+        _db.WasteClassifications.Add(new WasteClassification
+        {
+            PickupRequestId = entity.Id,
+            Category = category,
+            Confidence = Math.Clamp(result.Classification.Confidence, 0, 1),
+            Reasoning = reasoning
+        });
+
+        entity.Status = PickupStatus.Classified;
+
+        // Second pass. These checks are deliberately NOT in Python: EWaste is a
+        // category the agents never flag, the contamination check reads the
+        // classifier's own wording, and only this side knows which findings are
+        // charged to the resident.
+        var findings = ComplianceRules.Evaluate(category, result.Classification.Confidence, reasoning);
+
+        foreach (var finding in findings.Where(f => f.ChargedToResident))
+        {
+            _db.ComplianceViolations.Add(new ComplianceViolation
+            {
+                ResidentId = entity.ResidentId,
+                PickupRequestId = entity.Id,
+                RuleViolated = finding.Message
+            });
+        }
+
+        var flagReasons = new List<string>();
+        if (!string.IsNullOrWhiteSpace(result.FlagReason))
+            flagReasons.Add(result.FlagReason!);
+        flagReasons.AddRange(findings.Select(f => f.Message));
+
+        if (flagReasons.Count > 0)
+        {
+            _db.ApprovalRequests.Add(new ApprovalRequest
+            {
+                PickupRequestId = entity.Id,
+                FlagReason = Truncate(string.Join("; ", flagReasons), 2000),
+                Status = ApprovalStatus.Pending,
+                PipelineResultJson = result.RawJson
+            });
+
+            _logger.LogInformation(
+                "Pickup {PickupId} flagged for admin review: {FlagReason}",
+                entity.Id, string.Join("; ", flagReasons));
+        }
+        else if (AgentRoutingMapper.TryBuild(
+                     entity.Id, entity.ZoneId!.Value, result.Routing, out var assignment, out var routingError))
+        {
+            _db.RouteAssignments.Add(assignment!);
+            entity.Status = PickupStatus.Scheduled;
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Pickup {PickupId} passed validation but could not be routed: {Error}",
+                entity.Id, routingError);
+        }
+
+        await _db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Current load per collector, in the shape the routing agent expects:
+    /// collector id to the number of pickups still outstanding.
+    /// </summary>
+    private async Task<Dictionary<string, int>> GetCollectorLoadsAsync()
+    {
+        var report = await _routes.GetLoadReportAsync();
+
+        // PendingAssignments, not TotalAssignments: balancing on lifetime totals
+        // would permanently penalise the collectors who finish the most work.
+        return report.ToDictionary(c => c.CollectorId.ToString(), c => c.PendingAssignments);
+    }
+
+    private static string Truncate(string? value, int maxLength) =>
+        string.IsNullOrEmpty(value) ? string.Empty
+        : value.Length <= maxLength ? value
+        : value[..maxLength];
 
     public async Task<PagedResult<PickupRequestResponseDto>> GetListAsync(
         Guid residentId, bool isAdmin, bool isCollector, PickupRequestQueryParams query)
