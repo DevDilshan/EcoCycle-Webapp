@@ -35,6 +35,7 @@ private Guid CurrentUserId
     }
 }
     private bool IsAdmin => User.IsInRole("admin");
+    private bool IsCollector => User.IsInRole("collector");
 
     // POST /api/pickuprequests  — resident creates a request
     [HttpPost]
@@ -66,10 +67,10 @@ private Guid CurrentUserId
 
     // GET /api/pickuprequests  — admin sees all, resident sees own (filter/sort/paging)
     [HttpGet]
-    [Authorize(Roles = "admin,resident")]
+    [Authorize(Roles = "admin,resident,collector")]
     public async Task<IActionResult> GetList([FromQuery] PickupRequestQueryParams query)
     {
-        var result = await _service.GetListAsync(CurrentUserId, IsAdmin, query);
+        var result = await _service.GetListAsync(CurrentUserId, IsAdmin, IsCollector, query);
         return Ok(result);
     }
 

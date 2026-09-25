@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { getHomePath } from '../../lib/roles'
 
 const publicLinks = [
   { label: 'Home', to: '/' },
@@ -24,11 +25,9 @@ export default function PublicNavbar() {
 
           {user ? (
             <>
-              {role === 'admin' ? (
-                <Link to="/admin" className="public-nav-link">Admin</Link>
-              ) : (
-                <Link to="/dashboard" className="public-nav-link">Dashboard</Link>
-              )}
+              <Link to={getHomePath(role)} className="public-nav-link">
+                {role === 'admin' ? 'Admin' : role === 'collector' ? 'Collector' : 'Dashboard'}
+              </Link>
               <button type="button" onClick={signOut} className="btn-secondary">
                 Logout
               </button>

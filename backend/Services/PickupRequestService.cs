@@ -30,12 +30,12 @@ public class PickupRequestService : IPickupRequestService
     }
 
     public async Task<PagedResult<PickupRequestResponseDto>> GetListAsync(
-        Guid residentId, bool isAdmin, PickupRequestQueryParams query)
+        Guid residentId, bool isAdmin, bool isCollector, PickupRequestQueryParams query)
     {
         var q = _db.PickupRequests.AsNoTracking().AsQueryable();
 
-        // Visibility: residents only ever see their own
-        if (!isAdmin)
+        // Visibility: residents only see their own; admin/collector see all
+        if (!isAdmin && !isCollector)
             q = q.Where(p => p.ResidentId == residentId);
 
         // Filtering

@@ -8,7 +8,7 @@ public interface IPickupRequestService
 
     // isAdmin = true → sees all; false → scoped to residentId
     Task<PagedResult<PickupRequestResponseDto>> GetListAsync(
-        Guid residentId, bool isAdmin, PickupRequestQueryParams query);
+        Guid residentId, bool isAdmin, bool isCollector, PickupRequestQueryParams query);
 
     Task<PickupRequestResponseDto?> GetByIdAsync(Guid id, Guid residentId, bool isAdmin);
 
