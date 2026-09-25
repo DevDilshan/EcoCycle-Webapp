@@ -1,22 +1,35 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import PageShell from '../../components/PageShell'
 import AdminAlert from '../../components/admin/AdminAlert'
 import CategoryPill from '../../components/admin/CategoryPill'
 import FilterPills from '../../components/admin/FilterPills'
 import PickupStatusPill from '../../components/admin/PickupStatusPill'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
-import { storeApproval } from '../../lib/approvals'
 import {
   FILTER_PILL_STYLES,
   formatCompactDate,
   formatRequestId,
-  inferCategory,
   shortProfileName,
 } from '../../lib/adminUi'
 import { apiRequest } from '../../lib/api'
 
-const CATEGORIES = ['Organic', 'Recyclable', 'Hazardous', 'EWaste', 'General', 'Bulk']
 const STATUS_FILTERS = ['', 'Pending', 'Classified', 'Scheduled', 'Completed']
+
+// Classification timestamps are worth showing to the minute: an admin comparing
+// a pickup against its approval wants to know these happened seconds apart.
+function formatClassifiedAt(value) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 export default function PickupRequestsPage() {
   const catalog = useAdminCatalog()
@@ -30,14 +43,6 @@ export default function PickupRequestsPage() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
-  const [classifyForm, setClassifyForm] = useState({
-    category: 'Recyclable',
-    confidence: 0.92,
-    reasoning: '',
-  })
-  const [approvalNotes, setApprovalNotes] = useState('')
-  const [rejectReason, setRejectReason] = useState('')
-  const [lastApproval, setLastApproval] = useState(null)
   const [busyId, setBusyId] = useState(null)
 
   const loadCounts = useCallback(async () => {
@@ -94,89 +99,6 @@ export default function PickupRequestsPage() {
     })
   }, [items, search, catalog])
 
-  async function handleStubClassify(id) {
-    setBusyId(id)
-    setError(null)
-    setSuccess(null)
-    try {
-      await apiRequest(`/pickuprequests/${id}/classify`, { method: 'POST' })
-      setSuccess('Pickup classified (stub).')
-      load()
-      loadCounts()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function handleClassifyEvaluate(id) {
-    setBusyId(id)
-    setError(null)
-    setSuccess(null)
-    setLastApproval(null)
-    try {
-      const result = await apiRequest(`/pickuprequests/${id}/classify-evaluate`, {
-        method: 'POST',
-        body: JSON.stringify(classifyForm),
-      })
-      if (result.flagged && result.approvalRequest) {
-        storeApproval(result.approvalRequest)
-        setLastApproval({ pickupId: id, ...result.approvalRequest })
-        setSuccess(`Flagged: ${result.violations.join('; ')}`)
-      } else {
-        setSuccess('Pickup passed compliance and was auto-approved.')
-      }
-      load()
-      loadCounts()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function handleApprove(approvalId) {
-    setBusyId(approvalId)
-    setError(null)
-    try {
-      await apiRequest(`/approvals/${approvalId}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({ notes: approvalNotes || undefined }),
-      })
-      setSuccess('Approval request approved.')
-      setLastApproval(null)
-      load()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function handleReject(approvalId) {
-    if (!rejectReason.trim()) {
-      setError('Rejection reason is required.')
-      return
-    }
-    setBusyId(approvalId)
-    setError(null)
-    try {
-      await apiRequest(`/approvals/${approvalId}/reject`, {
-        method: 'POST',
-        body: JSON.stringify({ reason: rejectReason }),
-      })
-      setSuccess('Approval request rejected.')
-      setLastApproval(null)
-      setRejectReason('')
-      load()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   async function handleAssignRoute(id) {
     setBusyId(id)
     setError(null)
@@ -213,18 +135,6 @@ export default function PickupRequestsPage() {
       <AdminAlert type="error" message={error || catalog.error} onClose={() => setError(null)} />
       <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
 
-      {lastApproval && (
-        <div className="admin-inline-panel">
-          <p><strong>Pending approval — {formatRequestId(lastApproval.id)}</strong> · {lastApproval.flagReason}</p>
-          <div className="admin-actions">
-            <input value={approvalNotes} onChange={(e) => setApprovalNotes(e.target.value)} placeholder="Approve notes (optional)" />
-            <input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Reject reason" />
-            <button type="button" className="btn-primary btn-sm" disabled={busyId === lastApproval.id} onClick={() => handleApprove(lastApproval.id)}>Approve</button>
-            <button type="button" className="btn-danger btn-sm" disabled={busyId === lastApproval.id} onClick={() => handleReject(lastApproval.id)}>Reject</button>
-          </div>
-        </div>
-      )}
-
       {loading ? (
         <p className="admin-loading">Loading pickup requests…</p>
       ) : filteredItems.length === 0 ? (
@@ -242,8 +152,9 @@ export default function PickupRequestsPage() {
           {filteredItems.map((item) => {
             const profile = catalog.profileMap.get(item.residentId)
             const residentName = shortProfileName(profile)
-            const category = inferCategory(item.description)
+            const classified = Boolean(item.category)
             const expanded = expandedId === item.id
+            const classifiedAt = formatClassifiedAt(item.classifiedAt)
 
             return (
               <Fragment key={item.id}>
@@ -257,42 +168,58 @@ export default function PickupRequestsPage() {
                     <strong>{residentName}</strong>
                     <small>{item.description?.slice(0, 48) || 'No description'}</small>
                   </span>
-                  <span><CategoryPill category={category} /></span>
-                  <span className="pickup-grid-muted">—</span>
+                  <span>
+                    {classified
+                      ? <CategoryPill category={item.category} />
+                      : <span className="pickup-grid-muted">Not classified</span>}
+                  </span>
+                  <span className="pickup-grid-muted">{item.zoneName || '—'}</span>
                   <span className="pickup-grid-muted">{formatCompactDate(item.preferredDate)}</span>
                   <span><PickupStatusPill status={item.status} /></span>
                 </button>
                 {expanded && (
                   <div className="pickup-grid-detail">
                     <p><strong>Description:</strong> {item.description || '—'}</p>
-                    {item.status === 'Pending' && (
-                      <div className="admin-form">
-                        <div className="admin-actions">
-                          <button type="button" className="btn-secondary btn-sm" disabled={busyId === item.id} onClick={() => handleStubClassify(item.id)}>
-                            Quick classify (stub)
-                          </button>
-                        </div>
-                        <div className="admin-form-row">
-                          <div>
-                            <label>Category</label>
-                            <select value={classifyForm.category} onChange={(e) => setClassifyForm({ ...classifyForm, category: e.target.value })}>
-                              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label>Confidence (0–1)</label>
-                            <input type="number" min="0" max="1" step="0.01" value={classifyForm.confidence} onChange={(e) => setClassifyForm({ ...classifyForm, confidence: Number(e.target.value) })} />
-                          </div>
-                        </div>
-                        <div>
-                          <label>Reasoning</label>
-                          <textarea value={classifyForm.reasoning} onChange={(e) => setClassifyForm({ ...classifyForm, reasoning: e.target.value })} placeholder="Describe what the classifier detected…" />
-                        </div>
-                        <button type="button" className="btn-primary btn-sm" disabled={busyId === item.id || !classifyForm.reasoning.trim()} onClick={() => handleClassifyEvaluate(item.id)}>
-                          Classify & evaluate compliance
-                        </button>
+
+                    {classified ? (
+                      <div className="pickup-classification">
+                        <p>
+                          <strong>Classified as:</strong> {item.category}
+                          {typeof item.confidence === 'number' && (
+                            <> · {Math.round(item.confidence * 100)}% confident</>
+                          )}
+                          {classifiedAt && <> · {classifiedAt}</>}
+                        </p>
+                        {item.reasoning && (
+                          <p><strong>Reasoning:</strong> {item.reasoning}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="pickup-classification pickup-classification-missing">
+                        <p><strong>Not yet classified.</strong></p>
+                        <p>
+                          Pickups are classified automatically when a resident submits them.
+                          This one was not, so the agent service was unavailable or skipped it.
+                        </p>
                       </div>
                     )}
+
+                    {item.hasApprovalRequest && (
+                      <div className="pickup-flag">
+                        <p>
+                          <strong>🚩 Flagged for review</strong>
+                          {item.approvalStatus && <> · {item.approvalStatus}</>}
+                        </p>
+                        {item.flagReason && <p>{item.flagReason}</p>}
+                        <Link
+                          to={`/admin/approvals?approval=${item.approvalRequestId ?? ''}`}
+                          className="btn-secondary btn-sm"
+                        >
+                          Review in Approvals
+                        </Link>
+                      </div>
+                    )}
+
                     {item.status === 'Approved' && (
                       <button type="button" className="btn-secondary btn-sm" disabled={busyId === item.id} onClick={() => handleAssignRoute(item.id)}>
                         Assign route

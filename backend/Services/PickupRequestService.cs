@@ -267,10 +267,8 @@ public class PickupRequestService : IPickupRequestService
 
         var total = await q.CountAsync();
 
-        var items = await q
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .Select(p => ToDto(p))
+        var items = await ProjectToDto(
+                q.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize))
             .ToListAsync();
 
         return new PagedResult<PickupRequestResponseDto>
@@ -284,10 +282,13 @@ public class PickupRequestService : IPickupRequestService
 
     public async Task<PickupRequestResponseDto?> GetByIdAsync(Guid id, Guid residentId, bool isAdmin)
     {
-        var entity = await _db.PickupRequests.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
-        if (entity is null) return null;
-        if (!isAdmin && entity.ResidentId != residentId) return null; // hide existence from other residents
-        return ToDto(entity);
+        var dto = await ProjectToDto(
+                _db.PickupRequests.AsNoTracking().Where(p => p.Id == id))
+            .FirstOrDefaultAsync();
+
+        if (dto is null) return null;
+        if (!isAdmin && dto.ResidentId != residentId) return null; // hide existence from other residents
+        return dto;
     }
 
     public async Task<PickupStatusDto?> GetStatusAsync(Guid id, Guid residentId, bool isAdmin)
@@ -368,6 +369,80 @@ public class PickupRequestService : IPickupRequestService
         value.Kind == DateTimeKind.Unspecified
             ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
             : value.ToUniversalTime();
+    /// <summary>
+    /// Projects pickups together with their classification and approval state.
+    /// </summary>
+    /// <remarks>
+    /// Written as sub-queries rather than Includes so it stays a single SQL
+    /// round trip and returns only the handful of columns the UI needs, rather
+    /// than whole WasteClassification and ApprovalRequest rows.
+    ///
+    /// Both sub-queries take the newest row: a pickup can be reclassified (the
+    /// agent pipeline on submission, then an admin correcting it by hand), and
+    /// the latest verdict is the one that counts.
+    /// </remarks>
+    private IQueryable<PickupRequestResponseDto> ProjectToDto(IQueryable<PickupRequest> source) =>
+        source.Select(p => new PickupRequestResponseDto
+        {
+            Id = p.Id,
+            ResidentId = p.ResidentId,
+            PhotoUrl = p.PhotoUrl,
+            Description = p.Description,
+            PreferredDate = p.PreferredDate,
+            Status = p.Status.ToString(),
+            IsRecurring = p.IsRecurring,
+            RecurrenceInterval = p.RecurrenceInterval,
+            CreatedAt = p.CreatedAt,
+
+            ZoneId = p.ZoneId,
+            ZoneName = _db.Zones
+                .Where(z => z.Id == p.ZoneId)
+                .Select(z => z.Name)
+                .FirstOrDefault(),
+
+            Category = _db.WasteClassifications
+                .Where(w => w.PickupRequestId == p.Id)
+                .OrderByDescending(w => w.CreatedAt)
+                .Select(w => w.Category.ToString())
+                .FirstOrDefault(),
+            Confidence = _db.WasteClassifications
+                .Where(w => w.PickupRequestId == p.Id)
+                .OrderByDescending(w => w.CreatedAt)
+                .Select(w => (double?)w.Confidence)
+                .FirstOrDefault(),
+            Reasoning = _db.WasteClassifications
+                .Where(w => w.PickupRequestId == p.Id)
+                .OrderByDescending(w => w.CreatedAt)
+                .Select(w => w.Reasoning)
+                .FirstOrDefault(),
+            ClassifiedAt = _db.WasteClassifications
+                .Where(w => w.PickupRequestId == p.Id)
+                .OrderByDescending(w => w.CreatedAt)
+                .Select(w => (DateTime?)w.CreatedAt)
+                .FirstOrDefault(),
+
+            HasApprovalRequest = _db.ApprovalRequests.Any(a => a.PickupRequestId == p.Id),
+            ApprovalRequestId = _db.ApprovalRequests
+                .Where(a => a.PickupRequestId == p.Id)
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => (Guid?)a.Id)
+                .FirstOrDefault(),
+            ApprovalStatus = _db.ApprovalRequests
+                .Where(a => a.PickupRequestId == p.Id)
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => a.Status.ToString())
+                .FirstOrDefault(),
+            FlagReason = _db.ApprovalRequests
+                .Where(a => a.PickupRequestId == p.Id)
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => a.FlagReason)
+                .FirstOrDefault(),
+        });
+
+    // Used by Create/Update, which return the row the caller just wrote. The
+    // classification and approval fields are left null there on purpose: the
+    // caller already knows there is nothing to report yet, and re-querying for
+    // it would cost a round trip per write.
     private static PickupRequestResponseDto ToDto(PickupRequest p) => new()
     {
         Id = p.Id,
@@ -378,6 +453,7 @@ public class PickupRequestService : IPickupRequestService
         Status = p.Status.ToString(),
         IsRecurring = p.IsRecurring,
         RecurrenceInterval = p.RecurrenceInterval,
-        CreatedAt = p.CreatedAt
+        CreatedAt = p.CreatedAt,
+        ZoneId = p.ZoneId
     };
 }

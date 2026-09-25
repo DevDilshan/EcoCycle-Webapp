@@ -39,7 +39,7 @@ export const CATEGORY_PILLS = {
   Recyclable: { label: 'Recyclable', icon: '♻️', className: 'pill-recyclable' },
   Hazardous: { label: 'Hazardous', icon: '☣️', className: 'pill-hazardous' },
   Organic: { label: 'Organic', icon: '🌿', className: 'pill-organic' },
-  EWaste: { label: 'E-Waste', icon: '💻', className: 'pill-recyclable' },
+  EWaste: { label: 'E-Waste', icon: '🔌', className: 'pill-ewaste' },
   General: { label: 'General', icon: '🗑️', className: 'pill-general' },
 }
 

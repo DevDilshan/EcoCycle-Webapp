@@ -207,7 +207,7 @@ app.MapGet("/api/me", (ClaimsPrincipal user) =>
     {
         id = user.FindFirstValue("sub"),
         email = user.FindFirstValue("email"),
-        role = user.FindFirstValue(ClaimTypes.Role) ?? "user",
+        role = user.FindFirstValue(ClaimTypes.Role) ?? "resident",
     });
 }).RequireAuthorization();
 
@@ -243,24 +243,34 @@ static void LoadEnvFile(string path)
 static string ExtractRole(ClaimsPrincipal principal)
 {
     var roleClaim = principal.FindFirst("role")?.Value;
-    if (IsAppRole(roleClaim)) return roleClaim!;
+    if (IsAppRole(roleClaim)) return NormalizeRole(roleClaim);
 
     var appMetadata = principal.FindFirst("app_metadata")?.Value;
     if (!string.IsNullOrEmpty(appMetadata))
     {
         var role = ParseRoleFromJson(appMetadata);
-        if (IsAppRole(role)) return role!;
+        if (IsAppRole(role)) return NormalizeRole(role);
     }
 
     var userMetadata = principal.FindFirst("user_metadata")?.Value;
     if (!string.IsNullOrEmpty(userMetadata))
     {
         var role = ParseRoleFromJson(userMetadata);
-        if (IsAppRole(role)) return role!;
+        if (IsAppRole(role)) return NormalizeRole(role);
     }
 
-    return "user";
+    return "resident";
 }
+
+static string NormalizeRole(string? role) =>
+    role?.ToLowerInvariant() switch
+    {
+        "admin" => "admin",
+        "collector" => "collector",
+        "resident" => "resident",
+        "user" => "resident",
+        _ => "resident",
+    };
 
 static string? ParseRoleFromJson(string json)
 {
