@@ -7,6 +7,9 @@ namespace backend.Services;
 
 public class RouteAssignmentService
 {
+    // Matches the role string used by ProfilesController and the "collector" JWT role.
+    private const string CollectorRole = "collector";
+
     private readonly ApplicationDbContext _context;
 
     public RouteAssignmentService(ApplicationDbContext context)
@@ -81,18 +84,31 @@ public class RouteAssignmentService
         return MapToDto(route);
     }
 
+    /// <summary>
+    /// Load per collector, including collectors who have never been assigned anything.
+    /// </summary>
+    /// <remarks>
+    /// Driven from the collector list rather than from RouteAssignments. Grouping
+    /// the assignments alone silently omits any collector with no rows -- and an
+    /// idle collector is exactly the one a load balancer most needs to see, so
+    /// the omission biased every routing decision away from them.
+    /// </remarks>
     public async Task<List<CollectorLoadDto>> GetLoadReportAsync()
     {
-        return await _context.RouteAssignments
+        return await _context.Profiles
             .AsNoTracking()
-            .GroupBy(r => r.CollectorId)
-            .Select(g => new CollectorLoadDto
+            .Where(p => p.Role == CollectorRole)
+            .Select(p => new CollectorLoadDto
             {
-                CollectorId = g.Key,
-                TotalAssignments = g.Count(),
-                PendingAssignments = g.Count(r => r.CompletionStatus == RouteCompletionStatus.Pending),
-                CompletedAssignments = g.Count(r => r.CompletionStatus == RouteCompletionStatus.Completed),
-                MissedAssignments = g.Count(r => r.CompletionStatus == RouteCompletionStatus.Missed)
+                CollectorId = p.Id,
+                TotalAssignments = _context.RouteAssignments
+                    .Count(r => r.CollectorId == p.Id),
+                PendingAssignments = _context.RouteAssignments
+                    .Count(r => r.CollectorId == p.Id && r.CompletionStatus == RouteCompletionStatus.Pending),
+                CompletedAssignments = _context.RouteAssignments
+                    .Count(r => r.CollectorId == p.Id && r.CompletionStatus == RouteCompletionStatus.Completed),
+                MissedAssignments = _context.RouteAssignments
+                    .Count(r => r.CollectorId == p.Id && r.CompletionStatus == RouteCompletionStatus.Missed)
             })
             .ToListAsync();
     }

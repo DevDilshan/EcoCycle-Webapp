@@ -1,4 +1,5 @@
 import { formatCompactDate, formatRequestId, inferCategory } from '../../lib/adminUi'
+import AgentInsightPanel from './AgentInsightPanel'
 import CategoryPill from './CategoryPill'
 
 export default function FlaggedApprovalCard({
@@ -7,11 +8,16 @@ export default function FlaggedApprovalCard({
   residentLabel,
   zoneLabel,
   busy,
+  detail,
+  detailLoading,
   onApprove,
   onReject,
   onRevision,
 }) {
-  const category = pickup?.category || inferCategory(pickup?.description)
+  // Prefer the category the agents actually decided on; fall back to guessing
+  // from the description only when there is no agent result.
+  const category =
+    detail?.agentInsight?.category || pickup?.category || inferCategory(pickup?.description)
   const title = pickup?.description?.slice(0, 80) || approval.flagReason || 'Flagged pickup request'
 
   return (
@@ -30,8 +36,13 @@ export default function FlaggedApprovalCard({
           {residentLabel || 'Resident'} · {zoneLabel || '—'} · submitted {formatCompactDate(approval.createdAt)}
         </p>
         <div className="flagged-approval-reason">
-          <strong>🤖 Validator reasoning:</strong> {approval.flagReason || 'Manual review required.'}
+          <strong>🚩 Flagged because:</strong> {approval.flagReason || 'Manual review required.'}
         </div>
+        <AgentInsightPanel
+          insight={detail?.agentInsight}
+          note={detail?.agentResultNote}
+          loading={detailLoading}
+        />
       </div>
       <div className="flagged-approval-actions">
         <button

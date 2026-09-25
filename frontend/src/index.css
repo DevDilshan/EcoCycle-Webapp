@@ -1780,6 +1780,7 @@ a:hover {
 .admin-theme .pill-bulk { background: #fdecd0; color: #c26a2a; }
 .admin-theme .pill-recyclable { background: #e2ecf7; color: #2b6cb0; }
 .admin-theme .pill-hazardous { background: #f7e3e0; color: #c0392b; }
+.admin-theme .pill-ewaste { background: #f3e8d2; color: #8a5a12; }
 .admin-theme .pill-organic { background: #eaf3ec; color: #2f7d51; }
 .admin-theme .pill-general { background: #eceef0; color: #5f6f66; }
 .admin-theme .pill-status-pending { background: #f5ecd6; color: #b7791f; }
@@ -2686,3 +2687,116 @@ a:hover {
   }
 }
 
+
+/* Agent pipeline analysis shown on a flagged approval card */
+.admin-theme .agent-insight {
+  margin-top: 10px;
+  background: #f2f7f3;
+  border: 1px solid #dceadf;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #3a4a40;
+}
+
+.admin-theme .agent-insight-muted {
+  color: #7b8a80;
+  font-style: italic;
+}
+
+.admin-theme .agent-insight-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.admin-theme .agent-insight-chip {
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dceadf;
+  color: #2f4636;
+}
+
+.admin-theme .agent-insight-chip-plain {
+  background: #ffffff;
+  border: 1px solid #dceadf;
+  font-weight: 500;
+}
+
+.admin-theme .agent-insight-chip-ok { background: #d8efdd; color: #1f5130; }
+.admin-theme .agent-insight-chip-warn { background: #fdf0d5; color: #7a5310; }
+.admin-theme .agent-insight-chip-danger { background: #fbdcd8; color: #8a2b20; }
+
+.admin-theme .agent-insight-line {
+  margin: 4px 0;
+}
+
+.admin-theme .agent-insight-line strong {
+  color: #2f4636;
+}
+
+.admin-theme .agent-insight-draft {
+  margin-top: 8px;
+}
+
+.admin-theme .agent-insight-draft summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #2f4636;
+}
+
+.admin-theme .agent-insight-draft p {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #dceadf;
+}
+
+/* Stored classification and flag state on an expanded pickup row */
+.admin-theme .pickup-classification {
+  margin-top: 10px;
+  background: #f2f7f3;
+  border: 1px solid #dceadf;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.admin-theme .pickup-classification p {
+  margin: 4px 0;
+}
+
+.admin-theme .pickup-classification-missing {
+  background: #fbf7ee;
+  border-color: #eadfc6;
+  color: #6b5a33;
+}
+
+.admin-theme .pickup-flag {
+  margin-top: 10px;
+  background: #fbdcd8;
+  border: 1px solid #f3c3bc;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6f2820;
+}
+
+.admin-theme .pickup-flag p {
+  margin: 4px 0 8px;
+}
+
+/* The approval an admin followed a link to, from a flagged pickup */
+.admin-theme .flagged-approval-target {
+  border-radius: 14px;
+  outline: 2px solid var(--admin-danger, #c0492f);
+  outline-offset: 3px;
+  scroll-margin-top: 24px;
+}

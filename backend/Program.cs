@@ -61,6 +61,26 @@ builder.Services.AddScoped<backend.Services.IValidationService, backend.Services
 builder.Services.AddScoped<backend.Services.IComplaintService, backend.Services.ComplaintService>();
 builder.Services.AddScoped<backend.Services.IApprovalService, backend.Services.ApprovalService>();
 
+// Python agent service (Classifier -> Validator -> Routing -> Notifier).
+// A short timeout on purpose: the pipeline makes several LLM calls, but a
+// resident submitting a pickup must not wait on them indefinitely. If it is
+// exceeded the client returns null and the caller degrades to Pending.
+var agentServiceUrl = Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
+    ?? "http://localhost:8000";
+var agentServiceKey = Environment.GetEnvironmentVariable("INTERNAL_API_KEY");
+
+if (string.IsNullOrWhiteSpace(agentServiceKey))
+    Console.WriteLine(
+        "[WARN] INTERNAL_API_KEY is not set. Calls to the agent service will be " +
+        "rejected with 401; pickups will fall back to manual classification.");
+
+builder.Services.AddHttpClient<backend.Services.IAgentPipelineClient, backend.Services.AgentPipelineClient>(client =>
+{
+    client.BaseAddress = new Uri(agentServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(60);
+    client.DefaultRequestHeaders.Add("X-Internal-Key", agentServiceKey ?? string.Empty);
+});
+
 // Compliance & classification (Student 3 rules → auto-create approval tasks)
 builder.Services.AddScoped<backend.Services.IComplianceService, backend.Services.ComplianceService>();
 
@@ -187,7 +207,7 @@ app.MapGet("/api/me", (ClaimsPrincipal user) =>
     {
         id = user.FindFirstValue("sub"),
         email = user.FindFirstValue("email"),
-        role = user.FindFirstValue(ClaimTypes.Role) ?? "user",
+        role = user.FindFirstValue(ClaimTypes.Role) ?? "resident",
     });
 }).RequireAuthorization();
 
@@ -223,24 +243,34 @@ static void LoadEnvFile(string path)
 static string ExtractRole(ClaimsPrincipal principal)
 {
     var roleClaim = principal.FindFirst("role")?.Value;
-    if (IsAppRole(roleClaim)) return roleClaim!;
+    if (IsAppRole(roleClaim)) return NormalizeRole(roleClaim);
 
     var appMetadata = principal.FindFirst("app_metadata")?.Value;
     if (!string.IsNullOrEmpty(appMetadata))
     {
         var role = ParseRoleFromJson(appMetadata);
-        if (IsAppRole(role)) return role!;
+        if (IsAppRole(role)) return NormalizeRole(role);
     }
 
     var userMetadata = principal.FindFirst("user_metadata")?.Value;
     if (!string.IsNullOrEmpty(userMetadata))
     {
         var role = ParseRoleFromJson(userMetadata);
-        if (IsAppRole(role)) return role!;
+        if (IsAppRole(role)) return NormalizeRole(role);
     }
 
-    return "user";
+    return "resident";
 }
+
+static string NormalizeRole(string? role) =>
+    role?.ToLowerInvariant() switch
+    {
+        "admin" => "admin",
+        "collector" => "collector",
+        "resident" => "resident",
+        "user" => "resident",
+        _ => "resident",
+    };
 
 static string? ParseRoleFromJson(string json)
 {

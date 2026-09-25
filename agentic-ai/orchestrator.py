@@ -32,8 +32,11 @@ from agents.routing_agent import route_pickup
 from agents.validator_agent import validate_pickup
 
 # Below this, the classifier is guessing enough that a human should look even
-# when no business rule was broken.
-LOW_CONFIDENCE_THRESHOLD = 0.6
+# when no business rule was broken. Must stay in step with
+# ComplianceRules.LowConfidenceThreshold on the C# side, which runs a second
+# pass over this pipeline's result -- if the two drift, a pickup can pass here
+# and be flagged there for the same confidence.
+LOW_CONFIDENCE_THRESHOLD = 0.70
 
 LOW_CONFIDENCE_FLAG = "LOW_CLASSIFICATION_CONFIDENCE"
 

@@ -82,6 +82,48 @@ public class ApproveApprovalDto
     public string? Notes { get; set; }
 }
 
+/// <summary>
+/// One approval plus what the agents decided, for the admin review screen.
+/// </summary>
+public class ApprovalDetailDto : ApprovalResponseDto
+{
+    /// <summary>
+    /// Null when the approval has no stored agent result (it predates the agent
+    /// pipeline) or the stored JSON could not be read -- see AgentResultNote.
+    /// </summary>
+    public AgentInsightDto? AgentInsight { get; set; }
+
+    /// <summary>Set only when AgentInsight is null, explaining why.</summary>
+    public string? AgentResultNote { get; set; }
+}
+
+/// <summary>
+/// The parts of a pipeline result an admin needs in order to decide, lifted out
+/// of the stored JSON so the dashboard does not have to parse it.
+/// </summary>
+public class AgentInsightDto
+{
+    public string Category { get; set; } = string.Empty;
+    public double Confidence { get; set; }
+    public string ClassificationReasoning { get; set; } = string.Empty;
+
+    /// <summary>True when the classifier could see the resident's photo.</summary>
+    public bool ImageUsed { get; set; }
+
+    /// <summary>Rule codes the validator broke, e.g. ["HAZARDOUS_CATEGORY"].</summary>
+    public List<string> ViolatedRules { get; set; } = [];
+
+    /// <summary>"approve", "reject" or "request_revision"; null if not flagged.</summary>
+    public string? Recommendation { get; set; }
+    public string? AdminSummary { get; set; }
+
+    /// <summary>Draft message for the resident, for the admin to send or edit.</summary>
+    public string? ResidentNotification { get; set; }
+
+    /// <summary>Why the notifier recommended what it did.</summary>
+    public string? RecommendationReasoning { get; set; }
+}
+
 public class ApprovalResponseDto
 {
     public Guid Id { get; set; }
@@ -92,4 +134,11 @@ public class ApprovalResponseDto
     public string? ReviewNotes { get; set; }
     public DateTime? ReviewedAt { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Null when the approval went through cleanly. Set when the approval itself
+    /// was saved but the pickup could not be assigned a collector, so the admin
+    /// knows to retry rather than assuming it is scheduled.
+    /// </summary>
+    public string? RoutingWarning { get; set; }
 }

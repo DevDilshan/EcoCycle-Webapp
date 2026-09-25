@@ -27,6 +27,24 @@ public class ApprovalsController : ControllerBase
         }
     }
 
+    // GET /api/approvals - the admin Approval Dashboard list, newest first.
+    // Filter with ?status=Pending and page with ?page=&pageSize= (see ApprovalQueryParams).
+    [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<ApprovalResponseDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetList([FromQuery] ApprovalQueryParams query) =>
+        Ok(await _service.GetListAsync(query));
+
+    // GET /api/approvals/{id} - one approval with the agent's classification and
+    // recommendation, for the admin review screen.
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApprovalDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var result = await _service.GetByIdAsync(id);
+        return result is null ? NotFound() : Ok(result);
+    }
+
     // POST /api/approvals/{id}/approve — admin approves a flagged request
     [HttpPost("{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApproveApprovalDto? dto)
