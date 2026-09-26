@@ -21,6 +21,7 @@ authentication — **by both the web app and the Flutter app**.
 
 1. A resident submits a pickup (`POST /api/pickuprequests`) — from the web app
    or, once built, the Flutter app. Same endpoint either way.
+   
 2. The backend calls the Python agent service, which runs four agents in order:
    - 🧠 **Classifier** — decides the waste category. OpenAI reads the resident's
      description; Gemini describes the photo when one is supplied.
@@ -30,12 +31,15 @@ authentication — **by both the web app and the Flutter app**.
      when the Validator found a broken rule.
    - 📨 **Notifier** — flagged pickups only: recommends approve / reject /
      request_revision and drafts a message for the resident.
+     
 3. Back in C#, `ComplianceRules` runs a second pass for checks Python cannot do:
    e-waste detection, contamination wording, and which findings count against
    the resident's record.
+   
 4. ✅ **Clean pickup** → a `RouteAssignment` is created, pickup becomes
    `Scheduled`. 🚩 **Flagged pickup** → an `ApprovalRequest` is created holding
    the full pipeline result as JSON, and the pickup waits at `Classified`.
+   
 5. When an admin approves a flagged pickup, the backend routes it **then** —
    using current collector loads, not the ones captured at submission, because a
    flagged pickup can sit in review for days.
