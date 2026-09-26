@@ -1,0 +1,11 @@
+# Keep the build context small and avoid shipping local state into the image.
+bin/
+obj/
+
+# Secrets: configuration is supplied as environment variables in the container.
+.env
+*.user
+
+.vs/
+.vscode/
+*.log

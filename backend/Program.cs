@@ -84,10 +84,24 @@ builder.Services.AddHttpClient<backend.Services.IAgentPipelineClient, backend.Se
 // Compliance & classification (Student 3 rules → auto-create approval tasks)
 builder.Services.AddScoped<backend.Services.IComplianceService, backend.Services.ComplianceService>();
 
+// Allowed browser origins. Comma-separate several, e.g.
+//   ALLOWED_ORIGINS=https://ecocycle.app,https://staging.ecocycle.app
+// Falls back to the Vite dev server so local development needs no config.
+// Trailing slashes are trimmed because the CORS spec compares origins exactly
+// and "https://site.com/" never matches the browser's "https://site.com".
+var allowedOrigins = (Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
+                      ?? Environment.GetEnvironmentVariable("FRONTEND_URL")
+                      ?? "http://localhost:5173")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Select(origin => origin.TrimEnd('/'))
+    .ToArray();
+
+Console.WriteLine($"[INFO] CORS allowed origins: {string.Join(", ", allowedOrigins)}");
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
