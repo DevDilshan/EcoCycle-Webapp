@@ -20,6 +20,7 @@ const EMPTY_ZONE = {
 export default function RoutesPage() {
   const catalog = useAdminCatalog(['Approved'])
   const [loadReport, setLoadReport] = useState([])
+  const [zoneLoad, setZoneLoad] = useState([])
   const [view, setView] = useState('cards')
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -39,8 +40,12 @@ export default function RoutesPage() {
     setLoading(true)
     setError(null)
     try {
-      const loads = await apiRequest('/routes/load-report')
+      const [loads, zoneReport] = await Promise.all([
+        apiRequest('/routes/load-report'),
+        apiRequest('/routes/zone-load'),
+      ])
       setLoadReport(loads)
+      setZoneLoad(zoneReport)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -50,20 +55,12 @@ export default function RoutesPage() {
 
   useEffect(() => { loadReportData() }, [loadReportData])
 
-  const zoneStats = useMemo(() => {
-    const map = new Map()
-    catalog.zones.forEach((zone, index) => {
-      const collectorLoad = loadReport.find((row) => row.collectorId === zone.assignedCollectorId)
-      const total = collectorLoad?.totalAssignments || 0
-      const pending = collectorLoad?.pendingAssignments || 0
-      const loadPct = total ? Math.min(99, Math.round((pending / Math.max(total, 1)) * 100) + 20 + index * 8) : 30 + index * 12
-      map.set(zone.id, {
-        todayPickups: pending || Math.max(1, Math.round(total / 3)),
-        loadPct,
-      })
-    })
-    return map
-  }, [catalog.zones, loadReport])
+  // Counts straight from /routes/zone-load, keyed by zone. Nothing is derived or
+  // padded here: a zone with no assignments reports zero rather than a guess.
+  const zoneStats = useMemo(
+    () => new Map(zoneLoad.map((row) => [row.zoneId, row])),
+    [zoneLoad],
+  )
 
   function startEdit(zone) {
     setShowForm(true)
@@ -172,7 +169,7 @@ export default function RoutesPage() {
       <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
 
       {view === 'map' ? (
-        <ZoneMapView zones={catalog.zones} loadReport={loadReport} />
+        <ZoneMapView zones={catalog.zones} zoneLoad={zoneLoad} loadReport={loadReport} />
       ) : loading || catalog.loading ? (
         <p className="admin-loading">Loading zones…</p>
       ) : catalog.zones.length === 0 ? (
@@ -211,6 +208,34 @@ export default function RoutesPage() {
             <div>
               <label>Description</label>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </div>
+            {/* Optional: a zone without coordinates is still usable for routing,
+                it just cannot be placed on the map. */}
+            <div className="admin-form-row">
+              <div>
+                <label>Latitude</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="-90"
+                  max="90"
+                  value={form.latitude}
+                  onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                  placeholder="e.g. 6.9344"
+                />
+              </div>
+              <div>
+                <label>Longitude</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="-180"
+                  max="180"
+                  value={form.longitude}
+                  onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                  placeholder="e.g. 79.8428"
+                />
+              </div>
             </div>
             <div className="admin-actions">
               <button type="submit" className="btn-primary btn-sm" disabled={busy}>{editingId ? 'Update zone' : 'Create zone'}</button>

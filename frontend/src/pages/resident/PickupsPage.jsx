@@ -277,7 +277,9 @@ export default function ResidentPickupsPage() {
             <span />
           </div>
           {filteredItems.map((item) => {
-            const category = inferCategory(item.description)
+            // The AI classification when there is one; the keyword guess is only a
+            // placeholder for pickups the pipeline has not classified yet.
+            const category = item.category || inferCategory(item.description)
             const expanded = expandedId === item.id
             return (
               <Fragment key={item.id}>

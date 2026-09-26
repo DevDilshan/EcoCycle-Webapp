@@ -187,7 +187,9 @@ export default function ResidentDashboardPage() {
         ) : (
           <ul className="resident-activity-list">
             {recentActivity.map((item) => {
-              const category = inferCategory(item.description)
+              // The AI classification when there is one; the keyword guess is only a
+              // placeholder for pickups the pipeline has not classified yet.
+              const category = item.category || inferCategory(item.description)
               const isPending = ['Pending', 'Approved'].includes(item.status)
               return (
                 <li key={item.id} className="resident-activity-item">
