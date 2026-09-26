@@ -1,5 +1,13 @@
 import { supabase } from './supabase'
 
+/** Empty in dev uses same-origin `/api` (Vite proxy). Set to backend origin in production. */
+const apiOrigin = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+
+export function apiUrl(path) {
+  const suffix = path.startsWith('/') ? path : `/${path}`
+  return `${apiOrigin}/api${suffix}`
+}
+
 async function getAccessToken() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) {
@@ -19,7 +27,7 @@ export async function apiRequest(path, options = {}) {
     headers['Content-Type'] = 'application/json'
   }
 
-  const response = await fetch(`/api${path}`, { ...options, headers })
+  const response = await fetch(apiUrl(path), { ...options, headers })
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
