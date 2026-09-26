@@ -113,6 +113,40 @@ public class RouteAssignmentService
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Pickup counts per zone, for the admin zone cards.
+    /// </summary>
+    /// <remarks>
+    /// Driven from the zone list so a zone with no assignments still appears,
+    /// reporting zeroes rather than vanishing.
+    /// </remarks>
+    public async Task<List<ZoneLoadDto>> GetZoneLoadReportAsync()
+    {
+        var today = DateTime.UtcNow.Date;
+        var tomorrow = today.AddDays(1);
+
+        return await _context.Zones
+            .AsNoTracking()
+            .OrderBy(z => z.Name)
+            .Select(z => new ZoneLoadDto
+            {
+                ZoneId = z.Id,
+                ZoneName = z.Name,
+                PendingAssignments = _context.RouteAssignments
+                    .Count(r => r.ZoneId == z.Id && r.CompletionStatus == RouteCompletionStatus.Pending),
+                DueToday = _context.RouteAssignments
+                    .Count(r => r.ZoneId == z.Id
+                                && r.CompletionStatus == RouteCompletionStatus.Pending
+                                && r.ScheduledDate >= today && r.ScheduledDate < tomorrow),
+                CompletedAssignments = _context.RouteAssignments
+                    .Count(r => r.ZoneId == z.Id && r.CompletionStatus == RouteCompletionStatus.Completed),
+                MissedAssignments = _context.RouteAssignments
+                    .Count(r => r.ZoneId == z.Id && r.CompletionStatus == RouteCompletionStatus.Missed),
+                TotalAssignments = _context.RouteAssignments.Count(r => r.ZoneId == z.Id),
+            })
+            .ToListAsync();
+    }
+
     public async Task<RouteAssignmentDto?> AssignPickupToRouteAsync(Guid pickupRequestId)
     {
         var pickupExists = await _context.PickupRequests

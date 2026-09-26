@@ -1,60 +1,122 @@
-export default function ZoneMapView({ zones = [], loadReport = [] }) {
-  const totalPickups = loadReport.reduce((sum, row) => sum + row.totalAssignments, 0)
-  const activeTrucks = loadReport.filter((row) => row.pendingAssignments > 0).length
+/**
+ * Zone overview for the Routes page: summary counts, a map of the active zones,
+ * and per-zone pickup counts.
+ *
+ * Every figure here comes from /routes/zone-load and /routes/load-report, and
+ * every marker from a zone's stored coordinates. Zones carry a single point
+ * rather than a boundary, so they are plotted as pins, not areas -- and nothing
+ * is drawn for a zone that has no coordinates.
+ */
+import ZoneMap from './ZoneMap'
 
-  const overlays = [
-    { name: 'North-3', load: 78, color: '#2f7d51', top: 40, left: 40, width: 220, height: 120, overloaded: false },
-    { name: 'East-1', load: 45, color: '#2b6cb0', top: 40, left: 320, width: 250, height: 120, overloaded: false },
-    { name: 'West-2', load: 96, color: '#c0392b', top: 210, left: 40, width: 220, height: 150, overloaded: true },
-    { name: 'South-4', load: 30, color: '#6d4bb0', top: 210, left: 320, width: 250, height: 150, overloaded: false },
-  ]
+export default function ZoneMapView({ zones = [], zoneLoad = [], loadReport = [] }) {
+  const loadByZone = new Map(zoneLoad.map((row) => [row.zoneId, row]))
+
+  // Anything the map cannot honestly show, with the reason. Deactivated zones
+  // are excluded by choice; zones without coordinates simply cannot be placed.
+  const excluded = zones
+    .filter((zone) => zone.isActive === false || zone.latitude == null || zone.longitude == null)
+    .map((zone) => ({
+      zone,
+      reason: zone.isActive === false ? 'deactivated' : 'no coordinates set',
+    }))
+
+  // Real figures, with no stand-in values: a quiet day should read as a quiet
+  // day rather than borrowing numbers from somewhere else.
+  const activeCollectors = loadReport.filter((row) => row.pendingAssignments > 0).length
+  const totalCollectors = loadReport.length
+  const pendingPickups = loadReport.reduce((sum, row) => sum + row.pendingAssignments, 0)
+  const dueToday = zoneLoad.reduce((sum, row) => sum + row.dueToday, 0)
+
+  const busiest = zoneLoad.reduce(
+    (top, row) => (row.pendingAssignments > (top?.pendingAssignments ?? -1) ? row : top),
+    null,
+  )
 
   return (
-    <div className="zone-map-view">
-      {overlays.map((zone) => (
-        <div
-          key={zone.name}
-          className="zone-map-overlay"
-          style={{
-            top: zone.top,
-            left: zone.left,
-            width: zone.width,
-            height: zone.height,
-            background: `${zone.color}24`,
-            borderColor: `${zone.color}88`,
-          }}
-        >
-          <span className="zone-map-label" style={{ background: zone.color }}>
-            {zone.name} · {zone.load}%{zone.overloaded ? ' overloaded' : ''}
-          </span>
+    <div className="zone-overview">
+      <div className="zone-overview-summary">
+        <div className="zone-overview-stat">
+          <span className="zone-overview-value">{pendingPickups}</span>
+          <span className="zone-overview-label">pickups waiting</span>
         </div>
-      ))}
-
-      <div className="zone-map-truck" style={{ top: 90, left: 130, borderColor: '#2f7d51' }}>🚛</div>
-      <div className="zone-map-truck" style={{ top: 250, left: 120, borderColor: '#c0392b' }}>🚛</div>
-      <div className="zone-map-truck" style={{ top: 90, left: 430, borderColor: '#2b6cb0' }}>🚛</div>
-
-      <div className="zone-map-dot" style={{ top: 130, left: 200, background: '#2f7d51' }} />
-      <div className="zone-map-dot" style={{ top: 70, left: 90, background: '#2f7d51' }} />
-      <div className="zone-map-dot" style={{ top: 300, left: 180, background: '#c0392b' }} />
-      <div className="zone-map-dot" style={{ top: 280, left: 90, background: '#c0392b' }} />
-      <div className="zone-map-dot" style={{ top: 110, left: 500, background: '#2b6cb0' }} />
-
-      <div className="zone-map-legend">
-        <h3>Live dispatch</h3>
-        <p><span className="zone-legend-swatch zone-legend-balanced" /> Balanced load</p>
-        <p><span className="zone-legend-swatch zone-legend-overloaded" /> Overloaded zone</p>
-        <p><span className="zone-legend-truck">🚛</span> Active collector</p>
-        <p className="zone-map-legend-note">
-          Routing Agent balancing <strong>{activeTrucks || 4} trucks</strong> across{' '}
-          <strong>{totalPickups || 50} pickups</strong> today.
-        </p>
+        <div className="zone-overview-stat">
+          <span className="zone-overview-value">{dueToday}</span>
+          <span className="zone-overview-label">due today</span>
+        </div>
+        <div className="zone-overview-stat">
+          <span className="zone-overview-value">
+            {activeCollectors}<small> / {totalCollectors}</small>
+          </span>
+          <span className="zone-overview-label">collectors with work</span>
+        </div>
       </div>
 
-      <div className="zone-map-zoom">
-        <button type="button" aria-label="Zoom in">+</button>
-        <button type="button" aria-label="Zoom out">−</button>
-      </div>
+      <ZoneMap zones={zones} loadByZone={loadByZone} />
+
+      {excluded.length > 0 && (
+        <div className="zone-map-excluded">
+          <p className="zone-map-excluded-note">
+            Deactivated zones are not shown on the map. Zones without coordinates cannot be placed.
+          </p>
+          <ul>
+            {excluded.map(({ zone, reason }) => (
+              <li key={zone.id}>
+                <strong>{zone.name}</strong> — {reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {zones.length === 0 ? (
+        <p className="admin-empty">No zones yet.</p>
+      ) : (
+        <div className="zone-overview-grid">
+          {zones.map((zone) => {
+            const stats = loadByZone.get(zone.id)
+            const waiting = stats?.pendingAssignments ?? 0
+            const inactive = zone.isActive === false
+            const isBusiest = Boolean(
+              busiest && busiest.zoneId === zone.id && busiest.pendingAssignments > 0,
+            )
+
+            return (
+              <div
+                key={zone.id}
+                className={`zone-overview-tile${inactive ? ' zone-overview-tile-inactive' : ''}${
+                  isBusiest ? ' zone-overview-tile-busiest' : ''
+                }`}
+              >
+                <div className="zone-overview-tile-head">
+                  <strong>{zone.name}</strong>
+                  {inactive && <span className="zone-overview-tag">Inactive</span>}
+                  {isBusiest && <span className="zone-overview-tag">Busiest</span>}
+                </div>
+                <p className="zone-overview-tile-counts">
+                  {stats ? (
+                    <>
+                      {waiting} waiting · {stats.dueToday} due today
+                    </>
+                  ) : (
+                    'Counts unavailable'
+                  )}
+                </p>
+                {stats && stats.missedAssignments > 0 && (
+                  <p className="zone-overview-tile-missed">
+                    {stats.missedAssignments} missed
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <p className="zone-overview-note">
+        Counts come from route assignments per zone. Zones have no recorded
+        capacity, so no “% loaded” is shown.
+      </p>
     </div>
   )
 }
