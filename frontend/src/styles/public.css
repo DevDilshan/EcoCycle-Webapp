@@ -991,3 +991,74 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
     color: var(--eco-green);
   }
 }
+
+
+/* --- auth pages: photo background --------------------------------------- */
+
+/* The design put the card on flat honeydew. A photo under a racing-green
+   overlay gives the page the same footing as the landing hero, and follows the
+   brand rule that photos always sit under the green overlay. The overlay is
+   what makes the card readable, so it is not optional decoration.
+   The image is referenced from CSS so neither page component has to change. */
+.eco-auth {
+  position: relative;
+  isolation: isolate;
+  background: var(--eco-green);
+}
+
+.eco-auth::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: url('../assets/sorting-bins.jpg');
+  background-size: cover;
+  background-position: 50% 45%;
+}
+
+.eco-auth::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    160deg,
+    rgba(0, 52, 36, 0.92) 0%,
+    rgba(0, 86, 59, 0.82) 45%,
+    rgba(0, 52, 36, 0.9) 100%
+  );
+}
+
+/* The card lifts further off a photo than off flat honeydew. */
+.eco-auth .eco-auth-card {
+  box-shadow: 0 8px 20px rgba(0, 32, 22, 0.28), 0 32px 68px rgba(0, 32, 22, 0.34);
+}
+
+/* The bar above the card sits on the photo, so it takes the light treatment
+   the nav uses over the hero. */
+.eco-auth .eco-brand { color: var(--ivory); }
+.eco-auth .eco-brand-text-alt { color: var(--eco-celadon); opacity: 1; }
+
+.eco-auth .eco-brand-mark {
+  background: var(--ivory);
+  color: var(--eco-green);
+  box-shadow: 0 4px 14px rgba(0, 32, 22, 0.35);
+}
+
+.eco-auth .eco-auth-top .eco-btn-ghost {
+  color: var(--ivory);
+  border: 1px solid rgba(255, 255, 240, 0.45);
+  background: rgba(255, 255, 240, 0.08);
+}
+
+.eco-auth .eco-auth-top .eco-btn-ghost:hover {
+  color: var(--ivory);
+  background: rgba(255, 255, 240, 0.18);
+  border-color: rgba(255, 255, 240, 0.7);
+}
+
+/* On a short phone screen the photo is mostly hidden behind the card anyway,
+   so the gradient carries it and the image is skipped to save the download. */
+@media (max-width: 560px) {
+  .eco-auth::before { display: none; }
+}
