@@ -42,6 +42,24 @@ export async function apiRequest(path, options = {}) {
   return response.json()
 }
 
+/**
+ * Fetch an endpoint that does not require a session.
+ *
+ * `apiRequest` always asks Supabase for an access token and throws when there
+ * is none, which is right for the app but wrong for the public landing page:
+ * a visitor who has never signed in would see an error instead of the map.
+ */
+export async function publicRequest(path) {
+  const response = await fetch(apiUrl(path), {
+    headers: { Accept: 'application/json' },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`)
+  }
+  return response.json()
+}
+
 export function formatDate(value) {
   if (!value) return '—'
   return new Date(value).toLocaleString()

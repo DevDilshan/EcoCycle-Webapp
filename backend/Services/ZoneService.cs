@@ -23,6 +23,30 @@ public class ZoneService
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Active zones that can be shown on the public map.
+    /// </summary>
+    /// <remarks>
+    /// Only zones with both coordinates are returned: one without them cannot be
+    /// placed, and sending it would leave the caller to filter anyway. Inactive
+    /// zones are excluded because the page states these are areas we serve now.
+    /// </remarks>
+    public async Task<List<PublicZoneDto>> GetPublicZonesAsync()
+    {
+        return await _context.Zones
+            .AsNoTracking()
+            .Where(z => z.IsActive && z.Latitude != null && z.Longitude != null)
+            .OrderBy(z => z.Name)
+            .Select(z => new PublicZoneDto
+            {
+                Id = z.Id,
+                Name = z.Name,
+                Latitude = z.Latitude!.Value,
+                Longitude = z.Longitude!.Value,
+            })
+            .ToListAsync();
+    }
+
     public async Task<ZoneDto?> GetZoneByIdAsync(Guid id)
     {
         var zone = await _context.Zones
