@@ -1038,13 +1038,12 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
    rather than lower because the labels and hint text inside are small -- below
    about 70% the body copy starts to fight the photograph. */
 .eco-auth .eco-auth-card {
-  background: rgba(255, 255, 240, 0.4);
-  /* brightness() is what makes this work at 40%: it lifts whatever is behind
-     the card, so the dark text keeps its contrast while the photo's shapes and
-     colour still read through. Blur alone at this opacity would leave the copy
-     sitting on mid-tone green. */
-  backdrop-filter: blur(30px) saturate(170%) brightness(1.45);
-  -webkit-backdrop-filter: blur(30px) saturate(170%) brightness(1.45);
+  background: rgba(255, 255, 240, 0.66);
+  /* 66%: enough of a surface that it reads as a form, while the photo still
+     shows through it. A light brightness lift keeps the dark text comfortably
+     clear of whatever colour passes behind the card. */
+  backdrop-filter: blur(26px) saturate(150%) brightness(1.2);
+  -webkit-backdrop-filter: blur(26px) saturate(150%) brightness(1.2);
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.7),
@@ -1064,9 +1063,9 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 /* Inputs stay closer to solid: text being typed has to be crisp, and a field
    is where a blurred background is most distracting. */
 .eco-auth .eco-input {
-  background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(8px) brightness(1.15);
-  -webkit-backdrop-filter: blur(8px) brightness(1.15);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .eco-auth .eco-input:focus {
@@ -1075,9 +1074,9 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 
 /* Same treatment for the role tiles on the register form. */
 .eco-auth .eco-role {
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(8px) brightness(1.15);
-  -webkit-backdrop-filter: blur(8px) brightness(1.15);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .eco-auth .eco-role.is-active {
@@ -1127,9 +1126,9 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
    with its own blur, keeping the shape and the colour but letting the photo
    run underneath the whole form. */
 .eco-auth .eco-auth-icon {
-  background: rgba(172, 225, 175, 0.32);
-  backdrop-filter: blur(10px) brightness(1.2);
-  -webkit-backdrop-filter: blur(10px) brightness(1.2);
+  background: rgba(172, 225, 175, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
   color: var(--eco-green);
 }
