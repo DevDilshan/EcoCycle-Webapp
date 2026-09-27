@@ -9,7 +9,6 @@ import {
   Mail,
   MapPin,
   Phone,
-  Recycle,
   Route,
   ScanSearch,
   Sparkles,
@@ -18,6 +17,7 @@ import {
   Users,
 } from 'lucide-react'
 import PublicNavbar from '../components/layout/PublicNavbar'
+import EcoLogo from '../components/public/EcoLogo'
 import ServiceAreasMap from '../components/public/ServiceAreasMap'
 import { useCountUp, useEcoRevealProps } from '../hooks/useEcoReveal'
 import '../styles/public.css'
@@ -27,6 +27,9 @@ import '../styles/public.css'
 //   e-waste-bin.jpg       - shows another company's branding (Recycling Hub)
 //   collection-truck.jpg  - shows Waste Management's "Think Green" branding
 import collectionTruck from '../assets/collection-truck.jpg'
+import stepClassify from '../assets/step-classify.jpg'
+import stepRouted from '../assets/step-routed.jpg'
+import stepSubmit from '../assets/step-submit.jpg'
 import eWasteBin from '../assets/e-waste-bin.jpg'
 import seedlingInHand from '../assets/seedling-in-hand.jpg'
 import sortingBins from '../assets/sorting-bins.jpg'
@@ -131,8 +134,7 @@ export default function HomePage() {
               </h1>
 
               <p className="eco-hero-sub eco-fade-up" style={{ '--eco-delay': '450ms' }}>
-                Snap a photo, and EcoCycle&apos;s AI sorts it, routes it to the right collector
-                and rewards you for recycling right. Cleaner streets, one pickup at a time.
+                Snap a photo. We sort it, route it, and collect it.
               </p>
 
               <div className="eco-hero-ctas eco-fade-up" style={{ '--eco-delay': '650ms' }}>
@@ -157,16 +159,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="eco-phero-chip eco-fade-up" style={{ '--eco-delay': '1100ms' }}>
-            <span className="eco-icon-tile">
-              <Truck size={20} strokeWidth={2} aria-hidden="true" />
-            </span>
-            <div>
-              <span>Pickup #1048 collected</span>
-              <small><span>Maple Street · +25 reward points</span></small>
-            </div>
-          </div>
-
           <svg className="eco-wave" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
             <path d="M0,64 C240,120 480,120 720,80 C960,40 1200,20 1440,56 L1440,120 L0,120 Z" />
           </svg>
@@ -181,35 +173,27 @@ export default function HomePage() {
                 icon={Camera}
                 title="Submit"
                 body="Snap a photo of your waste and pick a pickup time that suits you."
-                image={sortingBins}
-                alt="A hand dropping a plastic bottle into a recycling bin"
-                imageStyle={{ objectPosition: '50% 40%' }}
+                image={stepSubmit}
+                alt="Recycling symbol formed from plastic bottles and packaging"
+                imageStyle={{ objectPosition: '50% 50%' }}
               />
               <Step
                 index={1}
                 icon={ScanSearch}
                 title="AI classifies"
                 body="Our model sorts it into recyclable, organic, e-waste or hazardous in seconds."
-                image={eWasteBin}
-                alt="A green bin filled with old electronics"
-                imageStyle={{ objectPosition: '50% 90%', scale: '1.25' }}
+                image={stepClassify}
+                alt="A discarded phone with a seedling growing through it"
+                imageStyle={{ objectPosition: '50% 45%' }}
               />
               <Step
                 index={2}
                 icon={Route}
                 title="Routed"
                 body="Your request joins the right collector for your area, automatically."
-                illustration={(
-                  <div className="eco-pstep-illus">
-                    <span className="eco-illus-ring">
-                      <Route size={22} strokeWidth={2} aria-hidden="true" />
-                    </span>
-                    <span className="eco-pill">
-                      <Truck size={14} strokeWidth={2} aria-hidden="true" />
-                      Zone 3 → Route B
-                    </span>
-                  </div>
-                )}
+                image={stepRouted}
+                alt="A city map with collection stops pinned along a route"
+                imageStyle={{ objectPosition: '50% 50%' }}
               />
               <Step
                 index={3}
@@ -322,14 +306,21 @@ export default function HomePage() {
           <div className="eco-container">
             <div {...cta} className={`eco-pcta ${cta.className}`}>
               <img src={eWasteBin} alt="" />
-              <div>
-                <h2>Ready for your first pickup?</h2>
-                <p>Create a free account in under a minute.</p>
+              <div className="eco-pcta-copy">
+                <p className="eco-pcta-eyebrow">
+                  <Leaf size={14} strokeWidth={2} aria-hidden="true" />
+                  <span>Free to join</span>
+                </p>
+                <h2>Your first pickup is a photo away</h2>
+                <p>Set up an account in under a minute, then just point and shoot.</p>
               </div>
-              <Link className="eco-btn eco-btn-secondary eco-btn-lg" to="/register">
-                <span>Get started</span>
-                <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
-              </Link>
+              <div className="eco-pcta-actions">
+                <Link className="eco-btn eco-btn-secondary eco-btn-lg" to="/register">
+                  <span>Create free account</span>
+                  <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+                </Link>
+                <Link className="eco-pcta-link" to="/login">I already have one</Link>
+              </div>
             </div>
           </div>
         </section>
@@ -345,10 +336,7 @@ export default function HomePage() {
           <div className="eco-footer-grid">
             <div>
               <a href="#top" className="eco-brand">
-                <span className="eco-brand-mark">
-                  <Recycle size={18} strokeWidth={2} aria-hidden="true" />
-                </span>
-                <span>EcoCycle</span>
+                <EcoLogo />
               </a>
               <p>
                 Smart waste and recycling pickup for cleaner, greener neighbourhoods.
@@ -394,7 +382,6 @@ export default function HomePage() {
 
           <div className="eco-footer-bottom">
             <span>© {new Date().getFullYear()} EcoCycle</span>
-            <span>SE3090 Group Project</span>
           </div>
         </div>
       </footer>

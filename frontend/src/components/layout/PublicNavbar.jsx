@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Menu, Recycle, X } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
+import EcoLogo from '../public/EcoLogo'
 import { useAuth } from '../../context/AuthContext'
 import { getHomePath } from '../../lib/roles'
 
@@ -36,10 +37,7 @@ export default function PublicNavbar() {
     <header className={`eco-nav eco-nav-over${scrolled ? ' is-scrolled' : ''}`}>
       <div className="eco-container eco-nav-inner">
         <a href="#top" className="eco-brand" onClick={() => setMenuOpen(false)}>
-          <span className="eco-brand-mark">
-            <Recycle size={18} strokeWidth={2} aria-hidden="true" />
-          </span>
-          <span>EcoCycle</span>
+          <EcoLogo />
         </a>
 
         <nav className="eco-nav-links" aria-label="Primary">

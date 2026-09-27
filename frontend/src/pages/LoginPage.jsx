@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Leaf, Lock, Mail, Recycle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Leaf, Lock, Mail } from 'lucide-react'
+import EcoLogo from '../components/public/EcoLogo'
 import { useAuth } from '../context/AuthContext'
 import { getUserRole } from '../lib/supabase'
 import { getHomePath } from '../lib/roles'
@@ -40,10 +41,7 @@ export default function LoginPage() {
     <div className="eco eco-auth">
       <div className="eco-container eco-auth-top">
         <Link to="/" className="eco-brand">
-          <span className="eco-brand-mark">
-            <Recycle size={18} strokeWidth={2} aria-hidden="true" />
-          </span>
-          <span>EcoCycle</span>
+          <EcoLogo />
         </Link>
         <Link className="eco-btn eco-btn-ghost" to="/">
           <ArrowLeft size={18} strokeWidth={2} aria-hidden="true" />

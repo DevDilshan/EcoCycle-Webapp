@@ -10,10 +10,10 @@ import {
   Lock,
   Mail,
   MailCheck,
-  Recycle,
   ShieldCheck,
   Truck,
 } from 'lucide-react'
+import EcoLogo from '../components/public/EcoLogo'
 import { useAuth } from '../context/AuthContext'
 import { getHomePath } from '../lib/roles'
 import '../styles/public.css'
@@ -57,10 +57,7 @@ export default function RegisterPage() {
   const header = (
     <div className="eco-container eco-auth-top">
       <Link to="/" className="eco-brand">
-        <span className="eco-brand-mark">
-          <Recycle size={18} strokeWidth={2} aria-hidden="true" />
-        </span>
-        <span>EcoCycle</span>
+        <EcoLogo />
       </Link>
       <Link className="eco-btn eco-btn-ghost" to="/">
         <ArrowLeft size={18} strokeWidth={2} aria-hidden="true" />

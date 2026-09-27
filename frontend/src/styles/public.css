@@ -675,3 +675,152 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   .eco .eco-areas-map-canvas,
   .eco .eco-areas-map-loading { height: 340px; }
 }
+
+
+/* ==========================================================================
+   Refinements on top of the approved design
+   Requested after the first review: a nav that is legible before you scroll,
+   a larger and more distinctive wordmark, the step cards sitting lower, a
+   calmer hero, and a warmer closing band.
+   ========================================================================== */
+
+/* --- nav: readable from the first pixel -------------------------------- */
+
+/* Over the photo the bar used to be fully transparent, so the links only
+   separated from the image by luck. A soft scrim behind it keeps the ivory
+   text legible whatever the photo is doing underneath, and still reads as
+   "floating over the hero" rather than as a solid bar. */
+.eco .eco-nav-over::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(0, 52, 36, 0.55), rgba(0, 52, 36, 0));
+  transition: opacity 260ms var(--eco-ease);
+}
+
+.eco .eco-nav-over.is-scrolled::before { opacity: 0; }
+
+/* The two nav buttons carry their own surface before scroll, so they read as
+   controls instead of floating words. */
+.eco .eco-nav-over .eco-btn-ghost {
+  border: 1px solid rgba(255, 255, 240, 0.45);
+  background: rgba(255, 255, 240, 0.08);
+}
+
+.eco .eco-nav-over .eco-btn-ghost:hover {
+  background: rgba(255, 255, 240, 0.18);
+  border-color: rgba(255, 255, 240, 0.7);
+}
+
+.eco .eco-nav-over.is-scrolled .eco-btn-ghost {
+  border-color: var(--eco-line);
+  background: transparent;
+}
+
+/* --- wordmark ----------------------------------------------------------- */
+
+.eco .eco-brand { gap: 12px; }
+
+.eco .eco-brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.eco .eco-brand-mark svg {
+  width: 26px;
+  height: 26px;
+}
+
+.eco .eco-brand-text {
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* "Cycle" picks up the accent so the wordmark has a shape of its own rather
+   than being one flat run of letters. */
+.eco .eco-brand-text-alt { color: var(--eco-celadon); }
+.eco .eco-nav-over.is-scrolled .eco-brand-text-alt,
+.eco-auth .eco-brand-text-alt { color: var(--eco-green); opacity: 0.55; }
+.eco .eco-footer-dark .eco-brand-text-alt { color: var(--eco-celadon); }
+
+@media (max-width: 640px) {
+  .eco .eco-brand-mark { width: 38px; height: 38px; border-radius: 12px; }
+  .eco .eco-brand-mark svg { width: 22px; height: 22px; }
+  .eco .eco-brand-text { font-size: 20px; }
+}
+
+/* --- hero: quieter ------------------------------------------------------ */
+
+.eco .eco-hero-sub { max-width: 46ch; }
+
+/* Was a plain list; now three compact chips, which carries the same three
+   facts in less vertical space. */
+.eco .eco-hero-note {
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.eco .eco-hero-note li {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 240, 0.12);
+  border: 1px solid rgba(255, 255, 240, 0.22);
+  font-size: 14px;
+}
+
+/* --- step cards: lower over the hero ------------------------------------ */
+
+.eco .eco-pstep-wrap { margin-top: -84px; }
+
+@media (max-width: 900px) {
+  .eco .eco-pstep-wrap { margin-top: -60px; }
+}
+
+/* --- closing band ------------------------------------------------------- */
+
+.eco .eco-pcta { padding: 64px 56px; }
+
+.eco .eco-pcta-copy { max-width: 46ch; }
+
+.eco .eco-pcta-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(172, 225, 175, 0.18);
+  color: var(--eco-celadon);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.eco .eco-pcta-actions {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.eco .eco-pcta-link {
+  color: rgba(255, 255, 240, 0.8);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 200ms var(--eco-ease);
+}
+
+.eco .eco-pcta-link:hover { color: var(--ivory); }
+
+@media (max-width: 860px) {
+  .eco .eco-pcta { padding: 44px 32px; }
+  .eco .eco-pcta-actions { justify-items: stretch; width: 100%; }
+  .eco .eco-pcta-actions .eco-btn { width: 100%; }
+  .eco .eco-pcta-link { text-align: center; }
+}
