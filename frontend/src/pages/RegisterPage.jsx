@@ -1,12 +1,34 @@
 import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  House,
+  Leaf,
+  Lock,
+  Mail,
+  MailCheck,
+  ShieldCheck,
+  Truck,
+} from 'lucide-react'
+import EcoLogo from '../components/public/EcoLogo'
 import { useAuth } from '../context/AuthContext'
 import { getHomePath } from '../lib/roles'
+import '../styles/public.css'
+
+const ROLES = [
+  { value: 'resident', label: 'Resident', icon: House },
+  { value: 'collector', label: 'Collector', icon: Truck },
+  { value: 'admin', label: 'Admin', icon: ShieldCheck },
+]
 
 export default function RegisterPage() {
   const { signUp, user, role } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [selectedRole, setSelectedRole] = useState('resident')
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
@@ -32,62 +54,147 @@ export default function RegisterPage() {
     setSuccess(true)
   }
 
+  const header = (
+    <div className="eco-container eco-auth-top">
+      <Link to="/" className="eco-brand">
+        <EcoLogo />
+      </Link>
+      <Link className="eco-btn eco-btn-ghost" to="/">
+        <ArrowLeft size={18} strokeWidth={2} aria-hidden="true" />
+        <span>Back to home</span>
+      </Link>
+    </div>
+  )
+
   if (success) {
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <h1>Check your email</h1>
-          <p className="auth-subtitle">
-            We sent a confirmation link to <strong>{email}</strong>.
-          </p>
-          <Link to="/login" className="btn-primary">Go to login</Link>
-        </div>
+      <div className="eco eco-auth">
+        {header}
+        <main className="eco-auth-main">
+          <div className="eco-auth-card eco-enter">
+            <span className="eco-auth-icon">
+              <MailCheck size={22} strokeWidth={2} aria-hidden="true" />
+            </span>
+            <h1>Check your email</h1>
+            <p className="eco-auth-sub">
+              We sent a confirmation link to <strong>{email}</strong>. Open it to activate
+              your account.
+            </p>
+            <div className="eco-form">
+              <Link className="eco-btn eco-btn-primary eco-btn-block eco-btn-lg" to="/login">
+                <span>Go to log in</span>
+                <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+        </main>
       </div>
     )
   }
 
   return (
-    <div className="auth-page">
-      <form className="auth-card" onSubmit={handleSubmit}>
-        <h1>Create account</h1>
-        <p className="auth-subtitle">Choose your account type</p>
+    <div className="eco eco-auth">
+      {header}
 
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+      <main className="eco-auth-main">
+        <form className="eco-auth-card eco-enter" onSubmit={handleSubmit}>
+          <span className="eco-auth-icon">
+            <Leaf size={22} strokeWidth={2} aria-hidden="true" />
+          </span>
+          <h1>Create your account</h1>
+          <p className="eco-auth-sub">Join EcoCycle and start recycling smarter.</p>
 
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={6}
-          required
-        />
+          <div className="eco-form">
+            <div className="eco-field">
+              <label className="eco-label" htmlFor="reg-email">Email</label>
+              <div className="eco-input-wrap">
+                <Mail size={18} strokeWidth={2} aria-hidden="true" />
+                <input
+                  className="eco-input"
+                  id="reg-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  required
+                />
+              </div>
+            </div>
 
-        <label htmlFor="role">Role</label>
-        <select id="role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
-          <option value="resident">Resident</option>
-          <option value="collector">Collector</option>
-          <option value="admin">Admin</option>
-        </select>
+            <div className="eco-field">
+              <label className="eco-label" htmlFor="reg-password">Password</label>
+              <div className="eco-input-wrap">
+                <Lock size={18} strokeWidth={2} aria-hidden="true" />
+                <input
+                  className="eco-input eco-input-has-toggle"
+                  id="reg-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                  autoComplete="new-password"
+                  minLength={6}
+                  required
+                />
+                <button
+                  className="eco-input-toggle"
+                  type="button"
+                  onClick={() => setShowPassword((shown) => !shown)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword
+                    ? <EyeOff size={18} strokeWidth={2} aria-hidden="true" />
+                    : <Eye size={18} strokeWidth={2} aria-hidden="true" />}
+                </button>
+              </div>
+              <p className="eco-hint">Use 6 or more characters.</p>
+            </div>
 
-        {error && <p className="auth-error">{error}</p>}
+            <fieldset className="eco-field" style={{ border: 0, margin: 0, padding: 0 }}>
+              <legend className="eco-label" style={{ padding: 0, marginBottom: '8px' }}>
+                I am a…
+              </legend>
+              <div className="eco-roles">
+                {ROLES.map(({ value, label, icon: Icon }) => (
+                  <label
+                    key={value}
+                    className={`eco-role${selectedRole === value ? ' is-active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      value={value}
+                      checked={selectedRole === value}
+                      onChange={(e) => setSelectedRole(e.target.value)}
+                    />
+                    <Icon size={20} strokeWidth={2} aria-hidden="true" />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
-        <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? 'Creating account...' : 'Register'}
-        </button>
+            {error && (
+              <p className="eco-alert" role="alert">{error}</p>
+            )}
 
-        <p className="auth-footer">
-          Already have an account? <Link to="/login">Sign in</Link>
-        </p>
-      </form>
+            <button
+              className="eco-btn eco-btn-primary eco-btn-block eco-btn-lg"
+              type="submit"
+              disabled={loading}
+            >
+              <span>{loading ? 'Creating account…' : 'Create account'}</span>
+              <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+            </button>
+          </div>
+
+          <p className="eco-auth-alt">
+            <span>Already have an account?</span> <Link to="/login">Log in</Link>
+          </p>
+        </form>
+      </main>
     </div>
   )
 }

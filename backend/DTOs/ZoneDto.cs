@@ -20,3 +20,19 @@ public class ZoneDto
 
     public DateTime CreatedAt { get; set; }
 }
+
+/// <summary>
+/// A zone as the public landing page sees it.
+/// </summary>
+/// <remarks>
+/// Deliberately minimal. ZoneDto carries AssignedCollectorId and IsActive, which
+/// are operational details and must not be served anonymously, so the public
+/// endpoint returns this instead of filtering ZoneDto down at the edge.
+/// </remarks>
+public class PublicZoneDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+}

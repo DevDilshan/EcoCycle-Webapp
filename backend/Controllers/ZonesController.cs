@@ -17,6 +17,18 @@ public class ZonesController : ControllerBase
         _zoneService = zoneService;
     }
 
+    // GET /api/zones/public - the landing page's "Where we collect" map.
+    // Anonymous on purpose, and returns PublicZoneDto rather than ZoneDto so no
+    // collector ids or activity flags leave the building.
+    [HttpGet("public")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(List<PublicZoneDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<PublicZoneDto>>> GetPublic()
+    {
+        var zones = await _zoneService.GetPublicZonesAsync();
+        return Ok(zones);
+    }
+
     [HttpPost]
     [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(ZoneDto), StatusCodes.Status201Created)]
