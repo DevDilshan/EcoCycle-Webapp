@@ -917,3 +917,34 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   line-height: 1.6;
   color: rgba(255, 255, 240, 0.92);
 }
+
+
+/* --- scrolled nav: honeydew, not ivory ---------------------------------- */
+
+/* The design turned the bar ivory on scroll, which is also the page
+   background, so the bar and the page ran together. Honeydew is the palette's
+   other ground, so the bar now reads as its own surface while staying on
+   brand. Kept slightly translucent with a blur so content passing underneath
+   still shows through faintly. */
+.eco .eco-nav-over.is-scrolled {
+  background: rgba(240, 255, 240, 0.94);
+  backdrop-filter: saturate(140%) blur(10px);
+  box-shadow: 0 1px 0 var(--eco-line), 0 6px 22px rgba(0, 56, 38, 0.07);
+}
+
+/* ink on honeydew is 12.6:1, and racing-green on honeydew 8.9:1 */
+.eco .eco-nav-over.is-scrolled .eco-nav-link:hover {
+  color: var(--eco-green);
+  background: rgba(172, 225, 175, 0.38);
+}
+
+.eco .eco-nav-over.is-scrolled .eco-btn-ghost:hover {
+  background: rgba(172, 225, 175, 0.38);
+}
+
+/* The mobile menu drops out of the same bar, so it matches. */
+@media (max-width: 900px) {
+  .eco .eco-nav-over.is-scrolled .eco-mobile-menu.is-open {
+    background: rgba(240, 255, 240, 0.97);
+  }
+}
