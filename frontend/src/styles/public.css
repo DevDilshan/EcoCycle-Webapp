@@ -757,18 +757,8 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 
 .eco .eco-hero-sub { max-width: 46ch; }
 
-/* One quiet line instead of three boxed chips: the facts are supporting
-   detail, and boxing them competed with the button for attention. */
-.eco .eco-hero-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 26px 0 0;
-  color: rgba(255, 255, 240, 0.8);
-  font-size: 14.5px;
-}
-
-.eco .eco-hero-note svg { color: var(--eco-celadon); flex: none; }
+/* The hero's supporting facts now live in the sentence itself, so the separate
+   note line is gone. */
 
 /* --- step cards: lower over the hero ------------------------------------ */
 
@@ -882,8 +872,11 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   text-shadow: 0 1px 10px rgba(0, 32, 22, 0.55);
 }
 
-.eco .eco-nav-over .eco-nav-link { color: rgba(255, 255, 240, 0.92); font-weight: 600; }
-.eco .eco-nav-over .eco-nav-link:hover { color: var(--ivory); background: rgba(255, 255, 240, 0.16); }
+.eco .eco-nav-over:not(.is-scrolled) .eco-nav-link { color: rgba(255, 255, 240, 0.94); }
+.eco .eco-nav-over:not(.is-scrolled) .eco-nav-link:hover {
+  color: var(--ivory);
+  background: rgba(255, 255, 240, 0.16);
+}
 
 /* The mark keeps a solid ivory tile over the photo, so the logo never sits
    directly on the image. */
@@ -893,3 +886,34 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 .eco .eco-nav-over.is-scrolled .eco-brand,
 .eco .eco-nav-over.is-scrolled .eco-nav-link,
 .eco .eco-nav-over.is-scrolled .eco-nav-toggle { text-shadow: none; }
+
+
+/* --- nav and hero text: bigger and firmer ------------------------------- */
+
+/* Nav links were quiet enough to disappear against both the photo and the
+   ivory bar. Larger and heavier in both states, and explicitly dark once the
+   bar is solid so the contrast never depends on rule order. */
+.eco .eco-nav-link {
+  font-size: 15.5px;
+  font-weight: 700;
+  padding: 9px 15px;
+}
+
+.eco .eco-nav-over.is-scrolled .eco-nav-link { color: var(--eco-ink); }
+
+.eco .eco-nav-over.is-scrolled .eco-nav-link:hover {
+  color: var(--eco-green);
+  background: var(--eco-honeydew);
+}
+
+.eco .eco-nav-actions .eco-btn { font-size: 15px; font-weight: 700; }
+
+/* The hero sentence now carries the selling points, so it earns a little more
+   size and weight. */
+.eco .eco-hero-sub {
+  max-width: 50ch;
+  font-size: clamp(17px, 1.5vw, 19.5px);
+  font-weight: 500;
+  line-height: 1.6;
+  color: rgba(255, 255, 240, 0.92);
+}

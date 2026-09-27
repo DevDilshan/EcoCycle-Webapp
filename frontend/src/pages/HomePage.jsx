@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Award,
   Camera,
-  CheckCheck,
   Clock,
   Leaf,
   Mail,
@@ -43,9 +42,6 @@ const IMPACT_STATS = [
 ]
 
 const COLLECTORS_ON_ROAD = '48'   // TODO: placeholder, as above
-
-// Kept to two: the 48-hour promise now sits in the hero sentence itself.
-const HERO_NOTES = ['Free for residents', 'Earn reward points']
 
 const FEATURE_POINTS = [
   {
@@ -135,8 +131,9 @@ export default function HomePage() {
               </h1>
 
               <p className="eco-hero-sub eco-fade-up" style={{ '--eco-delay': '450ms' }}>
-                One photo is all it takes. We sort it, route it and collect it
-                &mdash; usually within 48 hours.
+                One photo is all it takes &mdash; we sort it, route it and collect it,
+                usually within 48 hours. Free for residents, and you earn reward points
+                every time.
               </p>
 
               <div className="eco-hero-ctas eco-fade-up" style={{ '--eco-delay': '650ms' }}>
@@ -150,10 +147,6 @@ export default function HomePage() {
                 </a>
               </div>
 
-              <p className="eco-hero-note eco-fade-up" style={{ '--eco-delay': '850ms' }}>
-                <CheckCheck size={16} strokeWidth={2} aria-hidden="true" />
-                {HERO_NOTES.join(' · ')}
-              </p>
             </div>
           </div>
 
