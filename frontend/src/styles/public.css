@@ -1117,3 +1117,41 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 @media (max-width: 560px) {
   .eco-auth::before { display: none; }
 }
+
+
+/* --- auth card: let the solid pieces join the glass --------------------- */
+
+/* The celadon icon tile, the honeydew role tile and the celadon focus ring
+   were opaque blocks of green sitting on a transparent card, so they read as
+   patches stuck on top rather than as part of it. Each becomes translucent
+   with its own blur, keeping the shape and the colour but letting the photo
+   run underneath the whole form. */
+.eco-auth .eco-auth-icon {
+  background: rgba(172, 225, 175, 0.32);
+  backdrop-filter: blur(10px) brightness(1.2);
+  -webkit-backdrop-filter: blur(10px) brightness(1.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  color: var(--eco-green);
+}
+
+/* Focus still has to be obvious, so the ring stays -- just softer, and without
+   the opaque halo. */
+.eco-auth .eco-input:focus {
+  border-color: rgba(172, 225, 175, 0.9);
+  box-shadow: 0 0 0 3px rgba(172, 225, 175, 0.3);
+}
+
+/* Selected role: the green outline and green label carry the state, rather
+   than filling the tile with honeydew. */
+.eco-auth .eco-role.is-active {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 2px rgba(0, 86, 59, 0.75);
+  color: var(--eco-green);
+}
+
+.eco-auth .eco-role {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+/* The error alert keeps its solid ground on purpose: it has to be read, and
+   it appears rarely enough that it can afford to break the glass. */
