@@ -1016,7 +1016,7 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
      the card, which sits in the middle of the page. */
   background-image: url('../assets/seedling-in-hand.jpg');
   background-size: cover;
-  background-position: 82% 40%;
+  background-position: 100% 40%;
 }
 
 .eco-auth::after {
