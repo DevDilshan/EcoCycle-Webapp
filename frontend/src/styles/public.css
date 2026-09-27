@@ -1011,12 +1011,13 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   position: absolute;
   inset: 0;
   z-index: -2;
-  /* The landing hero's photo, so signing in feels like the same place.
-     Framed towards the right of the image so its subject is not hidden behind
-     the card, which sits in the middle of the page. */
-  background-image: url('../assets/seedling-in-hand.jpg');
+  /* A seedling low on the left with open space across the rest of the frame,
+     so the card sits over the quiet part of the picture rather than over the
+     subject. Framed left of centre to keep the seedling in view once `cover`
+     crops the sides on a tall window. */
+  background-image: url('../assets/auth-backdrop.jpg');
   background-size: cover;
-  background-position: 100% 40%;
+  background-position: 22% 62%;
 }
 
 .eco-auth::after {
@@ -1029,9 +1030,9 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
      small amount of text outside the card legible, not hide the image. */
   background: linear-gradient(
     160deg,
-    rgba(0, 52, 36, 0.62) 0%,
-    rgba(0, 86, 59, 0.4) 45%,
-    rgba(0, 52, 36, 0.66) 100%
+    rgba(0, 52, 36, 0.42) 0%,
+    rgba(0, 86, 59, 0.16) 45%,
+    rgba(0, 52, 36, 0.5) 100%
   );
 }
 
