@@ -919,32 +919,75 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 }
 
 
-/* --- scrolled nav: honeydew, not ivory ---------------------------------- */
+/* --- scrolled nav: racing green ----------------------------------------- */
 
-/* The design turned the bar ivory on scroll, which is also the page
-   background, so the bar and the page ran together. Honeydew is the palette's
-   other ground, so the bar now reads as its own surface while staying on
-   brand. Kept slightly translucent with a blur so content passing underneath
-   still shows through faintly. */
+/* The bar turns the brand's dark green once the page scrolls, rather than the
+   ivory the design used (which matched the page background, so the two ran
+   together). Light text on it, which also means the nav looks the same before
+   and after scrolling -- only the ground changes. */
 .eco .eco-nav-over.is-scrolled {
-  background: rgba(240, 255, 240, 0.94);
+  background: rgba(0, 86, 59, 0.95);
   backdrop-filter: saturate(140%) blur(10px);
-  box-shadow: 0 1px 0 var(--eco-line), 0 6px 22px rgba(0, 56, 38, 0.07);
+  box-shadow: 0 6px 24px rgba(0, 40, 28, 0.18);
 }
 
-/* ink on honeydew is 12.6:1, and racing-green on honeydew 8.9:1 */
+/* ivory on racing-green is 9.6:1 */
+.eco .eco-nav-over.is-scrolled .eco-brand,
+.eco .eco-nav-over.is-scrolled .eco-nav-toggle { color: var(--ivory); }
+
+.eco .eco-nav-over.is-scrolled .eco-nav-link { color: rgba(255, 255, 240, 0.9); }
+
 .eco .eco-nav-over.is-scrolled .eco-nav-link:hover {
+  color: var(--ivory);
+  background: rgba(255, 255, 240, 0.14);
+}
+
+/* Keep the mark as a light tile so the logo stays legible on the dark bar. */
+.eco .eco-nav-over.is-scrolled .eco-brand-mark {
+  background: var(--ivory);
   color: var(--eco-green);
-  background: rgba(172, 225, 175, 0.38);
+}
+
+.eco .eco-nav-over.is-scrolled .eco-brand-text-alt {
+  color: var(--eco-celadon);
+  opacity: 1;
+}
+
+/* Outlined button stays light; the solid one uses celadon, because white on
+   green would compete with the bar itself. */
+.eco .eco-nav-over.is-scrolled .eco-btn-ghost {
+  color: var(--ivory);
+  border: 1px solid rgba(255, 255, 240, 0.45);
+  background: rgba(255, 255, 240, 0.08);
 }
 
 .eco .eco-nav-over.is-scrolled .eco-btn-ghost:hover {
-  background: rgba(172, 225, 175, 0.38);
+  background: rgba(255, 255, 240, 0.18);
+  border-color: rgba(255, 255, 240, 0.7);
+}
+
+.eco .eco-nav-over.is-scrolled .eco-btn-primary {
+  background: var(--eco-celadon);
+  color: var(--eco-green);
+}
+
+.eco .eco-nav-over.is-scrolled .eco-btn-primary:hover {
+  background: var(--celadon-strong);
+  color: var(--eco-green);
 }
 
 /* The mobile menu drops out of the same bar, so it matches. */
 @media (max-width: 900px) {
   .eco .eco-nav-over.is-scrolled .eco-mobile-menu.is-open {
-    background: rgba(240, 255, 240, 0.97);
+    background: rgba(0, 86, 59, 0.97);
+  }
+
+  .eco .eco-nav-over.is-scrolled .eco-mobile-menu.is-open .eco-nav-link {
+    color: rgba(255, 255, 240, 0.9);
+  }
+
+  .eco .eco-nav-over.is-scrolled .eco-mobile-menu.is-open .eco-btn-primary {
+    background: var(--eco-celadon);
+    color: var(--eco-green);
   }
 }
