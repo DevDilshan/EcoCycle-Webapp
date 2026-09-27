@@ -1033,9 +1033,42 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   );
 }
 
-/* The card lifts further off a photo than off flat honeydew. */
+/* Frosted glass: the card is translucent so the photo reads through it, with
+   a blur behind so the image never competes with the text on top. Kept at 72%
+   rather than lower because the labels and hint text inside are small -- below
+   about 70% the body copy starts to fight the photograph. */
 .eco-auth .eco-auth-card {
+  background: rgba(255, 255, 240, 0.72);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid rgba(255, 255, 240, 0.55);
   box-shadow: 0 8px 20px rgba(0, 32, 22, 0.28), 0 32px 68px rgba(0, 32, 22, 0.34);
+}
+
+/* Safari on older iOS, Firefox with the flag off: no blur means the photo
+   would show through sharply and the text would be unreadable, so the card
+   falls back to being nearly solid. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .eco-auth .eco-auth-card { background: rgba(255, 255, 240, 0.95); }
+}
+
+/* Inputs stay closer to solid: text being typed has to be crisp, and a field
+   is where a blurred background is most distracting. */
+.eco-auth .eco-input {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.eco-auth .eco-input:focus {
+  background: var(--surface);
+}
+
+/* Same treatment for the role tiles on the register form. */
+.eco-auth .eco-role {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.eco-auth .eco-role.is-active {
+  background: rgba(255, 255, 255, 0.92);
 }
 
 /* The bar above the card sits on the photo, so it takes the light treatment
