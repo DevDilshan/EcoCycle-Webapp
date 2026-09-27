@@ -1041,17 +1041,25 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
    rather than lower because the labels and hint text inside are small -- below
    about 70% the body copy starts to fight the photograph. */
 .eco-auth .eco-auth-card {
-  background: rgba(255, 255, 240, 0.66);
-  /* 66%: enough of a surface that it reads as a form, while the photo still
-     shows through it. A light brightness lift keeps the dark text comfortably
-     clear of whatever colour passes behind the card. */
-  backdrop-filter: blur(26px) saturate(150%) brightness(1.2);
-  -webkit-backdrop-filter: blur(26px) saturate(150%) brightness(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  /* Glassmorphism: a pale sheen rather than a flat fill, so the card catches
+     light across its face the way glass does. The diagonal makes the top-left
+     brighter, which is where the light in the photograph comes from.
+     brightness() in the backdrop filter lifts what is behind the card, which
+     is what lets dark text stay readable at this little opacity. */
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0.22) 55%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  backdrop-filter: blur(34px) saturate(165%) brightness(1.45);
+  -webkit-backdrop-filter: blur(34px) saturate(165%) brightness(1.45);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    0 8px 20px rgba(0, 32, 22, 0.28),
-    0 32px 68px rgba(0, 32, 22, 0.34);
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.25),
+    0 8px 24px rgba(0, 32, 22, 0.22),
+    0 36px 80px rgba(0, 32, 22, 0.3);
 }
 
 /* Safari on older iOS, Firefox with the flag off: no blur means the photo
@@ -1066,20 +1074,21 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 /* Inputs stay closer to solid: text being typed has to be crisp, and a field
    is where a blurred background is most distracting. */
 .eco-auth .eco-input {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(12px) brightness(1.25);
+  -webkit-backdrop-filter: blur(12px) brightness(1.25);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
 .eco-auth .eco-input:focus {
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.82);
 }
 
 /* Same treatment for the role tiles on the register form. */
 .eco-auth .eco-role {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(255, 255, 255, 0.34);
+  backdrop-filter: blur(12px) brightness(1.2);
+  -webkit-backdrop-filter: blur(12px) brightness(1.2);
 }
 
 .eco-auth .eco-role.is-active {
@@ -1146,7 +1155,7 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 /* Selected role: the green outline and green label carry the state, rather
    than filling the tile with honeydew. */
 .eco-auth .eco-role.is-active {
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.6);
   box-shadow: inset 0 0 0 2px rgba(0, 86, 59, 0.75);
   color: var(--eco-green);
 }
@@ -1157,3 +1166,13 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 
 /* The error alert keeps its solid ground on purpose: it has to be read, and
    it appears rarely enough that it can afford to break the glass. */
+
+
+/* Supporting copy inside the glass runs darker than the design's ink-muted:
+   at this opacity the photograph is only a blur away, and the hint under the
+   password field is the first thing to become hard to read. */
+.eco-auth .eco-auth-sub,
+.eco-auth .eco-hint,
+.eco-auth .eco-auth-alt { color: #24382e; }
+
+.eco-auth .eco-label { color: #16241d; }
