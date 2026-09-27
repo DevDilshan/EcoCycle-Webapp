@@ -2800,3 +2800,147 @@ a:hover {
   outline-offset: 3px;
   scroll-margin-top: 24px;
 }
+
+/* Zone overview (replaces the decorative map drawing) */
+.admin-theme .zone-overview { display: flex; flex-direction: column; gap: 16px; }
+
+.admin-theme .zone-overview-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-theme .zone-overview-stat {
+  flex: 1 1 140px;
+  background: #f2f7f3;
+  border: 1px solid #dceadf;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.admin-theme .zone-overview-value {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #2f4636;
+}
+
+.admin-theme .zone-overview-value small { font-size: 14px; font-weight: 500; color: #7b8a80; }
+
+.admin-theme .zone-overview-label { font-size: 12px; color: #5f6f66; }
+
+.admin-theme .zone-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.admin-theme .zone-overview-tile {
+  border: 1px solid #dceadf;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+
+.admin-theme .zone-overview-tile-inactive { opacity: 0.6; }
+
+.admin-theme .zone-overview-tile-busiest { border-color: #b7791f; background: #fdf8ef; }
+
+.admin-theme .zone-overview-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-theme .zone-overview-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #eceef0;
+  color: #5f6f66;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.admin-theme .zone-overview-tile-counts { margin: 6px 0 0; font-size: 12px; color: #3a4a40; }
+
+.admin-theme .zone-overview-tile-missed { margin: 4px 0 0; font-size: 12px; color: #c0392b; }
+
+.admin-theme .zone-overview-note { font-size: 11px; color: #7b8a80; margin: 0; }
+
+/* Leaflet zone map */
+.admin-theme .zone-map-canvas {
+  height: 380px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #dceadf;
+}
+
+/* Leaflet sets its own stacking context; keep it under sticky admin chrome. */
+.admin-theme .zone-map .leaflet-container { z-index: 0; }
+
+/* This stylesheet opens with `* { box-sizing: border-box }`, which also hits
+   Leaflet's internals. Leaflet positions tiles and panes assuming content-box,
+   so the global rule shifts every tile by its border/padding and the grid comes
+   out skewed. Restore content-box inside the map only. */
+.leaflet-container,
+.leaflet-container *,
+.leaflet-container *::before,
+.leaflet-container *::after {
+  box-sizing: content-box;
+}
+
+/* Leaflet's tiles and marker icons must keep their natural dimensions. */
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.admin-theme .zone-map-popup-sub { color: #5f6f66; margin-top: 2px; }
+.admin-theme .zone-map-popup-counts { margin-top: 6px; font-weight: 600; color: #2f4636; }
+.admin-theme .zone-map-popup-coords { margin-top: 4px; font-size: 11px; color: #7b8a80; }
+
+.admin-theme .zone-map-excluded {
+  background: #f7f8f7;
+  border: 1px solid #e3e8e4;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #5f6f66;
+}
+
+.admin-theme .zone-map-excluded-note { margin: 0 0 6px; }
+.admin-theme .zone-map-excluded ul { margin: 0; padding-left: 18px; }
+.admin-theme .zone-map-excluded li { margin: 2px 0; }
+
+/* Truck marker used in place of Leaflet's default pin */
+.leaflet-container .zone-marker-truck-wrapper {
+  background: transparent;
+  border: 0;
+}
+
+.admin-theme .zone-marker-truck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  font-size: 20px;
+  line-height: 1;
+  background: #ffffff;
+  border: 2px solid #2f7d51;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* The map keeps its own scroll/zoom inside a fixed box.
+   touch-action is deliberately NOT set here: Leaflet manages it itself via the
+   .leaflet-touch-drag / .leaflet-touch-zoom classes it adds on touch devices,
+   and overriding it from outside breaks pinch-to-zoom. */
+.admin-theme .zone-map-canvas {
+  cursor: grab;
+}
+
+.admin-theme .zone-map-canvas:active { cursor: grabbing; }

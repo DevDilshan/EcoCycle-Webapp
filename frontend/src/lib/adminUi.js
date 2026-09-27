@@ -61,13 +61,20 @@ export const FILTER_PILL_STYLES = {
   Completed: { label: 'Completed', className: 'filter-pill-completed' },
 }
 
+// Rough guess from the description, used ONLY for pickups the agent pipeline has
+// not classified yet. Prefer the stored category wherever one exists.
+//
+// Rule order matters, and it mirrors how the classifier is prompted: anything
+// with a plug or a circuit board is e-waste, even when it is also large, so
+// appliances are tested before the bulky-item keywords. Loose chemicals are
+// hazardous; a device containing them is not.
 export function inferCategory(description = '') {
   const text = description.toLowerCase()
-  if (/fridge|refrigerator|bulk|furniture|appliance/.test(text)) return 'Bulk'
+  if (/e-waste|ewaste|electronic|appliance|fridge|refrigerator|freezer|washing machine|microwave|oven|tv|television|monitor|laptop|computer|phone|printer|cable/.test(text)) return 'EWaste'
   if (/paint|solvent|hazard|battery|chemical/.test(text)) return 'Hazardous'
   if (/garden|organic|compost|leaf/.test(text)) return 'Organic'
   if (/recycl|cardboard|plastic|paper|glass/.test(text)) return 'Recyclable'
-  if (/e-waste|electronics|phone|computer/.test(text)) return 'EWaste'
+  if (/bulk|furniture|sofa|mattress|couch|wardrobe|table|chair/.test(text)) return 'Bulk'
   return 'General'
 }
 

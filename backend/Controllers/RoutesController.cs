@@ -63,6 +63,15 @@ public class RoutesController : ControllerBase
         return Ok(report);
     }
 
+    [HttpGet("zone-load")]
+    [Authorize(Roles = "admin")]
+    [ProducesResponseType(typeof(List<ZoneLoadDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<ZoneLoadDto>>> GetZoneLoadReport()
+    {
+        var report = await _routeService.GetZoneLoadReportAsync();
+        return Ok(report);
+    }
+
     [HttpPost("assign/{pickupRequestId:guid}")]
     [Authorize(Roles = "admin,collector")]
     [ProducesResponseType(typeof(RouteAssignmentDto), StatusCodes.Status201Created)]
