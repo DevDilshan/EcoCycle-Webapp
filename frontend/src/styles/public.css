@@ -1022,11 +1022,14 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   position: absolute;
   inset: 0;
   z-index: -1;
+  /* Light enough to actually see the photograph. The card carries its own
+     ivory surface and a deep shadow, so the overlay only has to keep the
+     small amount of text outside the card legible, not hide the image. */
   background: linear-gradient(
     160deg,
-    rgba(0, 52, 36, 0.92) 0%,
-    rgba(0, 86, 59, 0.82) 45%,
-    rgba(0, 52, 36, 0.9) 100%
+    rgba(0, 52, 36, 0.62) 0%,
+    rgba(0, 86, 59, 0.4) 45%,
+    rgba(0, 52, 36, 0.66) 100%
   );
 }
 
@@ -1037,6 +1040,11 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
 
 /* The bar above the card sits on the photo, so it takes the light treatment
    the nav uses over the hero. */
+.eco-auth .eco-brand,
+.eco-auth .eco-auth-top .eco-btn-ghost {
+  text-shadow: 0 1px 10px rgba(0, 32, 22, 0.6);
+}
+
 .eco-auth .eco-brand { color: var(--ivory); }
 .eco-auth .eco-brand-text-alt { color: var(--eco-celadon); opacity: 1; }
 
