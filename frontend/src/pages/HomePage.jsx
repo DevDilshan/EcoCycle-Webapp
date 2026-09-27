@@ -44,7 +44,8 @@ const IMPACT_STATS = [
 
 const COLLECTORS_ON_ROAD = '48'   // TODO: placeholder, as above
 
-const HERO_NOTES = ['Free for residents', 'Pickups within 48 hours', 'Earn reward points']
+// Kept to two: the 48-hour promise now sits in the hero sentence itself.
+const HERO_NOTES = ['Free for residents', 'Earn reward points']
 
 const FEATURE_POINTS = [
   {
@@ -134,7 +135,8 @@ export default function HomePage() {
               </h1>
 
               <p className="eco-hero-sub eco-fade-up" style={{ '--eco-delay': '450ms' }}>
-                Snap a photo. We sort it, route it, and collect it.
+                One photo is all it takes. We sort it, route it and collect it
+                &mdash; usually within 48 hours.
               </p>
 
               <div className="eco-hero-ctas eco-fade-up" style={{ '--eco-delay': '650ms' }}>
@@ -142,20 +144,16 @@ export default function HomePage() {
                   <span>Request a pickup</span>
                   <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
                 </Link>
-                <a className="eco-btn eco-btn-outline-light eco-btn-lg" href="#service-areas">
-                  <MapPin size={18} strokeWidth={2} aria-hidden="true" />
+                <a className="eco-hero-link" href="#service-areas">
+                  <MapPin size={17} strokeWidth={2} aria-hidden="true" />
                   <span>See where we collect</span>
                 </a>
               </div>
 
-              <ul className="eco-hero-note eco-fade-up" style={{ '--eco-delay': '850ms' }}>
-                {HERO_NOTES.map((note) => (
-                  <li key={note}>
-                    <CheckCheck size={16} strokeWidth={2} aria-hidden="true" />
-                    <span>{note}</span>
-                  </li>
-                ))}
-              </ul>
+              <p className="eco-hero-note eco-fade-up" style={{ '--eco-delay': '850ms' }}>
+                <CheckCheck size={16} strokeWidth={2} aria-hidden="true" />
+                {HERO_NOTES.join(' · ')}
+              </p>
             </div>
           </div>
 
