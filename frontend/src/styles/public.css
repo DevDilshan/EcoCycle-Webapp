@@ -1011,10 +1011,12 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   position: absolute;
   inset: 0;
   z-index: -2;
-  /* The landing hero's photo, so signing in feels like the same place. */
+  /* The landing hero's photo, so signing in feels like the same place.
+     Framed towards the right of the image so its subject is not hidden behind
+     the card, which sits in the middle of the page. */
   background-image: url('../assets/seedling-in-hand.jpg');
   background-size: cover;
-  background-position: 50% 40%;
+  background-position: 82% 40%;
 }
 
 .eco-auth::after {
