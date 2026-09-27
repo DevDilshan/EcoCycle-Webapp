@@ -131,9 +131,9 @@ export default function HomePage() {
               </h1>
 
               <p className="eco-hero-sub eco-fade-up" style={{ '--eco-delay': '450ms' }}>
-                One photo is all it takes &mdash; we sort it, route it and collect it,
-                usually within 48 hours. Free for residents, and you earn reward points
-                every time.
+                One photo is all it takes. We sort it, route it and collect it, usually
+                within 48 hours. Free for residents, and you earn reward points every
+                time.
               </p>
 
               <div className="eco-hero-ctas eco-fade-up" style={{ '--eco-delay': '650ms' }}>
