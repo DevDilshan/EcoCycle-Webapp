@@ -1011,9 +1011,10 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   position: absolute;
   inset: 0;
   z-index: -2;
-  background-image: url('../assets/sorting-bins.jpg');
+  /* The landing hero's photo, so signing in feels like the same place. */
+  background-image: url('../assets/seedling-in-hand.jpg');
   background-size: cover;
-  background-position: 50% 45%;
+  background-position: 50% 40%;
 }
 
 .eco-auth::after {
