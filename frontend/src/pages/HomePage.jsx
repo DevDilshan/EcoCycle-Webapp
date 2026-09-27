@@ -26,9 +26,9 @@ import '../styles/public.css'
 //   e-waste-bin.jpg       - shows another company's branding (Recycling Hub)
 //   collection-truck.jpg  - shows Waste Management's "Think Green" branding
 import collectionTruck from '../assets/collection-truck.jpg'
-import stepClassify from '../assets/step-classify.jpg'
-import stepRouted from '../assets/step-routed.jpg'
-import stepSubmit from '../assets/step-submit.jpg'
+import photoBottleRing from '../assets/step-submit.jpg'
+import photoPhoneSeedling from '../assets/step-classify.jpg'
+import photoRouteMap from '../assets/step-routed.jpg'
 import eWasteBin from '../assets/e-waste-bin.jpg'
 import seedlingInHand from '../assets/seedling-in-hand.jpg'
 import sortingBins from '../assets/sorting-bins.jpg'
@@ -164,25 +164,25 @@ export default function HomePage() {
                 icon={Camera}
                 title="Submit"
                 body="Snap a photo of your waste and pick a pickup time that suits you."
-                image={stepSubmit}
-                alt="Recycling symbol formed from plastic bottles and packaging"
-                imageStyle={{ objectPosition: '50% 50%' }}
+                image={photoPhoneSeedling}
+                alt="A phone resting on dry ground with a seedling growing past it"
+                imageStyle={{ objectPosition: '50% 45%' }}
               />
               <Step
                 index={1}
                 icon={ScanSearch}
                 title="AI classifies"
                 body="Our model sorts it into recyclable, organic, e-waste or hazardous in seconds."
-                image={stepClassify}
-                alt="A discarded phone with a seedling growing through it"
-                imageStyle={{ objectPosition: '50% 45%' }}
+                image={photoBottleRing}
+                alt="A recycling symbol formed from sorted plastic bottles and packaging"
+                imageStyle={{ objectPosition: '50% 50%' }}
               />
               <Step
                 index={2}
                 icon={Route}
                 title="Routed"
                 body="Your request joins the right collector for your area, automatically."
-                image={stepRouted}
+                image={photoRouteMap}
                 alt="A city map with collection stops pinned along a route"
                 imageStyle={{ objectPosition: '50% 50%' }}
               />
