@@ -1,10 +1,9 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import CategoryPill from '../../components/admin/CategoryPill'
-import FilterPills from '../../components/admin/FilterPills'
-import PickupStatusPill from '../../components/admin/PickupStatusPill'
+import { ChevronRight, Flag } from 'lucide-react'
+import PageShell from '../../components/admin/AdminPageShell'
+import { AcAlert, AcChips, AcDrawer, AcToast } from '../../components/admin/AcUi'
+import { AcCategory, AcStatusPill } from '../../components/admin/AcPills'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
 import {
   FILTER_PILL_STYLES,
@@ -42,7 +41,7 @@ export default function PickupRequestsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const [expandedId, setExpandedId] = useState(null)
+  const [openId, setOpenId] = useState(null)
   const [busyId, setBusyId] = useState(null)
 
   const loadCounts = useCallback(async () => {
@@ -82,7 +81,6 @@ export default function PickupRequestsPage() {
     () => STATUS_FILTERS.map((status) => ({
       key: status,
       label: FILTER_PILL_STYLES[status].label,
-      className: FILTER_PILL_STYLES[status].className,
       count: statusCounts[status || 'all'],
     })),
     [statusCounts],
@@ -114,133 +112,204 @@ export default function PickupRequestsPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / 20))
+  const openItem = items.find((item) => item.id === openId) || null
+  const openProfile = openItem ? catalog.profileMap.get(openItem.residentId) : null
+
+  // A request is only "flagged" while its approval is still waiting; once an
+  // admin has acted the underlying pickup status is the truthful thing to show.
+  function statusFor(item) {
+    const flagged = item.hasApprovalRequest && item.approvalStatus === 'Pending'
+    return flagged ? 'Flagged' : item.status
+  }
 
   return (
     <PageShell
       title="Pickup requests"
-      eyebrow={null}
       description="All resident submissions across zones"
       showSearch
+      showBell
       searchValue={search}
       onSearchChange={setSearch}
-      searchPlaceholder="Search by ID, resident, zone…"
+      searchPlaceholder="Search by ID, resident, description…"
       filterBar={(
-        <FilterPills
-          options={filterOptions}
-          value={statusFilter}
-          onChange={setStatusFilter}
-        />
+        <div className="ac-toolbar">
+          <AcChips
+            options={filterOptions}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            label="Filter by status"
+          />
+          <span className="ac-toolbar-meta">{filteredItems.length} of {totalCount} requests</span>
+        </div>
       )}
     >
-      <AdminAlert type="error" message={error || catalog.error} onClose={() => setError(null)} />
-      <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
+      <AcAlert message={error || catalog.error} onClose={() => setError(null)} />
 
-      {loading ? (
-        <p className="admin-loading">Loading pickup requests…</p>
-      ) : filteredItems.length === 0 ? (
-        <p className="admin-empty">No pickup requests found.</p>
-      ) : (
-        <div className="pickup-grid-table">
-          <div className="pickup-grid-header">
-            <span>ID</span>
-            <span>Resident / item</span>
-            <span>Category</span>
-            <span>Zone</span>
-            <span>Preferred</span>
-            <span>Status</span>
+      <section className="ac-card">
+        {loading ? (
+          <p className="ac-empty">Loading pickup requests…</p>
+        ) : filteredItems.length === 0 ? (
+          <p className="ac-empty">No pickup requests found.</p>
+        ) : (
+          <div className="ac-table-wrap">
+            <table className="ac-table">
+              <thead>
+                <tr>
+                  <th>Request</th>
+                  <th>Resident / item</th>
+                  <th>Category</th>
+                  <th>Zone</th>
+                  <th>Preferred</th>
+                  <th>Status</th>
+                  <th><span className="ac-sr-only">Open details</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item) => (
+                  <tr
+                    key={item.id}
+                    tabIndex={0}
+                    onClick={() => setOpenId(item.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setOpenId(item.id)
+                      }
+                    }}
+                  >
+                    <td className="ac-id">{formatRequestId(item.id)}</td>
+                    <td>
+                      <strong>{shortProfileName(catalog.profileMap.get(item.residentId))}</strong>
+                      <span className="ac-sub">{item.description?.slice(0, 48) || 'No description'}</span>
+                    </td>
+                    <td><AcCategory category={item.category} confidence={item.confidence} /></td>
+                    <td>{item.zoneName || '—'}</td>
+                    <td>{formatCompactDate(item.preferredDate)}</td>
+                    <td><AcStatusPill status={statusFor(item)} /></td>
+                    <td className="ac-chevron">
+                      <ChevronRight size={18} strokeWidth={2} aria-hidden="true" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          {filteredItems.map((item) => {
-            const profile = catalog.profileMap.get(item.residentId)
-            const residentName = shortProfileName(profile)
-            const classified = Boolean(item.category)
-            const expanded = expandedId === item.id
-            const classifiedAt = formatClassifiedAt(item.classifiedAt)
-
-            return (
-              <Fragment key={item.id}>
-                <button
-                  type="button"
-                  className="pickup-grid-row"
-                  onClick={() => setExpandedId(expanded ? null : item.id)}
-                >
-                  <span className="pickup-grid-id">{formatRequestId(item.id)}</span>
-                  <span className="pickup-grid-resident">
-                    <strong>{residentName}</strong>
-                    <small>{item.description?.slice(0, 48) || 'No description'}</small>
-                  </span>
-                  <span>
-                    {classified
-                      ? <CategoryPill category={item.category} />
-                      : <span className="pickup-grid-muted">Not classified</span>}
-                  </span>
-                  <span className="pickup-grid-muted">{item.zoneName || '—'}</span>
-                  <span className="pickup-grid-muted">{formatCompactDate(item.preferredDate)}</span>
-                  <span><PickupStatusPill status={item.status} /></span>
-                </button>
-                {expanded && (
-                  <div className="pickup-grid-detail">
-                    <p><strong>Description:</strong> {item.description || '—'}</p>
-
-                    {classified ? (
-                      <div className="pickup-classification">
-                        <p>
-                          <strong>Classified as:</strong> {item.category}
-                          {typeof item.confidence === 'number' && (
-                            <> · {Math.round(item.confidence * 100)}% confident</>
-                          )}
-                          {classifiedAt && <> · {classifiedAt}</>}
-                        </p>
-                        {item.reasoning && (
-                          <p><strong>Reasoning:</strong> {item.reasoning}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="pickup-classification pickup-classification-missing">
-                        <p><strong>Not yet classified.</strong></p>
-                        <p>
-                          Pickups are classified automatically when a resident submits them.
-                          This one was not, so the agent service was unavailable or skipped it.
-                        </p>
-                      </div>
-                    )}
-
-                    {item.hasApprovalRequest && (
-                      <div className="pickup-flag">
-                        <p>
-                          <strong>🚩 Flagged for review</strong>
-                          {item.approvalStatus && <> · {item.approvalStatus}</>}
-                        </p>
-                        {item.flagReason && <p>{item.flagReason}</p>}
-                        <Link
-                          to={`/admin/approvals?approval=${item.approvalRequestId ?? ''}`}
-                          className="btn-secondary btn-sm"
-                        >
-                          Review in Approvals
-                        </Link>
-                      </div>
-                    )}
-
-                    {item.status === 'Approved' && (
-                      <button type="button" className="btn-secondary btn-sm" disabled={busyId === item.id} onClick={() => handleAssignRoute(item.id)}>
-                        Assign route
-                      </button>
-                    )}
-                  </div>
-                )}
-              </Fragment>
-            )
-          })}
-        </div>
-      )}
+        )}
+      </section>
 
       {totalPages > 1 && (
-        <div className="admin-pagination">
-          <button type="button" className="btn-secondary btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-          <span className="admin-pagination-meta">Page {page} of {totalPages}</span>
-          <button type="button" className="btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
+        <div className="ac-pagination">
+          <button
+            type="button"
+            className="ac-btn ac-btn-ghost ac-btn-sm"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
+            Previous
+          </button>
+          <span>Page {page} of {totalPages}</span>
+          <button
+            type="button"
+            className="ac-btn ac-btn-ghost ac-btn-sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage(page + 1)}
+          >
+            Next
+          </button>
         </div>
       )}
+
+      <AcDrawer
+        open={Boolean(openItem)}
+        onClose={() => setOpenId(null)}
+        title={openItem ? formatRequestId(openItem.id) : 'Request'}
+      >
+        {openItem && (
+          <>
+            <div className="ac-drawer-pills">
+              <AcStatusPill status={statusFor(openItem)} />
+              <AcCategory category={openItem.category} confidence={openItem.confidence} />
+            </div>
+
+            <dl className="ac-kv">
+              <dt>Resident</dt>
+              <dd>{shortProfileName(openProfile)}</dd>
+              <dt>Zone</dt>
+              <dd>{openItem.zoneName || 'Not assigned'}</dd>
+              <dt>Preferred</dt>
+              <dd>{formatCompactDate(openItem.preferredDate)}</dd>
+              {openItem.classifiedAt && (
+                <>
+                  <dt>Classified</dt>
+                  <dd>{formatClassifiedAt(openItem.classifiedAt)}</dd>
+                </>
+              )}
+              {openItem.isRecurring && (
+                <>
+                  <dt>Recurring</dt>
+                  <dd>{openItem.recurrenceInterval || 'Yes'}</dd>
+                </>
+              )}
+            </dl>
+
+            <div>
+              <h3 className="ac-drawer-sub">Description</h3>
+              <p className="ac-drawer-text">{openItem.description || 'No description given.'}</p>
+            </div>
+
+            {openItem.category ? (
+              openItem.reasoning && (
+                <div className="ac-insight">
+                  <h4>Classifier reasoning</h4>
+                  <p>{openItem.reasoning}</p>
+                </div>
+              )
+            ) : (
+              <div className="ac-insight">
+                <h4>Not yet classified</h4>
+                <p>
+                  Pickups are classified automatically when a resident submits them. This one was
+                  not, so the agent service was unavailable or skipped it.
+                </p>
+              </div>
+            )}
+
+            {openItem.hasApprovalRequest && (
+              <div className="ac-reason">
+                <Flag size={18} strokeWidth={2} aria-hidden="true" />
+                <span>
+                  <strong>Flagged for review</strong>
+                  {openItem.approvalStatus ? ` · ${openItem.approvalStatus}` : null}
+                  {openItem.flagReason ? <><br />{openItem.flagReason}</> : null}
+                </span>
+              </div>
+            )}
+
+            <div className="ac-actions">
+              {openItem.hasApprovalRequest && (
+                <Link
+                  to={`/admin/approvals?approval=${openItem.approvalRequestId ?? ''}`}
+                  className="ac-btn ac-btn-ghost"
+                >
+                  Review in Approvals
+                </Link>
+              )}
+              {openItem.status === 'Approved' && (
+                <button
+                  type="button"
+                  className="ac-btn ac-btn-primary"
+                  disabled={busyId === openItem.id}
+                  onClick={() => handleAssignRoute(openItem.id)}
+                >
+                  Assign route
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </AcDrawer>
+
+      <AcToast message={success} />
     </PageShell>
   )
 }
-

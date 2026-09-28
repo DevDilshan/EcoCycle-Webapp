@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import AdminCard from '../../components/admin/AdminCard'
+import { Calendar, Clock, MapPin, Plus, Route, Users } from 'lucide-react'
+import PageShell from '../../components/admin/AdminPageShell'
+import { AcAlert, AcCard, AcDrawer, AcKpi, AcToast } from '../../components/admin/AcUi'
 import EntitySelect from '../../components/admin/EntitySelect'
 import ZoneCard from '../../components/admin/ZoneCard'
-import ZoneMapView from '../../components/admin/ZoneMapView'
+import ZoneMap from '../../components/admin/ZoneMap'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
+import { shortProfileName } from '../../lib/adminUi'
 import { apiRequest } from '../../lib/api'
 
 const EMPTY_ZONE = {
@@ -21,7 +22,6 @@ export default function RoutesPage() {
   const catalog = useAdminCatalog(['Approved'])
   const [loadReport, setLoadReport] = useState([])
   const [zoneLoad, setZoneLoad] = useState([])
-  const [view, setView] = useState('cards')
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -61,6 +61,31 @@ export default function RoutesPage() {
     () => new Map(zoneLoad.map((row) => [row.zoneId, row])),
     [zoneLoad],
   )
+
+  // Real figures, with no stand-in values: a quiet day should read as a quiet
+  // day rather than borrowing numbers from somewhere else.
+  const pendingPickups = loadReport.reduce((sum, row) => sum + row.pendingAssignments, 0)
+  const dueToday = zoneLoad.reduce((sum, row) => sum + row.dueToday, 0)
+  const collectorsWithWork = loadReport.filter((row) => row.pendingAssignments > 0).length
+  const totalCollectors = loadReport.length
+
+  const busiest = useMemo(
+    () => zoneLoad.reduce(
+      (top, row) => (row.pendingAssignments > (top?.pendingAssignments ?? -1) ? row : top),
+      null,
+    ),
+    [zoneLoad],
+  )
+  const busiestNamed = busiest && busiest.pendingAssignments > 0 ? busiest : null
+
+  const unstaffed = catalog.zones.filter(
+    (zone) => zone.isActive !== false && !zone.assignedCollectorId,
+  )
+
+  const collectorName = useCallback((zone) => {
+    if (!zone.assignedCollectorId) return null
+    return shortProfileName(catalog.profileMap.get(zone.assignedCollectorId))
+  }, [catalog.profileMap])
 
   function startEdit(zone) {
     setShowForm(true)
@@ -146,119 +171,224 @@ export default function RoutesPage() {
     }
   }
 
-  const activeCollectors = catalog.collectors.length
-
   return (
     <PageShell
-      title="Zones & collectors"
-      eyebrow={null}
-      description={`${catalog.zones.length} zones · ${activeCollectors} active collectors`}
-      actions={(
-        <div className="admin-header-actions-row">
-          <div className="admin-view-tabs">
-            <button type="button" className={`admin-view-tab${view === 'cards' ? ' active' : ''}`} onClick={() => setView('cards')}>Cards</button>
-            <button type="button" className={`admin-view-tab${view === 'map' ? ' active' : ''}`} onClick={() => setView('map')}>Map</button>
-          </div>
-          <button type="button" className="btn-primary btn-sm" onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_ZONE) }}>
-            + New zone
-          </button>
-        </div>
-      )}
+      title="Zones & routes"
+      description={`${catalog.zones.length} zones · ${catalog.collectors.length} collectors`}
+      showBell
     >
-      <AdminAlert type="error" message={error || catalog.error} onClose={() => setError(null)} />
-      <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
+      <AcAlert message={error || catalog.error} onClose={() => setError(null)} />
 
-      {view === 'map' ? (
-        <ZoneMapView zones={catalog.zones} zoneLoad={zoneLoad} loadReport={loadReport} />
-      ) : loading || catalog.loading ? (
-        <p className="admin-loading">Loading zones…</p>
+      <div className="ac-grid ac-g4">
+        <AcKpi
+          label="Pickups waiting"
+          icon={<Clock size={18} strokeWidth={2} aria-hidden="true" />}
+          value={pendingPickups}
+          foot={`Across ${catalog.zones.filter((z) => z.isActive !== false).length} active zones`}
+        />
+        <AcKpi
+          label="Due today"
+          icon={<Calendar size={18} strokeWidth={2} aria-hidden="true" />}
+          value={dueToday}
+          foot="Scheduled for collection"
+        />
+        <AcKpi
+          label="Collectors with work"
+          icon={<Users size={18} strokeWidth={2} aria-hidden="true" />}
+          value={collectorsWithWork}
+          unit={`/ ${totalCollectors}`}
+          alert={unstaffed.length > 0}
+          foot={
+            unstaffed.length > 0
+              ? `${unstaffed.map((z) => z.name).slice(0, 2).join(', ')}${unstaffed.length > 2 ? '…' : ''} has no collector`
+              : 'Every active zone is staffed'
+          }
+        />
+        <AcKpi
+          label="Busiest zone"
+          icon={<MapPin size={18} strokeWidth={2} aria-hidden="true" />}
+          value={busiestNamed ? <span className="ac-kpi-word">{busiestNamed.zoneName}</span> : '—'}
+          foot={busiestNamed ? `${busiestNamed.pendingAssignments} pickups waiting` : 'Nothing waiting'}
+        />
+      </div>
+
+      <div className="ac-grid ac-g-2-1">
+        <AcCard title="Zone map" subtitle="Truck badges show pickups waiting. Tap one for details">
+          {catalog.loading ? (
+            <p className="ac-empty">Loading zones…</p>
+          ) : (
+            <ZoneMap zones={catalog.zones} loadByZone={zoneStats} collectorName={collectorName} />
+          )}
+        </AcCard>
+
+        <AcCard title="Manual route assignment" subtitle="Link an approved pickup to a collector">
+          <form className="ac-form" onSubmit={handleCreateRoute}>
+            <div className="ac-field">
+              <EntitySelect
+                id="route-pickup"
+                label="Pickup request"
+                value={routeForm.pickupRequestId}
+                onChange={(value) => setRouteForm({ ...routeForm, pickupRequestId: value })}
+                options={catalog.pickupOptions}
+                placeholder="Select approved pickup"
+                required
+              />
+            </div>
+            <div className="ac-two">
+              <div className="ac-field">
+                <EntitySelect
+                  id="route-zone"
+                  label="Zone"
+                  value={routeForm.zoneId}
+                  onChange={handleRouteZoneChange}
+                  options={catalog.zoneOptions}
+                  placeholder="Select zone"
+                  required
+                />
+              </div>
+              <div className="ac-field">
+                <EntitySelect
+                  id="route-collector"
+                  label="Collector"
+                  value={routeForm.collectorId}
+                  onChange={(value) => setRouteForm({ ...routeForm, collectorId: value })}
+                  options={catalog.collectorOptions}
+                  placeholder="Select collector"
+                  required
+                />
+              </div>
+            </div>
+            <div className="ac-field">
+              <label htmlFor="route-date">Scheduled date</label>
+              <input
+                id="route-date"
+                type="datetime-local"
+                value={routeForm.scheduledDate}
+                onChange={(e) => setRouteForm({ ...routeForm, scheduledDate: e.target.value })}
+                required
+              />
+            </div>
+            <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
+              <Route size={16} strokeWidth={2} aria-hidden="true" />
+              Create assignment
+            </button>
+          </form>
+        </AcCard>
+      </div>
+
+      <div className="ac-section-head">
+        <h2>Zones &amp; collectors</h2>
+        <button
+          type="button"
+          className="ac-btn ac-btn-soft"
+          onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_ZONE) }}
+        >
+          <Plus size={16} strokeWidth={2} aria-hidden="true" />
+          Add zone
+        </button>
+      </div>
+
+      {loading || catalog.loading ? (
+        <p className="ac-empty">Loading zones…</p>
       ) : catalog.zones.length === 0 ? (
-        <p className="admin-empty">No zones yet. Click "+ New zone" to create one.</p>
+        <AcCard><p className="ac-empty">No zones yet. Use “Add zone” to create one.</p></AcCard>
       ) : (
-        <div className="zone-card-grid">
+        <div className="ac-grid ac-g3">
           {catalog.zones.map((zone) => (
             <ZoneCard
               key={zone.id}
               zone={zone}
               collectorProfile={zone.assignedCollectorId ? catalog.profileMap.get(zone.assignedCollectorId) : null}
               stats={zoneStats.get(zone.id)}
+              isBusiest={Boolean(busiestNamed && busiestNamed.zoneId === zone.id)}
               onEdit={() => startEdit(zone)}
             />
           ))}
         </div>
       )}
 
-      {showForm && (
-        <AdminCard title={editingId ? 'Edit zone' : 'Create zone'} subtitle="Define zones and assign a collector">
-          <form className="admin-form" onSubmit={handleZoneSubmit}>
-            <div className="admin-form-row">
-              <div>
-                <label>Name</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              </div>
-              <EntitySelect
-                id="zone-collector"
-                label="Assigned collector"
-                value={form.assignedCollectorId}
-                onChange={(value) => setForm({ ...form, assignedCollectorId: value })}
-                options={catalog.collectorOptions}
-                placeholder="Select collector (optional)"
+      <AcDrawer
+        open={showForm}
+        onClose={resetForm}
+        title={editingId ? 'Edit zone' : 'Add zone'}
+      >
+        <form className="ac-form" onSubmit={handleZoneSubmit}>
+          <div className="ac-field">
+            <label htmlFor="zone-name">Name</label>
+            <input
+              id="zone-name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+          </div>
+          <div className="ac-field">
+            <EntitySelect
+              id="zone-collector"
+              label="Assigned collector"
+              value={form.assignedCollectorId}
+              onChange={(value) => setForm({ ...form, assignedCollectorId: value })}
+              options={catalog.collectorOptions}
+              placeholder="Select collector (optional)"
+            />
+          </div>
+          <div className="ac-field">
+            <label htmlFor="zone-desc">Description</label>
+            <textarea
+              id="zone-desc"
+              rows={3}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </div>
+          {/* Optional: a zone without coordinates is still usable for routing,
+              it just cannot be placed on the map. */}
+          <div className="ac-two">
+            <div className="ac-field">
+              <label htmlFor="zone-lat">Latitude</label>
+              <input
+                id="zone-lat"
+                type="number"
+                step="0.0001"
+                min="-90"
+                max="90"
+                value={form.latitude}
+                onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                placeholder="e.g. 6.9344"
               />
             </div>
-            <div>
-              <label>Description</label>
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            </div>
-            {/* Optional: a zone without coordinates is still usable for routing,
-                it just cannot be placed on the map. */}
-            <div className="admin-form-row">
-              <div>
-                <label>Latitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min="-90"
-                  max="90"
-                  value={form.latitude}
-                  onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-                  placeholder="e.g. 6.9344"
-                />
-              </div>
-              <div>
-                <label>Longitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min="-180"
-                  max="180"
-                  value={form.longitude}
-                  onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-                  placeholder="e.g. 79.8428"
-                />
-              </div>
-            </div>
-            <div className="admin-actions">
-              <button type="submit" className="btn-primary btn-sm" disabled={busy}>{editingId ? 'Update zone' : 'Create zone'}</button>
-              <button type="button" className="btn-secondary btn-sm" onClick={resetForm}>Cancel</button>
-            </div>
-          </form>
-        </AdminCard>
-      )}
-
-      <AdminCard title="Manual route assignment" subtitle="Link an approved pickup to a collector and zone">
-        <form className="admin-form" onSubmit={handleCreateRoute}>
-          <div className="admin-form-row">
-            <EntitySelect id="route-pickup" label="Pickup request" value={routeForm.pickupRequestId} onChange={(value) => setRouteForm({ ...routeForm, pickupRequestId: value })} options={catalog.pickupOptions} placeholder="Select approved pickup" required />
-            <EntitySelect id="route-collector" label="Collector" value={routeForm.collectorId} onChange={(value) => setRouteForm({ ...routeForm, collectorId: value })} options={catalog.collectorOptions} placeholder="Select collector" required />
-            <EntitySelect id="route-zone" label="Zone" value={routeForm.zoneId} onChange={handleRouteZoneChange} options={catalog.zoneOptions} placeholder="Select zone" required />
-            <div>
-              <label>Scheduled date</label>
-              <input type="datetime-local" value={routeForm.scheduledDate} onChange={(e) => setRouteForm({ ...routeForm, scheduledDate: e.target.value })} required />
+            <div className="ac-field">
+              <label htmlFor="zone-lng">Longitude</label>
+              <input
+                id="zone-lng"
+                type="number"
+                step="0.0001"
+                min="-180"
+                max="180"
+                value={form.longitude}
+                onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                placeholder="e.g. 79.8428"
+              />
             </div>
           </div>
-          <button type="submit" className="btn-primary btn-sm" disabled={busy || catalog.loading}>Create assignment</button>
+          <label className="ac-check">
+            <input
+              type="checkbox"
+              checked={form.isActive}
+              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+            />
+            Zone is active
+          </label>
+          <div className="ac-actions">
+            <button type="submit" className="ac-btn ac-btn-primary" disabled={busy}>
+              {editingId ? 'Update zone' : 'Create zone'}
+            </button>
+            <button type="button" className="ac-btn ac-btn-ghost" onClick={resetForm}>Cancel</button>
+          </div>
         </form>
-      </AdminCard>
+      </AcDrawer>
+
+      <AcToast message={success} />
     </PageShell>
   )
 }

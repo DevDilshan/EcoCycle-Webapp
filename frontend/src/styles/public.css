@@ -16,7 +16,6 @@
   --shadow-lg: 0 4px 8px rgba(0, 56, 38, 0.05), 0 24px 56px rgba(0, 56, 38, 0.12);
   --font-sans: Manrope, Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-body { background: var(--ivory); color: var(--ink); font-family: var(--font-sans); }
 /* EcoCycle — public surface styles (Landing, Login, Register).
    Everything is scoped under .eco; values come from tokens.css. */
 
@@ -1062,6 +1061,13 @@ a.eco-map-card:hover .eco-map-cta { transform: none; opacity: 1; }
   .eco-auth .eco-input { background: rgba(255, 255, 255, 0.95); }
   .eco-auth .eco-role { background: rgba(255, 255, 255, 0.92); }
 }
+
+/* The leading mail/lock icons sit before the input in the DOM and are
+   positioned absolutely. Giving the field a backdrop-filter made it a stacking
+   context, so the input painted its own background over them and they all but
+   vanished. Lifting the icon above the field puts them back. */
+.eco-auth .eco-input-wrap > svg { z-index: 1; color: var(--eco-green); opacity: 0.75; }
+.eco-auth .eco-input-wrap:focus-within > svg { opacity: 1; }
 
 /* Inputs stay closer to solid: text being typed has to be crisp, and a field
    is where a blurred background is most distracting. */

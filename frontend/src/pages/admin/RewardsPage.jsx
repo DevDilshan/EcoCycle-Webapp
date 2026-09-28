@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import AdminCard from '../../components/admin/AdminCard'
+import { Award, Trophy, Users } from 'lucide-react'
+import PageShell from '../../components/admin/AdminPageShell'
+import { AcAlert, AcCard, AcKpi, AcToast } from '../../components/admin/AcUi'
 import EntitySelect from '../../components/admin/EntitySelect'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
-import { MEDAL_ICONS, profileInitials, shortProfileName } from '../../lib/adminUi'
+import { profileInitials, shortProfileName } from '../../lib/adminUi'
 import { pickupLabel, toSelectOptions } from '../../lib/catalog'
 import { apiRequest, formatDate, shortId } from '../../lib/api'
 
@@ -34,25 +34,17 @@ export default function RewardsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Only what the leaderboard actually reports. The previous version showed an
+  // "avg clean rate" fixed at 91% and a contamination count derived from the
+  // number of leaderboard rows; neither came from the API, so both are gone.
   const stats = useMemo(() => {
     const totalPoints = leaderboard.reduce((sum, entry) => sum + (entry.pointsEarned || 0), 0)
     return {
-      pointsIssued: totalPoints || 0,
+      pointsIssued: totalPoints,
       activeRecyclers: leaderboard.length,
-      cleanRate: leaderboard.length ? 91 : 0,
-      contaminationFlags: Math.max(1, Math.round(leaderboard.length * 0.15)),
+      topScore: leaderboard[0]?.pointsEarned ?? 0,
     }
   }, [leaderboard])
-
-  const contaminationWatch = useMemo(() => {
-    return leaderboard.slice(0, 3).map((entry, index) => ({
-      id: entry.residentId,
-      name: entry.residentName || shortProfileName(catalog.profileMap.get(entry.residentId)),
-      flags: Math.max(1, 3 - index),
-      detail: `${Math.max(1, 3 - index)} contaminated batch${index === 0 ? 'es' : ''} · −${(3 - index) * 4} pts`,
-      severity: index === 0 ? 'high' : index === 1 ? 'medium' : 'low',
-    }))
-  }, [leaderboard, catalog.profileMap])
 
   const classifiedPickups = useMemo(
     () => catalog.pickups.filter((p) => p.status === 'Classified'),
@@ -134,132 +126,175 @@ export default function RewardsPage() {
 
   return (
     <PageShell
-      title="Rewards & recycling"
-      eyebrow={null}
-      description="Points awarded, leaderboard & contamination patterns"
+      title="Rewards"
+      description="Points awarded and the current leaderboard"
+      showBell
     >
-      <AdminAlert type="error" message={error || catalog.error} onClose={() => setError(null)} />
-      <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
+      <AcAlert message={error || catalog.error} onClose={() => setError(null)} />
 
-      <div className="admin-grid admin-grid-4">
-        <div className="stat-card">
-          <div className="stat-card-label">Points issued (Aug)</div>
-          <p className="stat-card-value">{stats.pointsIssued.toLocaleString()}</p>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-label">Active recyclers</div>
-          <p className="stat-card-value">{stats.activeRecyclers.toLocaleString()}</p>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-label">Avg clean rate</div>
-          <p className="stat-card-value stat-card-value-green">{stats.cleanRate}%</p>
-        </div>
-        <div className="stat-card stat-card--danger">
-          <div className="stat-card-label">Contamination flags</div>
-          <p className="stat-card-value">{stats.contaminationFlags}</p>
-        </div>
+      <div className="ac-grid ac-g3">
+        <AcKpi
+          label="Points issued"
+          icon={<Award size={18} strokeWidth={2} aria-hidden="true" />}
+          value={stats.pointsIssued.toLocaleString()}
+          foot="Across everyone on the leaderboard"
+        />
+        <AcKpi
+          label="Residents earning"
+          icon={<Users size={18} strokeWidth={2} aria-hidden="true" />}
+          value={stats.activeRecyclers.toLocaleString()}
+          foot="With at least one reward"
+        />
+        <AcKpi
+          label="Top score"
+          icon={<Trophy size={18} strokeWidth={2} aria-hidden="true" />}
+          value={stats.topScore.toLocaleString()}
+          foot={leaderboard[0]?.residentName || 'No points recorded yet'}
+        />
       </div>
 
-      <div className="admin-split-grid">
-        <AdminCard title="🏆 Leaderboard · August">
-          {loading ? (
-            <p className="admin-loading">Loading leaderboard…</p>
-          ) : leaderboard.length === 0 ? (
-            <p className="admin-empty">No points recorded this month.</p>
-          ) : (
-            <ul className="leaderboard-list">
-              {leaderboard.slice(0, 8).map((entry, index) => {
-                const profile = catalog.profileMap.get(entry.residentId)
-                const name = entry.residentName || shortProfileName(profile)
-                return (
-                  <li key={entry.residentId} className={`leaderboard-row${index === 0 ? ' leaderboard-row-top' : ''}`}>
-                    <span className="leaderboard-rank">{MEDAL_ICONS[index] || index + 1}</span>
-                    <span className="leaderboard-avatar">{profileInitials(name)}</span>
-                    <div className="leaderboard-info">
-                      <strong>{name}</strong>
-                      <small>{index === 0 ? 'West-2 · 100% clean' : 'Active recycler'}</small>
-                    </div>
-                    <span className="leaderboard-points">{entry.pointsEarned.toLocaleString()}</span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </AdminCard>
-
-        <AdminCard
-          title="⚠️ Contamination watch"
-          subtitle="Residents auto-flagged by the Validator Agent for repeat violations"
-        >
-          {contaminationWatch.length === 0 ? (
-            <p className="admin-empty">No contamination flags yet.</p>
-          ) : (
-            <ul className="contamination-list">
-              {contaminationWatch.map((item) => (
-                <li key={item.id} className={`contamination-row contamination-${item.severity}`}>
-                  <span className="contamination-avatar">{profileInitials(item.name)}</span>
-                  <div className="contamination-info">
-                    <strong>{item.name}</strong>
-                    <small>{item.detail}</small>
-                  </div>
-                  <span className="contamination-flag">{item.flags} flag{item.flags === 1 ? '' : 's'}</span>
+      <AcCard title="Leaderboard" subtitle="Residents ranked by points earned">
+        {loading ? (
+          <p className="ac-empty">Loading leaderboard…</p>
+        ) : leaderboard.length === 0 ? (
+          <p className="ac-empty">No points recorded yet.</p>
+        ) : (
+          <ul className="ac-list">
+            {leaderboard.slice(0, 10).map((entry, index) => {
+              const profile = catalog.profileMap.get(entry.residentId)
+              const name = entry.residentName || shortProfileName(profile)
+              const share = stats.topScore ? (entry.pointsEarned / stats.topScore) * 100 : 0
+              return (
+                <li className="ac-row" key={entry.residentId}>
+                  <span className={`ac-rank${index === 0 ? ' is-top' : ''}`}>
+                    {entry.rank ?? index + 1}
+                  </span>
+                  <span className="ac-avatar" aria-hidden="true">{profileInitials(name)}</span>
+                  <span className="ac-grow"><strong>{name}</strong></span>
+                  <span className="ac-mini-meter">
+                    <span className="ac-meter"><i style={{ width: `${share}%` }} /></span>
+                  </span>
+                  <span className="ac-v">{entry.pointsEarned.toLocaleString()}</span>
                 </li>
-              ))}
-            </ul>
-          )}
-          <div className="points-engine-banner">
-            Points engine: ♻️ 5 · 🌿 3 · ☣️ handled 10 · contamination −4 each.
-          </div>
-        </AdminCard>
-      </div>
+              )
+            })}
+          </ul>
+        )}
+      </AcCard>
 
-      <button type="button" className="admin-tools-toggle" onClick={() => setShowTools((v) => !v)}>
+      <button
+        type="button"
+        className="ac-btn ac-btn-ghost"
+        onClick={() => setShowTools((v) => !v)}
+        aria-expanded={showTools}
+      >
         {showTools ? 'Hide admin tools' : 'Show admin tools (award, validate, history)'}
       </button>
 
       {showTools && (
         <>
-          <AdminCard title="Validate pickup" subtitle="Run reward rules against a classified pickup">
-            <form className="admin-form" onSubmit={handleValidate}>
-              <EntitySelect id="validate-pickup" label="Classified pickup" value={validatePickupId} onChange={setValidatePickupId} options={classifiedOptions} placeholder="Select classified pickup" required />
-              <button type="submit" className="btn-primary btn-sm" disabled={busy || catalog.loading}>Run validation</button>
+          <AcCard title="Validate pickup" subtitle="Run reward rules against a classified pickup">
+            <form className="ac-form" onSubmit={handleValidate}>
+              <div className="ac-field">
+                <EntitySelect
+                  id="validate-pickup"
+                  label="Classified pickup"
+                  value={validatePickupId}
+                  onChange={setValidatePickupId}
+                  options={classifiedOptions}
+                  placeholder="Select classified pickup"
+                  required
+                />
+              </div>
+              <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
+                Run validation
+              </button>
             </form>
             {validationResult && (
-              <div className="admin-inline-panel">
-                <p><strong>Valid:</strong> {validationResult.isValid ? 'Yes' : 'No'}</p>
+              <div className="ac-insight">
+                <h4>{validationResult.isValid ? 'Passed' : 'Did not pass'}</h4>
                 {validationResult.violatedRules?.length > 0 && (
-                  <p><strong>Violated rules:</strong> {validationResult.violatedRules.join(', ')}</p>
+                  <p>Violated rules: {validationResult.violatedRules.join(', ')}</p>
                 )}
               </div>
             )}
-          </AdminCard>
+          </AcCard>
 
-          <AdminCard title="Award reward points" subtitle="Credit a resident for a completed pickup">
-            <form className="admin-form" onSubmit={handleAward}>
-              <div className="admin-form-row">
-                <EntitySelect id="award-resident" label="Resident" value={awardForm.residentId} onChange={handleResidentChange} options={catalog.residentOptions} placeholder="Select resident" required />
-                <EntitySelect id="award-pickup" label="Pickup request" value={awardForm.pickupRequestId} onChange={(value) => setAwardForm({ ...awardForm, pickupRequestId: value })} options={residentPickupOptions} placeholder={awardForm.residentId ? 'Select pickup' : 'Select a resident first'} required disabled={!awardForm.residentId} />
-                <div>
-                  <label>Points</label>
-                  <input type="number" min="1" value={awardForm.pointsEarned} onChange={(e) => setAwardForm({ ...awardForm, pointsEarned: Number(e.target.value) })} required />
+          <AcCard title="Award reward points" subtitle="Credit a resident for a completed pickup">
+            <form className="ac-form" onSubmit={handleAward}>
+              <div className="ac-two">
+                <div className="ac-field">
+                  <EntitySelect
+                    id="award-resident"
+                    label="Resident"
+                    value={awardForm.residentId}
+                    onChange={handleResidentChange}
+                    options={catalog.residentOptions}
+                    placeholder="Select resident"
+                    required
+                  />
+                </div>
+                <div className="ac-field">
+                  <EntitySelect
+                    id="award-pickup"
+                    label="Pickup request"
+                    value={awardForm.pickupRequestId}
+                    onChange={(value) => setAwardForm({ ...awardForm, pickupRequestId: value })}
+                    options={residentPickupOptions}
+                    placeholder={awardForm.residentId ? 'Select pickup' : 'Select a resident first'}
+                    required
+                    disabled={!awardForm.residentId}
+                  />
                 </div>
               </div>
-              <div>
-                <label>Reason</label>
-                <input value={awardForm.reason} onChange={(e) => setAwardForm({ ...awardForm, reason: e.target.value })} required />
+              <div className="ac-two">
+                <div className="ac-field">
+                  <label htmlFor="award-points">Points</label>
+                  <input
+                    id="award-points"
+                    type="number"
+                    min="1"
+                    value={awardForm.pointsEarned}
+                    onChange={(e) => setAwardForm({ ...awardForm, pointsEarned: Number(e.target.value) })}
+                    required
+                  />
+                </div>
+                <div className="ac-field">
+                  <label htmlFor="award-reason">Reason</label>
+                  <input
+                    id="award-reason"
+                    value={awardForm.reason}
+                    onChange={(e) => setAwardForm({ ...awardForm, reason: e.target.value })}
+                    required
+                  />
+                </div>
               </div>
-              <button type="submit" className="btn-primary btn-sm" disabled={busy || catalog.loading}>Award points</button>
+              <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
+                Award points
+              </button>
             </form>
-          </AdminCard>
+          </AcCard>
 
-          <AdminCard title="Resident reward history">
-            <form className="admin-form" onSubmit={handleLoadHistory}>
-              <EntitySelect id="history-resident" label="Resident" value={historyResidentId} onChange={setHistoryResidentId} options={catalog.residentOptions} placeholder="Select resident" required />
-              <button type="submit" className="btn-secondary btn-sm" disabled={busy || catalog.loading}>Load history</button>
+          <AcCard title="Resident reward history">
+            <form className="ac-form" onSubmit={handleLoadHistory}>
+              <div className="ac-field">
+                <EntitySelect
+                  id="history-resident"
+                  label="Resident"
+                  value={historyResidentId}
+                  onChange={setHistoryResidentId}
+                  options={catalog.residentOptions}
+                  placeholder="Select resident"
+                  required
+                />
+              </div>
+              <button type="submit" className="ac-btn ac-btn-ghost" disabled={busy || catalog.loading}>
+                Load history
+              </button>
             </form>
             {history && (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
+              <div className="ac-table-wrap">
+                <table className="ac-table">
                   <thead>
                     <tr><th>Date</th><th>Points</th><th>Reason</th><th>Pickup</th></tr>
                   </thead>
@@ -276,9 +311,11 @@ export default function RewardsPage() {
                 </table>
               </div>
             )}
-          </AdminCard>
+          </AcCard>
         </>
       )}
+
+      <AcToast message={success} />
     </PageShell>
   )
 }

@@ -1,7 +1,9 @@
+import { Sparkles } from 'lucide-react'
+
 const RECOMMENDATION_LABELS = {
-  approve: { label: 'Agent suggests: approve', tone: 'ok' },
-  reject: { label: 'Agent suggests: reject', tone: 'danger' },
-  request_revision: { label: 'Agent suggests: request revision', tone: 'warn' },
+  approve: 'Validator suggests approving',
+  reject: 'Validator suggests rejecting',
+  request_revision: 'Validator suggests asking for a revision',
 }
 
 /**
@@ -11,70 +13,41 @@ const RECOMMENDATION_LABELS = {
  */
 export default function AgentInsightPanel({ insight, note, loading }) {
   if (loading) {
-    return <div className="agent-insight agent-insight-muted">Loading AI analysis…</div>
-  }
-
-  if (!insight) {
     return (
-      <div className="agent-insight agent-insight-muted">
-        {note || 'No AI analysis available for this request.'}
+      <div className="ac-insight">
+        <p>Loading the agent analysis…</p>
       </div>
     )
   }
 
-  const recommendation = RECOMMENDATION_LABELS[insight.recommendation] || null
+  if (!insight) {
+    return (
+      <div className="ac-insight">
+        <p>{note || 'No agent analysis available for this request.'}</p>
+      </div>
+    )
+  }
+
+  const recommendation = RECOMMENDATION_LABELS[insight.recommendation]
   // Confidence arrives as 0..1 from the classifier.
   const confidencePct = Math.round((insight.confidence ?? 0) * 100)
 
+  // AdminSummary is written for exactly this panel; the classifier reasoning is
+  // the fallback when the pipeline did not produce one.
+  const body = insight.adminSummary || insight.classificationReasoning
+
   return (
-    <div className="agent-insight">
-      <div className="agent-insight-head">
-        <span className="agent-insight-chip">{insight.category || 'Unclassified'}</span>
-        <span className="agent-insight-chip agent-insight-chip-plain">
-          {confidencePct}% confident
-        </span>
-        {insight.imageUsed ? (
-          <span className="agent-insight-chip agent-insight-chip-plain">photo analysed</span>
-        ) : (
-          <span className="agent-insight-chip agent-insight-chip-plain">text only</span>
-        )}
-        {recommendation && (
-          <span className={`agent-insight-chip agent-insight-chip-${recommendation.tone}`}>
-            {recommendation.label}
-          </span>
-        )}
-      </div>
-
-      {insight.classificationReasoning && (
-        <p className="agent-insight-line">
-          <strong>Why this category:</strong> {insight.classificationReasoning}
-        </p>
-      )}
-
-      {insight.violatedRules?.length > 0 && (
-        <p className="agent-insight-line">
-          <strong>Rules broken:</strong> {insight.violatedRules.join(', ')}
-        </p>
-      )}
-
-      {insight.adminSummary && (
-        <p className="agent-insight-line">
-          <strong>Summary for you:</strong> {insight.adminSummary}
-        </p>
-      )}
-
-      {insight.recommendationReasoning && (
-        <p className="agent-insight-line">
-          <strong>Why that recommendation:</strong> {insight.recommendationReasoning}
-        </p>
-      )}
-
-      {insight.residentNotification && (
-        <details className="agent-insight-draft">
-          <summary>Draft message for the resident</summary>
-          <p>{insight.residentNotification}</p>
-        </details>
-      )}
+    <div className="ac-insight">
+      <h4>
+        <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
+        {recommendation || 'Validator analysis'}
+      </h4>
+      {body && <p>{body}</p>}
+      <p className="ac-insight-meta">
+        {insight.category || 'Unclassified'} · {confidencePct}% confident ·{' '}
+        {insight.imageUsed ? 'photo analysed' : 'text only'}
+        {insight.violatedRules?.length ? ` · ${insight.violatedRules.join(', ')}` : null}
+      </p>
     </div>
   )
 }
