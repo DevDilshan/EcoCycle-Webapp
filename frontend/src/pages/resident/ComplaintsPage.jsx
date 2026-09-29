@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import PageShell from '../../components/PageShell'
 import AdminAlert from '../../components/admin/AdminAlert'
 import AdminCard from '../../components/admin/AdminCard'
-import ComplaintRowCard from '../../components/admin/ComplaintRowCard'
+import ResidentComplaintList from '../../components/resident/ResidentComplaintList'
 import { useAuth } from '../../context/AuthContext'
+import { resolveComplaintLookupId } from '../../lib/complaintLookup'
 import { pickupLabel } from '../../lib/catalog'
 import { apiRequest } from '../../lib/api'
 
@@ -107,7 +108,9 @@ export default function ResidentComplaintsPage() {
     setError(null)
     setSuccess(null)
     try {
-      const complaint = await apiRequest(`/complaints/${lookupId.trim()}`)
+      const id = resolveComplaintLookupId(lookupId, complaints)
+      if (!id) return
+      const complaint = await apiRequest(`/complaints/${id}`)
       storeComplaintId(complaint.id)
       setSuccess('Complaint loaded.')
       await loadComplaints()
@@ -171,29 +174,36 @@ export default function ResidentComplaintsPage() {
         </AdminCard>
       )}
 
-      <AdminCard title="Look up by ID" subtitle="Paste a complaint reference if you have one">
-        <form className="admin-form admin-form-inline" onSubmit={handleLookup}>
-          <input value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="Complaint ID" />
-          <button type="submit" className="btn-secondary btn-sm" disabled={busy}>Load</button>
-        </form>
-      </AdminCard>
-
       {loading ? (
         <p className="admin-loading">Loading complaints…</p>
-      ) : complaints.length === 0 ? (
-        <p className="admin-empty">No complaints tracked yet. File one above.</p>
       ) : (
-        <div className="complaint-row-list">
-          {complaints.map((item) => (
-            <ComplaintRowCard
-              key={item.id}
-              complaint={item}
-              residentLabel="You"
-              zoneLabel="—"
-              onView={() => {}}
-            />
-          ))}
-        </div>
+        <section className="resident-complaints-panel">
+          <div className="resident-complaint-lookup">
+            <div className="resident-complaint-lookup-copy">
+              <strong>Track another complaint</strong>
+              <p>Paste the reference from your confirmation (e.g. CMP-4490) or the full ID.</p>
+            </div>
+            <form className="resident-complaint-lookup-form" onSubmit={handleLookup}>
+              <input
+                value={lookupId}
+                onChange={(e) => setLookupId(e.target.value)}
+                placeholder="CMP-4490 or complaint UUID"
+                aria-label="Complaint reference"
+              />
+              <button type="submit" className="btn-primary btn-sm" disabled={busy || !lookupId.trim()}>
+                Add to list
+              </button>
+            </form>
+          </div>
+
+          {complaints.length === 0 ? (
+            <p className="admin-empty resident-complaints-empty">
+              No complaints on this device yet. File one above or add a reference you were given.
+            </p>
+          ) : (
+            <ResidentComplaintList complaints={complaints} pickupById={pickupById} />
+          )}
+        </section>
       )}
     </PageShell>
   )

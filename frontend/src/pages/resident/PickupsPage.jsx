@@ -13,6 +13,8 @@ import {
   inferCategory,
 } from '../../lib/adminUi'
 import { apiRequest } from '../../lib/api'
+import { uploadPickupPhoto } from '../../lib/pickupPhoto'
+import PickupPhotoField from '../../components/resident/PickupPhotoField'
 
 const STATUS_FILTERS = ['', 'Pending', 'Classified', 'Scheduled', 'Completed', 'Rejected']
 
@@ -22,6 +24,10 @@ const emptyForm = {
   preferredDate: '',
   isRecurring: false,
   recurrenceInterval: '',
+}
+
+function revokeBlobPreview(url) {
+  if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
 }
 
 function toDateInputValue(value) {
@@ -44,8 +50,54 @@ export default function ResidentPickupsPage() {
   const [expandedId, setExpandedId] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [createForm, setCreateForm] = useState(emptyForm)
+  const [createPhotoFile, setCreatePhotoFile] = useState(null)
+  const [createPhotoPreview, setCreatePhotoPreview] = useState('')
   const [editForm, setEditForm] = useState(emptyForm)
+  const [editPhotoFile, setEditPhotoFile] = useState(null)
+  const [editPhotoPreview, setEditPhotoPreview] = useState('')
   const [statusCheck, setStatusCheck] = useState(null)
+
+  function setCreatePhoto(file) {
+    setCreatePhotoFile(file)
+    setCreatePhotoPreview((prev) => {
+      revokeBlobPreview(prev)
+      return file ? URL.createObjectURL(file) : ''
+    })
+  }
+
+  function clearCreatePhoto() {
+    setCreatePhotoFile(null)
+    setCreatePhotoPreview((prev) => {
+      revokeBlobPreview(prev)
+      return ''
+    })
+  }
+
+  function setEditPhoto(file) {
+    setEditPhotoFile(file)
+    setEditPhotoPreview((prev) => {
+      revokeBlobPreview(prev)
+      return file ? URL.createObjectURL(file) : ''
+    })
+  }
+
+  function clearEditPhotoSelection() {
+    setEditPhotoFile(null)
+    setEditPhotoPreview((prev) => {
+      revokeBlobPreview(prev)
+      return ''
+    })
+  }
+
+  function clearEditPhoto() {
+    clearEditPhotoSelection()
+    setEditForm((f) => ({ ...f, photoUrl: '' }))
+  }
+
+  useEffect(() => () => {
+    revokeBlobPreview(createPhotoPreview)
+    revokeBlobPreview(editPhotoPreview)
+  }, [createPhotoPreview, editPhotoPreview])
 
   const loadCounts = useCallback(async () => {
     const counts = {}
@@ -106,11 +158,15 @@ export default function ResidentPickupsPage() {
     setError(null)
     setSuccess(null)
     try {
+      let photoUrl = createForm.photoUrl || undefined
+      if (createPhotoFile) {
+        photoUrl = await uploadPickupPhoto(createPhotoFile)
+      }
       await apiRequest('/pickuprequests', {
         method: 'POST',
         body: JSON.stringify({
           description: createForm.description || undefined,
-          photoUrl: createForm.photoUrl || undefined,
+          photoUrl,
           preferredDate: new Date(createForm.preferredDate).toISOString(),
           isRecurring: createForm.isRecurring,
           recurrenceInterval: createForm.isRecurring ? createForm.recurrenceInterval || undefined : undefined,
@@ -118,6 +174,7 @@ export default function ResidentPickupsPage() {
       })
       setSuccess('Pickup request submitted.')
       setCreateForm(emptyForm)
+      clearCreatePhoto()
       setShowForm(false)
       setPage(1)
       load()
@@ -131,6 +188,7 @@ export default function ResidentPickupsPage() {
 
   function startEdit(item) {
     setExpandedId(item.id)
+    clearEditPhotoSelection()
     setEditForm({
       description: item.description || '',
       photoUrl: item.photoUrl || '',
@@ -146,17 +204,23 @@ export default function ResidentPickupsPage() {
     setError(null)
     setSuccess(null)
     try {
+      let photoUrl = editForm.photoUrl || undefined
+      if (editPhotoFile) {
+        photoUrl = await uploadPickupPhoto(editPhotoFile)
+      }
       await apiRequest(`/pickuprequests/${id}`, {
         method: 'PUT',
         body: JSON.stringify({
           description: editForm.description || undefined,
-          photoUrl: editForm.photoUrl || undefined,
+          photoUrl,
           preferredDate: new Date(editForm.preferredDate).toISOString(),
           isRecurring: editForm.isRecurring,
           recurrenceInterval: editForm.isRecurring ? editForm.recurrenceInterval || undefined : undefined,
         }),
       })
       setSuccess('Pickup request updated.')
+      setEditForm((f) => ({ ...f, photoUrl: photoUrl || '' }))
+      clearEditPhotoSelection()
       load()
     } catch (err) {
       setError(err.message)
@@ -225,19 +289,16 @@ export default function ResidentPickupsPage() {
       {showForm && (
         <AdminCard title="New pickup request" subtitle="Snap a photo and describe your waste">
           <form className="admin-form" onSubmit={handleCreate}>
-            <div className="resident-photo-dropzone">
-              <span className="resident-photo-icon">📷</span>
-              <strong>Take a photo of the waste</strong>
-              <small>or paste a photo URL below</small>
-            </div>
+            <PickupPhotoField
+              previewUrl={createPhotoPreview}
+              onFileChange={setCreatePhoto}
+              onClear={clearCreatePhoto}
+              disabled={busyId === 'create' || role !== 'resident'}
+            />
             <div className="admin-form-row">
               <div>
                 <label>Preferred date</label>
                 <input type="date" value={createForm.preferredDate} onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })} required />
-              </div>
-              <div>
-                <label>Photo URL (optional)</label>
-                <input value={createForm.photoUrl} onChange={(e) => setCreateForm({ ...createForm, photoUrl: e.target.value })} placeholder="https://…" />
               </div>
             </div>
             <div>
@@ -307,7 +368,14 @@ export default function ResidentPickupsPage() {
                 </button>
                 {expanded && (
                   <div className="pickup-grid-detail">
-                    {item.photoUrl && <p><strong>Photo:</strong> <a href={item.photoUrl} target="_blank" rel="noreferrer">View</a></p>}
+                    {item.photoUrl && item.status !== 'Pending' && (
+                      <div className="resident-pickup-photo-detail">
+                        <strong>Waste photo</strong>
+                        <a href={item.photoUrl} target="_blank" rel="noreferrer">
+                          <img src={item.photoUrl} alt="Waste submitted for pickup" />
+                        </a>
+                      </div>
+                    )}
                     {statusCheck?.id === item.id && (
                       <p><strong>Live status:</strong> <PickupStatusPill status={statusCheck.status} /></p>
                     )}
@@ -317,14 +385,17 @@ export default function ResidentPickupsPage() {
                     {item.status === 'Pending' && (
                       <form className="admin-form" onSubmit={(e) => handleUpdate(e, item.id)} style={{ marginTop: '1rem' }}>
                         <p style={{ margin: '0 0 0.5rem', fontWeight: 700 }}>Edit pending request</p>
+                        <PickupPhotoField
+                          existingUrl={editForm.photoUrl}
+                          previewUrl={editPhotoPreview}
+                          onFileChange={setEditPhoto}
+                          onClear={clearEditPhoto}
+                          disabled={busyId === item.id}
+                        />
                         <div className="admin-form-row">
                           <div>
                             <label>Preferred date</label>
                             <input type="date" value={editForm.preferredDate} onChange={(e) => setEditForm({ ...editForm, preferredDate: e.target.value })} required />
-                          </div>
-                          <div>
-                            <label>Photo URL</label>
-                            <input value={editForm.photoUrl} onChange={(e) => setEditForm({ ...editForm, photoUrl: e.target.value })} />
                           </div>
                         </div>
                         <div>

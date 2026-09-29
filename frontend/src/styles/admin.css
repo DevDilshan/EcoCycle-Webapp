@@ -978,6 +978,13 @@
 .admin-console .ac-field { display: grid; gap: 6px; min-width: 0; }
 .admin-console .ac-field label { font-size: 13px; font-weight: 700; }
 
+.admin-console .ac-field-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ac-muted, #6b7280);
+}
+
 .admin-console .ac-field select,
 .admin-console .ac-field input,
 .admin-console .ac-field textarea {
