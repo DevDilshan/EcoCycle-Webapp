@@ -4,8 +4,6 @@ import { useAuth } from '../../context/AuthContext'
 const menuItems = [
   { to: '/collector', label: 'Overview', end: true },
   { to: '/collector/route', label: "Today's Route" },
-  { to: '/collector/assign', label: 'Assign Pickup' },
-  { to: '/collector/classify', label: 'Classify Pickup' },
 ]
 
 function initials(email) {

@@ -133,8 +133,11 @@ private Guid CurrentUserId
 
     // POST /api/pickuprequests/{id}/classify-evaluate — simulate AI classification + compliance flagging
     // (/classify itself is the Student 1 stub above; two actions on one route break Swagger and routing)
+    // Admin only, for the same reason as /classify above: the Classifier agent
+    // runs on submission, so a manual re-run is a fallback for a failed pipeline
+    // rather than part of a collector's round.
     [HttpPost("{id:guid}/classify-evaluate")]
-    [Authorize(Roles = "admin,collector")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Classify(Guid id, [FromBody] ClassifyPickupRequestDto dto)
     {
         try
