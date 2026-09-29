@@ -15,14 +15,13 @@ import ApprovalsPage from './pages/admin/ApprovalsPage'
 import ComplaintsPage from './pages/admin/ComplaintsPage'
 import CompliancePage from './pages/admin/CompliancePage'
 import AccountPage from './pages/admin/AccountPage'
+import AdminAccountPage from './pages/admin/AdminAccountPage'
 import ResidentDashboardPage from './pages/resident/DashboardPage'
 import ResidentPickupsPage from './pages/resident/PickupsPage'
 import ResidentRewardsPage from './pages/resident/RewardsPage'
 import ResidentComplaintsPage from './pages/resident/ComplaintsPage'
 import CollectorDashboardPage from './pages/collector/DashboardPage'
 import CollectorRoutePage from './pages/collector/RoutePage'
-import CollectorAssignPage from './pages/collector/AssignPage'
-import CollectorClassifyPage from './pages/collector/ClassifyPage'
 
 export default function App() {
   return (
@@ -47,7 +46,7 @@ export default function App() {
             <Route path="approvals" element={<ApprovalsPage />} />
             <Route path="complaints" element={<ComplaintsPage />} />
             <Route path="compliance" element={<CompliancePage />} />
-            <Route path="account" element={<AccountPage />} />
+            <Route path="account" element={<AdminAccountPage />} />
           </Route>
           <Route
             path="/dashboard"
@@ -73,8 +72,6 @@ export default function App() {
           >
             <Route index element={<CollectorDashboardPage />} />
             <Route path="route" element={<CollectorRoutePage />} />
-            <Route path="assign" element={<CollectorAssignPage />} />
-            <Route path="classify" element={<CollectorClassifyPage />} />
             <Route path="account" element={<AccountPage eyebrow="Collector" />} />
           </Route>
         </Routes>

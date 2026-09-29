@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Leaf, Lock, Mail } from 'lucide-react'
-import EcoLogo from '../components/public/EcoLogo'
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import EcoLogo, { EcoMark } from '../components/public/EcoLogo'
 import { useAuth } from '../context/AuthContext'
 import { getUserRole } from '../lib/supabase'
 import { getHomePath } from '../lib/roles'
@@ -52,7 +52,7 @@ export default function LoginPage() {
       <main className="eco-auth-main">
         <form className="eco-auth-card eco-enter" onSubmit={handleSubmit}>
           <span className="eco-auth-icon">
-            <Leaf size={22} strokeWidth={2} aria-hidden="true" />
+            <EcoMark size={22} />
           </span>
           <h1>Welcome back</h1>
           <p className="eco-auth-sub">Log in to manage your pickups and rewards.</p>

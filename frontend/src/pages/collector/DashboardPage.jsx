@@ -79,8 +79,6 @@ export default function CollectorDashboardPage() {
 
           <div className="admin-link-grid" style={{ marginTop: '1.25rem' }}>
             <Link to="/collector/route" className="btn-primary">Open today's route</Link>
-            <Link to="/collector/assign" className="btn-secondary">Assign pickup</Link>
-            <Link to="/collector/classify" className="btn-secondary">Classify pickup</Link>
           </div>
 
           <AdminCard title="Next stops" subtitle="Upcoming assignments for today">

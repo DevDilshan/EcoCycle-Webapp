@@ -1,12 +1,8 @@
+import { MapPin, Pencil, TrendingUp, TriangleAlert } from 'lucide-react'
 import { profileInitials, shortProfileName } from '../../lib/adminUi'
+import { AcStatusPill } from './AcPills'
 
-const AVATAR_COLORS = ['#2f7d51', '#6d4bb0', '#2b6cb0', '#c26a2a', '#b7791f']
-
-function plural(count, word) {
-  return `${count} ${word}${count === 1 ? '' : 's'}`
-}
-
-export default function ZoneCard({ zone, collectorProfile, stats, onEdit }) {
+export default function ZoneCard({ zone, collectorProfile, stats, onEdit, isBusiest = false }) {
   // Counts come from RouteAssignments for this zone. There is no recorded
   // capacity per zone, so there is no honest "% loaded" to show -- the counts
   // are reported as they are. `stats` is undefined until the report loads.
@@ -14,44 +10,66 @@ export default function ZoneCard({ zone, collectorProfile, stats, onEdit }) {
   const pending = stats?.pendingAssignments ?? 0
   const dueToday = stats?.dueToday ?? 0
   const inactive = zone.isActive === false
+  const unplaced = zone.latitude == null || zone.longitude == null
 
   return (
-    <article className={`zone-card${inactive ? ' zone-card-inactive' : ''}`}>
-      <div className="zone-card-top">
-        <div>
-          <h3 className="zone-card-title">{zone.name}</h3>
-          <p className="zone-card-sub">{zone.description || 'Collection zone'}</p>
-        </div>
-        <span className={`zone-status-pill${inactive ? ' zone-status-inactive' : ''}`}>
-          {inactive ? 'Inactive' : 'Active'}
-        </span>
+    <article className={`ac-zone-card${isBusiest ? ' is-busiest' : ''}`}>
+      <div className="ac-zone-top">
+        <strong>{zone.name}</strong>
+        <AcStatusPill status={inactive ? 'Inactive' : 'Active'} />
       </div>
-      <div className="zone-card-stats">
-        {hasStats ? (
-          <>
-            <span>Waiting: <strong>{plural(pending, 'pickup')}</strong></span>
-            <span>Due today: <strong>{dueToday}</strong></span>
-          </>
-        ) : (
-          <span className="zone-card-stats-muted">Loading pickup counts…</span>
-        )}
-      </div>
-      <p className="zone-card-label">Assigned collectors</p>
-      <div className="zone-collector-chips">
-        {collectorProfile ? (
-          <span className="zone-collector-chip">
-            <span className="zone-collector-avatar" style={{ background: AVATAR_COLORS[0] }}>
-              {profileInitials(collectorProfile.fullName || collectorProfile.email)}
-            </span>
-            {shortProfileName(collectorProfile)}
+
+      {collectorProfile ? (
+        <span className="ac-collector">
+          <span className="ac-avatar" aria-hidden="true">
+            {profileInitials(collectorProfile.fullName || collectorProfile.email)}
           </span>
-        ) : (
-          <span className="zone-collector-empty">No collector assigned</span>
-        )}
-        <button type="button" className="zone-collector-add" onClick={onEdit} aria-label="Manage zone">
-          +
-        </button>
+          {shortProfileName(collectorProfile)}
+        </span>
+      ) : (
+        <span className="ac-pill ac-s-warn">
+          <TriangleAlert size={13} strokeWidth={2.4} aria-hidden="true" />
+          No collector assigned
+        </span>
+      )}
+
+      <div className="ac-zone-stats">
+        <div>
+          <b>{hasStats ? pending : '—'}</b>
+          <span>waiting</span>
+        </div>
+        <div>
+          <b>{hasStats ? dueToday : '—'}</b>
+          <span>due today</span>
+        </div>
       </div>
+
+      {hasStats && stats.missedAssignments > 0 && (
+        <span className="ac-pill ac-s-bad">
+          <TriangleAlert size={13} strokeWidth={2.4} aria-hidden="true" />
+          {stats.missedAssignments} missed
+        </span>
+      )}
+
+      <div className="ac-zone-foot">
+        <button type="button" className="ac-btn ac-btn-ghost ac-btn-sm" onClick={onEdit}>
+          <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+          Edit
+        </button>
+        {isBusiest && (
+          <span className="ac-pill ac-s-ok">
+            <TrendingUp size={13} strokeWidth={2.4} aria-hidden="true" />
+            Busiest today
+          </span>
+        )}
+      </div>
+
+      {unplaced && (
+        <p className="ac-zone-note">
+          <MapPin size={13} strokeWidth={2} aria-hidden="true" />
+          No coordinates, not shown on the map
+        </p>
+      )}
     </article>
   )
 }

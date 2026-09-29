@@ -1,15 +1,39 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import { AdminShellContext } from '../admin/adminShell'
 
 export default function AdminLayout() {
+  const [navOpen, setNavOpen] = useState(false)
+
+  const closeNav = useCallback(() => setNavOpen(false), [])
+  const shell = useMemo(() => ({ openNav: () => setNavOpen(true) }), [])
+
+  // Escape closes the slide-in menu, matching the drawer behaviour elsewhere.
+  useEffect(() => {
+    if (!navOpen) return undefined
+    function onKeyDown(event) {
+      if (event.key === 'Escape') closeNav()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navOpen, closeNav])
+
   return (
-    <div className="admin-layout admin-theme">
-      <Sidebar />
-      <div className="admin-main">
-        <main className="admin-content">
+    <AdminShellContext.Provider value={shell}>
+      {/* admin-theme is kept so existing rules that other admin markup still
+          relies on keep working; admin-console is what the redesign targets. */}
+      <div className="admin-console admin-theme">
+        <Sidebar isOpen={navOpen} onNavigate={closeNav} />
+        <div className="ac-main">
           <Outlet />
-        </main>
+        </div>
       </div>
-    </div>
+      <div
+        className={`ac-scrim${navOpen ? ' is-open' : ''}`}
+        onClick={closeNav}
+        aria-hidden="true"
+      />
+    </AdminShellContext.Provider>
   )
 }

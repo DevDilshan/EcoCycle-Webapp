@@ -6,14 +6,13 @@ import {
   Eye,
   EyeOff,
   House,
-  Leaf,
   Lock,
   Mail,
   MailCheck,
   ShieldCheck,
   Truck,
 } from 'lucide-react'
-import EcoLogo from '../components/public/EcoLogo'
+import EcoLogo, { EcoMark } from '../components/public/EcoLogo'
 import { useAuth } from '../context/AuthContext'
 import { getHomePath } from '../lib/roles'
 import '../styles/public.css'
@@ -99,7 +98,7 @@ export default function RegisterPage() {
       <main className="eco-auth-main">
         <form className="eco-auth-card eco-enter" onSubmit={handleSubmit}>
           <span className="eco-auth-icon">
-            <Leaf size={22} strokeWidth={2} aria-hidden="true" />
+            <EcoMark size={22} />
           </span>
           <h1>Create your account</h1>
           <p className="eco-auth-sub">Join EcoCycle and start recycling smarter.</p>
