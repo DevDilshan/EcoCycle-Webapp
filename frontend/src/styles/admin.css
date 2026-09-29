@@ -1,0 +1,1210 @@
+/* ==========================================================================
+   EcoCycle admin console
+   Values come from admin-design-handoff/screens/admin.html; nothing here is
+   guessed.
+
+   SCOPE: every rule sits under `.admin-console`, a class carried only by
+   AdminLayout. The handoff asked for `.admin-theme`, but ResidentLayout wears
+   that class too, so styling it would have redesigned the resident pages as a
+   side effect. Class names are `ac-` prefixed for the same reason: the old
+   `.admin-theme .admin-*` rules in index.css still load, and a fresh namespace
+   means they cannot half-apply to the new markup.
+   ========================================================================== */
+
+.admin-console {
+  --ivory: #fffff0;
+  --honeydew: #f0fff0;
+  --celadon: #ace1af;
+  --celadon-strong: #9cd8a0;
+  --green: #00563b;
+  --green-strong: #00452f;
+  --green-deep: #003626;
+  --surface: #ffffff;
+  --page: #f3f8f0;
+
+  --ink: #16241d;
+  --muted: #4a5d53;
+  --faint: #7a8c82;
+  --line: rgba(0, 86, 59, 0.1);
+  --line-strong: rgba(0, 86, 59, 0.18);
+
+  --ok-bg: #e2f4e3;
+  --ok-ink: #135c33;
+  --warn-bg: #fcf1d8;
+  --warn-ink: #7a4b00;
+  --bad-bg: #fdecea;
+  --bad-ink: #8a1c12;
+  --info-bg: #e7eff9;
+  --info-ink: #1d4f86;
+  --neutral-bg: #edf2ea;
+  --neutral-ink: #4a5d53;
+
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --sh-sm: 0 1px 2px rgba(0, 56, 38, 0.05), 0 2px 8px rgba(0, 56, 38, 0.05);
+  --sh-md: 0 2px 4px rgba(0, 56, 38, 0.04), 0 12px 32px rgba(0, 56, 38, 0.08);
+  --sh-lg: 0 4px 8px rgba(0, 56, 38, 0.05), 0 24px 56px rgba(0, 56, 38, 0.14);
+  --font: Manrope, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.admin-console *,
+.admin-console *::before,
+.admin-console *::after { box-sizing: border-box; }
+
+.admin-console button { font: inherit; color: inherit; }
+.admin-console a { color: var(--green); }
+.admin-console :focus-visible { outline: 3px solid var(--celadon); outline-offset: 2px; }
+
+/* ---------- Sidebar ---------- */
+
+.admin-console .ac-side {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 14px;
+  background: var(--green);
+  color: var(--ivory);
+  /* The sidebar itself never scrolls: the brand stays at the top and the agent
+     card and account row stay at the bottom. On a short window the nav list is
+     the only part that gives, and it does so without a scrollbar. */
+  overflow: hidden;
+}
+
+.admin-console .ac-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 18px;
+  color: var(--ivory);
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.admin-console .ac-brand-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--celadon);
+  color: var(--green);
+}
+
+.admin-console .ac-brand small {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 240, 0.6);
+}
+
+.admin-console .ac-nav-label {
+  margin: 8px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 240, 0.55);
+}
+
+.admin-console .ac-nav {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.admin-console .ac-nav::-webkit-scrollbar { display: none; }
+
+.admin-console .ac-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  color: rgba(255, 255, 240, 0.82);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 200ms, color 200ms;
+}
+
+.admin-console .ac-nav-link:hover {
+  background: rgba(255, 255, 240, 0.08);
+  color: var(--ivory);
+}
+
+.admin-console .ac-nav-link.is-active {
+  background: var(--celadon);
+  color: var(--green);
+}
+
+.admin-console .ac-nav-link .ac-count {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ivory);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.admin-console .ac-nav-link.is-active .ac-count {
+  background: var(--green);
+  color: var(--ivory);
+}
+
+.admin-console .ac-side-foot { margin-top: auto; flex: none; display: grid; gap: 10px; }
+
+.admin-console .ac-agent-card {
+  padding: 14px;
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 240, 0.07);
+  font-size: 13px;
+}
+
+.admin-console .ac-agent-card strong { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.admin-console .ac-agent-card p { margin: 4px 0 0; color: rgba(255, 255, 240, 0.7); }
+
+.admin-console .ac-dot-live {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--celadon);
+  animation: ac-ping 1.8s infinite;
+}
+
+@keyframes ac-ping {
+  0% { box-shadow: 0 0 0 0 rgba(172, 225, 175, 0.55); }
+  80%, 100% { box-shadow: 0 0 0 9px rgba(172, 225, 175, 0); }
+}
+
+.admin-console .ac-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  color: var(--ivory);
+  text-decoration: none;
+}
+
+.admin-console .ac-me:hover { background: rgba(255, 255, 240, 0.08); }
+
+.admin-console .ac-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ivory);
+  color: var(--green);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.admin-console .ac-me span small {
+  display: block;
+  color: rgba(255, 255, 240, 0.6);
+  font-size: 12px;
+}
+
+.admin-console .ac-me-row { display: flex; align-items: center; gap: 4px; }
+.admin-console .ac-me-row .ac-me { flex: 1; min-width: 0; }
+.admin-console .ac-me-row .ac-me span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.admin-console .ac-logout {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 4px;
+  border-radius: 6px;
+  background: none;
+  color: var(--ivory);
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.admin-console .ac-logout:hover { opacity: 1; background: rgba(255, 255, 240, 0.12); }
+
+/* ---------- Main column and top bar ---------- */
+
+.admin-console .ac-main { min-width: 0; max-width: 100%; display: flex; flex-direction: column; }
+
+.admin-console .ac-top {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 28px;
+  background: rgba(243, 248, 240, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-console .ac-top h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--green);
+  text-wrap: balance;
+}
+
+.admin-console .ac-top .ac-date {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-console .ac-top-tools { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.admin-console .ac-search { position: relative; display: block; }
+
+.admin-console .ac-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.admin-console .ac-search input {
+  width: 280px;
+  padding: 10px 12px 10px 38px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+  color: var(--ink);
+  transition: box-shadow 200ms;
+}
+
+.admin-console .ac-search input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
+}
+
+.admin-console .ac-icon-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--green);
+  cursor: pointer;
+  transition: background-color 200ms;
+}
+
+.admin-console .ac-icon-btn:hover { background: var(--honeydew); }
+
+.admin-console .ac-icon-btn .ac-pip {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c2412d;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.admin-console .ac-menu-btn { display: none; }
+
+/* Visible to screen readers only: the search field is labelled but the label
+   text would duplicate the placeholder on screen. */
+.admin-console .ac-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.admin-console .ac-view {
+  min-width: 0;
+  padding: 24px 28px 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-content: start;
+  animation: ac-view-in 400ms var(--ease);
+}
+
+@keyframes ac-view-in {
+  from { opacity: 0.4; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- Layout helpers ---------- */
+
+.admin-console .ac-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.admin-console .ac-g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-console .ac-g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.admin-console .ac-g-2-1 { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+.admin-console .ac-g-1-1 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+
+.admin-console .ac-card {
+  padding: 20px;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--sh-sm);
+  min-width: 0;
+}
+
+.admin-console .ac-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-console .ac-card-head h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--green); }
+.admin-console .ac-card-head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+
+.admin-console .ac-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: none;
+  color: var(--green);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.admin-console .ac-link-btn:hover { background: var(--honeydew); }
+
+/* ---------- KPI ---------- */
+
+.admin-console .ac-kpi { display: grid; gap: 10px; }
+
+.admin-console .ac-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.admin-console .ac-kpi-top .ac-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--honeydew);
+  color: var(--green);
+}
+
+.admin-console .ac-kpi-num {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-console .ac-kpi-num small { font-size: 16px; color: var(--faint); font-weight: 700; letter-spacing: 0; }
+
+.admin-console .ac-kpi-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-console .ac-kpi.is-alert { box-shadow: var(--sh-sm), inset 0 0 0 1.5px rgba(194, 65, 45, 0.28); }
+.admin-console .ac-kpi.is-alert .ac-tile { background: var(--bad-bg); color: var(--bad-ink); }
+
+.admin-console .ac-meter { height: 8px; border-radius: 999px; background: var(--honeydew); overflow: hidden; }
+.admin-console .ac-meter i { display: block; height: 100%; border-radius: inherit; background: var(--green); }
+
+/* ---------- Pills ---------- */
+
+.admin-console .ac-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-console .ac-pill svg { flex: none; }
+.admin-console .ac-s-ok { background: var(--ok-bg); color: var(--ok-ink); }
+.admin-console .ac-s-warn { background: var(--warn-bg); color: var(--warn-ink); }
+.admin-console .ac-s-bad { background: var(--bad-bg); color: var(--bad-ink); }
+.admin-console .ac-s-info { background: var(--info-bg); color: var(--info-ink); }
+.admin-console .ac-s-neutral { background: var(--neutral-bg); color: var(--neutral-ink); }
+
+.admin-console .ac-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.admin-console .ac-cat .ac-ct {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--honeydew);
+  color: var(--green);
+}
+
+.admin-console .ac-conf { color: var(--faint); font-weight: 600; font-size: 12px; }
+
+/* ---------- Buttons ---------- */
+
+.admin-console .ac-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: var(--r-md);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color 200ms, transform 200ms, box-shadow 200ms;
+}
+
+.admin-console .ac-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.admin-console .ac-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.admin-console .ac-btn-primary { background: var(--green); color: var(--surface); }
+.admin-console .ac-btn-primary:hover:not(:disabled) { background: var(--green-strong); }
+.admin-console .ac-btn-soft { background: var(--celadon); color: var(--green); }
+.admin-console .ac-btn-soft:hover:not(:disabled) { background: var(--celadon-strong); }
+.admin-console .ac-btn-ghost { background: var(--surface); color: var(--green); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.admin-console .ac-btn-ghost:hover:not(:disabled) { background: var(--honeydew); }
+.admin-console .ac-btn-danger { background: var(--bad-bg); color: var(--bad-ink); }
+.admin-console .ac-btn-danger:hover:not(:disabled) { background: #fadbd6; }
+.admin-console .ac-btn-sm { padding: 6px 10px; font-size: 12px; }
+
+/* ---------- Filters and tables ---------- */
+
+.admin-console .ac-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.admin-console .ac-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.admin-console .ac-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 200ms, color 200ms;
+}
+
+.admin-console .ac-chip:hover { color: var(--green); }
+.admin-console .ac-chip.is-on { background: var(--green); color: var(--surface); box-shadow: none; }
+.admin-console .ac-chip b { font-weight: 800; opacity: 0.75; }
+
+.admin-console .ac-table-wrap { overflow-x: auto; margin: 0 -20px -20px; }
+
+.admin-console .ac-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+
+.admin-console .ac-table th {
+  position: sticky;
+  top: 0;
+  padding: 10px 20px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.admin-console .ac-table td { padding: 13px 20px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.admin-console .ac-table tbody tr { cursor: pointer; transition: background-color 150ms; }
+.admin-console .ac-table tbody tr:hover { background: rgba(240, 255, 240, 0.7); }
+.admin-console .ac-table tbody tr:last-child td { border-bottom: 0; }
+
+.admin-console .ac-id { font-weight: 800; color: var(--green); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.admin-console .ac-sub { display: block; color: var(--muted); font-size: 13px; }
+.admin-console .ac-num { text-align: right; font-variant-numeric: tabular-nums; }
+.admin-console .ac-empty { padding: 32px; text-align: center; color: var(--muted); }
+
+.admin-console .ac-chevron { width: 1px; color: var(--faint); text-align: right; }
+.admin-console .ac-toolbar-meta { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 600; }
+
+.admin-console .ac-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ac-drawer-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ac-drawer-sub { margin: 0 0 4px; font-size: 13px; font-weight: 800; color: #00563b; }
+.ac-drawer-text { margin: 0; color: #16241d; }
+
+/* ---------- Lists ---------- */
+
+.admin-console .ac-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.admin-console .ac-row { display: flex; align-items: center; gap: 12px; padding: 12px 8px; border-radius: var(--r-md); }
+.admin-console .ac-row + .ac-row { border-top: 1px solid var(--line); border-radius: 0; }
+.admin-console .ac-row .ac-grow { min-width: 0; flex: 1; }
+.admin-console .ac-row .ac-grow strong { display: block; }
+
+.admin-console .ac-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--honeydew);
+  color: var(--green);
+}
+
+.admin-console .ac-ic.bad { background: var(--bad-bg); color: var(--bad-ink); }
+.admin-console .ac-ic.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.admin-console .ac-ic.ok { background: var(--ok-bg); color: var(--ok-ink); }
+
+.admin-console .ac-time { color: var(--faint); font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+/* ---------- Bars (single series, to scale) ---------- */
+
+.admin-console .ac-bars { display: grid; gap: 12px; }
+
+.admin-console .ac-bar-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-console .ac-bar-row .ac-lbl { display: flex; align-items: center; gap: 8px; font-weight: 700; min-width: 0; }
+.admin-console .ac-bar-row .ac-lbl span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.admin-console .ac-bar-track { position: relative; height: 12px; border-radius: 0 4px 4px 0; background: transparent; }
+.admin-console .ac-bar-track::before { content: ''; position: absolute; inset: 5px 0; border-radius: 2px; background: var(--honeydew); }
+
+.admin-console .ac-bar-fill {
+  position: relative;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: var(--green);
+  transform-origin: left;
+  animation: ac-grow 900ms var(--ease) both;
+}
+
+.admin-console .ac-bar-fill:hover { background: var(--green-strong); }
+.admin-console .ac-bar-row .ac-v { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+@keyframes ac-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* The KPI foot holds a meter on the collected card, so it needs to stretch. */
+.admin-console .ac-kpi-foot .ac-meter { min-width: 60px; }
+
+/* ---------- Pipeline ---------- */
+
+.admin-console .ac-pipe { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.admin-console .ac-stage { display: grid; gap: 8px; }
+.admin-console .ac-stage-col { display: flex; align-items: flex-end; height: 150px; margin-top: 30px; }
+
+.admin-console .ac-stage-bar {
+  position: relative;
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: var(--green);
+  transform-origin: bottom;
+  animation: ac-rise 900ms var(--ease) both;
+}
+
+.admin-console .ac-stage-bar.is-flag { background: #b5412f; }
+
+.admin-console .ac-stage-bar span {
+  position: absolute;
+  top: -26px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes ac-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+.admin-console .ac-stage-name { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; color: var(--muted); }
+.admin-console .ac-stage-name svg { color: var(--green); flex: none; }
+
+.admin-console .ac-pipe-note {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--honeydew);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---------- Approvals ---------- */
+
+.admin-console .ac-approval {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  padding: 20px;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--sh-sm);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.admin-console .ac-approval.is-leaving { opacity: 0; transform: translateX(24px); }
+.admin-console .ac-approval-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.admin-console .ac-approval h3 { margin: 0; font-size: 17px; color: var(--ink); }
+
+.admin-console .ac-reason {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--bad-bg);
+  color: var(--bad-ink);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.admin-console .ac-reason svg { flex: none; }
+
+.admin-console .ac-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.admin-console .ac-facts span { display: inline-flex; align-items: center; gap: 6px; }
+.admin-console .ac-facts svg { color: var(--green); flex: none; }
+
+.admin-console .ac-insight { padding: 14px; border-radius: var(--r-lg); background: var(--honeydew); }
+.admin-console .ac-insight h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 13px; color: var(--green); }
+.admin-console .ac-insight p { margin: 0; color: var(--ink); font-size: 13px; }
+
+.admin-console .ac-draft {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.admin-console .ac-photo {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  height: 220px;
+  border-radius: var(--r-lg);
+  background: var(--honeydew);
+  color: var(--green);
+  overflow: hidden;
+}
+
+.admin-console .ac-photo img { width: 100%; height: 100%; object-fit: cover; }
+.admin-console .ac-photo span { display: grid; justify-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+
+.admin-console .ac-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+.admin-console .ac-reject-box { display: none; gap: 8px; margin-top: 10px; }
+.admin-console .ac-reject-box.is-open { display: flex; }
+
+.admin-console .ac-reject-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+}
+
+.admin-console .ac-insight-meta { margin: 6px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+
+/* The card an admin followed a link to, so it is findable after the scroll. */
+.admin-console .ac-approval-target .ac-approval { box-shadow: var(--sh-md), inset 0 0 0 2px var(--celadon); }
+
+/* ---------- Map ---------- */
+
+.admin-console .ac-map {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--honeydew);
+}
+
+/* The real Leaflet map keeps its own tiles; these only restyle the chrome. */
+.admin-console .ac-map-canvas,
+.admin-console .ac-map .leaflet-container {
+  height: 340px;
+  border-radius: var(--r-lg);
+  font-family: var(--font);
+  background: var(--honeydew);
+}
+
+.admin-console .ac-truck-marker { background: none; border: 0; }
+
+.admin-console .ac-truck {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--green);
+  color: var(--surface);
+  box-shadow: 0 4px 12px rgba(0, 56, 38, 0.3);
+  transition: transform 200ms var(--ease);
+}
+
+.admin-console .ac-truck:hover { transform: scale(1.12); }
+.admin-console .ac-truck.is-unassigned { background: #8a6a12; }
+
+.admin-console .ac-truck .ac-load {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--ivory);
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 56, 38, 0.25);
+}
+
+/* Leaflet's own popup, restyled to the prototype's popup. */
+.admin-console .ac-map .leaflet-popup-content-wrapper {
+  border-radius: var(--r-lg);
+  background: var(--ivory);
+  box-shadow: var(--sh-lg);
+  color: var(--ink);
+}
+
+.admin-console .ac-map .leaflet-popup-tip { background: var(--ivory); }
+.admin-console .ac-map .leaflet-popup-content { margin: 12px 14px; font-size: 13px; min-width: 190px; }
+.admin-console .ac-pop strong { display: block; color: var(--green); font-size: 15px; }
+.admin-console .ac-pop dl { display: grid; grid-template-columns: auto auto; gap: 2px 14px; margin: 8px 0 0; }
+.admin-console .ac-pop dt { color: var(--muted); }
+.admin-console .ac-pop dd { margin: 0; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+
+.admin-console .ac-map-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 400;
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 240, 0.94);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.admin-console .ac-map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.admin-console .ac-map-legend i { width: 12px; height: 12px; border-radius: 50%; background: var(--green); }
+.admin-console .ac-map-legend i.u { background: #8a6a12; }
+
+/* ---------- Zone cards ---------- */
+
+.admin-console .ac-zone-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-sm);
+  transition: box-shadow 200ms, transform 200ms;
+}
+
+.admin-console .ac-zone-card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+.admin-console .ac-zone-card.is-busiest { box-shadow: var(--sh-sm), inset 0 0 0 2px var(--celadon); }
+
+/* The zone card is a grid, so a pill placed straight into it would stretch to
+   the full column width instead of hugging its label. */
+.admin-console .ac-zone-card > .ac-pill,
+.admin-console .ac-zone-card > .ac-collector { justify-self: start; }
+
+.admin-console .ac-zone-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.admin-console .ac-zone-top strong { font-size: 15px; color: var(--green); }
+
+.admin-console .ac-zone-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.admin-console .ac-zone-stats div { padding: 8px 10px; border-radius: var(--r-md); background: var(--honeydew); }
+.admin-console .ac-zone-stats b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.admin-console .ac-zone-stats span { color: var(--muted); font-size: 12px; font-weight: 600; }
+
+.admin-console .ac-collector { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.admin-console .ac-collector .ac-avatar { width: 26px; height: 26px; font-size: 11px; background: var(--celadon); }
+
+.admin-console .ac-zone-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.admin-console .ac-zone-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-console .ac-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-console .ac-section-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--green);
+}
+
+/* A zone name is a word, not a figure, so it does not take the tabular
+   34px treatment the counts use. */
+.admin-console .ac-kpi-word { font-size: 24px; letter-spacing: -0.02em; }
+
+.admin-console .ac-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-console .ac-check input { width: 16px; height: 16px; accent-color: var(--green); }
+
+/* ---------- Forms ---------- */
+
+.admin-console .ac-form { display: grid; gap: 12px; }
+.admin-console .ac-field { display: grid; gap: 6px; min-width: 0; }
+.admin-console .ac-field label { font-size: 13px; font-weight: 700; }
+
+.admin-console .ac-field select,
+.admin-console .ac-field input,
+.admin-console .ac-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+  color: var(--ink);
+}
+
+.admin-console .ac-field select:focus,
+.admin-console .ac-field input:focus,
+.admin-console .ac-field textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
+}
+
+.admin-console .ac-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* EntitySelect renders its own wrapper div, so the field grid has to reach one
+   level further down to keep its label and control spaced the same way. */
+.admin-console .ac-field > div { display: grid; gap: 6px; min-width: 0; }
+.admin-console .ac-field > div > label { font-size: 13px; font-weight: 700; }
+
+.admin-console .ac-form select,
+.admin-console .ac-form input,
+.admin-console .ac-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+  color: var(--ink);
+}
+
+.admin-console .ac-form select:focus,
+.admin-console .ac-form input:focus,
+.admin-console .ac-form textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
+}
+
+/* ---------- Leaderboard ---------- */
+
+.admin-console .ac-rank {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--honeydew);
+  color: var(--green);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.admin-console .ac-rank.is-top { background: var(--green); color: var(--ivory); }
+.admin-console .ac-mini-meter { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.admin-console .ac-mini-meter .ac-meter { flex: 1; height: 6px; }
+
+/* ---------- Drawer ---------- */
+
+.ac-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 38, 26, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 250ms;
+}
+
+.ac-scrim.is-open { opacity: 1; pointer-events: auto; }
+
+.ac-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(460px, 100%);
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 56, 38, 0.05), 0 24px 56px rgba(0, 56, 38, 0.14);
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  font-family: Manrope, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #16241d;
+  font-size: 14px;
+}
+
+.ac-drawer.is-open { transform: none; }
+.ac-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ac-drawer h2 { margin: 0; font-size: 20px; color: #00563b; }
+
+.ac-drawer-head-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+.ac-drawer .ac-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0, 86, 59, 0.18);
+  color: #00563b;
+  cursor: pointer;
+}
+
+.ac-drawer .ac-icon-btn:hover { background: #f0fff0; }
+
+.ac-kv { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; margin: 0; }
+.ac-kv dt { color: #4a5d53; font-weight: 600; }
+.ac-kv dd { margin: 0; font-weight: 700; }
+
+/* ---------- Toast ---------- */
+
+.ac-toast:not(.is-on) { visibility: hidden; }
+
+.ac-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #003626;
+  color: #fffff0;
+  font-weight: 700;
+  font-family: Manrope, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  box-shadow: 0 4px 8px rgba(0, 56, 38, 0.05), 0 24px 56px rgba(0, 56, 38, 0.14);
+  transform: translate(-50%, 140%);
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ac-toast.is-on { transform: translate(-50%, 0); }
+
+/* ---------- Status / feedback ---------- */
+
+.admin-console .ac-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--bad-bg);
+  color: var(--bad-ink);
+  font-weight: 600;
+}
+
+.admin-console .ac-alert svg { flex: none; }
+.admin-console .ac-alert button { margin-left: auto; border: 0; background: none; color: inherit; cursor: pointer; padding: 0 2px; }
+.admin-console .ac-loading { padding: 32px; text-align: center; color: var(--muted); font-weight: 600; }
+
+.admin-console .ac-note { margin: 0; color: var(--muted); font-size: 13px; }
+
+.admin-console .ac-account-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.admin-console .ac-account-head strong { display: block; font-size: 16px; color: var(--ink); }
+.admin-console .ac-avatar-lg { width: 52px; height: 52px; font-size: 17px; background: var(--celadon); }
+.admin-console .ac-kv dt { display: flex; align-items: center; gap: 6px; }
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1180px) {
+  .admin-console .ac-g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-console .ac-g-2-1,
+  .admin-console .ac-g-1-1 { grid-template-columns: minmax(0, 1fr); }
+  .admin-console .ac-approval { grid-template-columns: minmax(0, 1fr); }
+  .admin-console .ac-search input { width: 200px; }
+}
+
+@media (max-width: 900px) {
+  .admin-console { grid-template-columns: minmax(0, 1fr); }
+
+  .admin-console .ac-side {
+    position: fixed;
+    z-index: 70;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 264px;
+    height: auto;
+    transform: translateX(-100%);
+    transition: transform 300ms var(--ease);
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
+  }
+
+  .admin-console .ac-side.is-open { transform: none; box-shadow: var(--sh-lg); }
+  .admin-console .ac-menu-btn { display: grid; }
+  .admin-console .ac-top { padding: 12px 16px; flex-wrap: wrap; }
+  .admin-console .ac-top-tools { width: 100%; margin-left: 0; }
+  .admin-console .ac-search { flex: 1; }
+  .admin-console .ac-search input { width: 100%; }
+  .admin-console .ac-view { padding: 16px 16px 40px; }
+  .admin-console .ac-g3 { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .admin-console .ac-g4 { grid-template-columns: minmax(0, 1fr); }
+  .admin-console .ac-two { grid-template-columns: minmax(0, 1fr); }
+  .admin-console .ac-bar-row { grid-template-columns: 110px minmax(0, 1fr) 36px; }
+  .ac-kv { grid-template-columns: minmax(0, 1fr); }
+  .admin-console .ac-stage-name { flex-direction: column; align-items: flex-start; gap: 2px; font-size: 11px; }
+  .admin-console .ac-pipe { gap: 6px; }
+  .admin-console .ac-map-legend { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-console *,
+  .admin-console *::before,
+  .admin-console *::after,
+  .ac-drawer,
+  .ac-scrim,
+  .ac-toast { animation: none !important; transition: none !important; }
+}

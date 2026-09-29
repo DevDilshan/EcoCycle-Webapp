@@ -1,19 +1,32 @@
-import { useEffect, useState } from 'react'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import AdminCard from '../../components/admin/AdminCard'
-import { loadStoredApprovals } from '../../lib/approvals'
-import { formatRequestId } from '../../lib/adminUi'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  ChevronRight,
+  Flag,
+  Inbox,
+  MessageSquare,
+  Route,
+  ScanSearch,
+  ShieldCheck,
+  Truck,
+} from 'lucide-react'
+import PageShell from '../../components/admin/AdminPageShell'
+import ZoneMap from '../../components/admin/ZoneMap'
+import { AcAlert, AcBars, AcCard, AcKpi } from '../../components/admin/AcUi'
+import { AcCategoryIcon } from '../../components/admin/AcPills'
+import { useAdminCatalog } from '../../hooks/useAdminCatalog'
+import { formatRequestId, shortProfileName } from '../../lib/adminUi'
 import { apiRequest, formatDate } from '../../lib/api'
 
-function pipelineHeight(value, max) {
-  if (!max) return 44
-  return Math.max(44, Math.round((value / max) * 130))
-}
+const CATEGORY_ORDER = ['Recyclable', 'Organic', 'EWaste', 'Hazardous', 'Bulk', 'General']
+const CATEGORY_LABELS = { EWaste: 'E-waste' }
 
 export default function DashboardPage() {
+  const catalog = useAdminCatalog()
   const [stats, setStats] = useState(null)
   const [recentActivity, setRecentActivity] = useState([])
+  const [flagged, setFlagged] = useState([])
+  const [zoneLoad, setZoneLoad] = useState([])
   const [search, setSearch] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -21,7 +34,6 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const pendingApprovals = loadStoredApprovals().length
         const [
           allPickups,
           pendingPickups,
@@ -29,7 +41,7 @@ export default function DashboardPage() {
           openComplaints,
           allComplaints,
           recentComplaints,
-          storedApprovals,
+          approvalQueue,
         ] = await Promise.all([
           apiRequest('/pickuprequests?pageSize=1'),
           apiRequest('/pickuprequests?status=Pending&pageSize=1'),
@@ -37,8 +49,13 @@ export default function DashboardPage() {
           apiRequest('/complaints?status=Open&pageSize=1'),
           apiRequest('/complaints?pageSize=1'),
           apiRequest('/complaints?pageSize=4'),
-          Promise.resolve(loadStoredApprovals()),
+          // The real queue, not this browser's localStorage copy: an approval
+          // raised on another machine has to count here too.
+          apiRequest('/approvals?status=Pending&pageSize=50'),
         ])
+
+        const flaggedItems = approvalQueue.items ?? []
+        const pendingApprovals = approvalQueue.totalCount ?? flaggedItems.length
 
         const totalRequests = allPickups.totalCount || 0
         const resolvedRate = allComplaints.totalCount
@@ -57,15 +74,18 @@ export default function DashboardPage() {
           resolvedRate,
         })
 
+        setFlagged(flaggedItems.slice(0, 4))
+
         const activity = []
-        storedApprovals.slice(0, 2).forEach((item) => {
+        flaggedItems.slice(0, 2).forEach((item) => {
           activity.push({
             id: item.id,
-            tone: 'danger',
+            tone: 'bad',
+            icon: <Flag size={18} strokeWidth={2} aria-hidden="true" />,
             text: (
               <>
-                <strong>{formatRequestId(item.pickupRequestId)}</strong> flagged by Validator —{' '}
-                <span className="admin-activity-accent-danger">{item.flagReason}</span>
+                <strong>{formatRequestId(item.pickupRequestId)}</strong> flagged by the Validator
+                {item.flagReason ? ` — ${item.flagReason}` : null}
               </>
             ),
             time: 'Recently',
@@ -74,10 +94,12 @@ export default function DashboardPage() {
         ;(recentComplaints.items || []).slice(0, 4 - activity.length).forEach((item) => {
           activity.push({
             id: item.id,
-            tone: item.status === 'Open' ? 'warning' : 'success',
+            tone: item.status === 'Open' ? 'warn' : 'ok',
+            icon: <MessageSquare size={18} strokeWidth={2} aria-hidden="true" />,
             text: (
               <>
-                New complaint <strong>{formatRequestId(item.id, 'CMP')}</strong> · {item.description?.slice(0, 40)}
+                New complaint <strong>{formatRequestId(item.id, 'CMP')}</strong>
+                {item.description ? ` · ${item.description.slice(0, 40)}` : null}
               </>
             ),
             time: formatDate(item.createdAt),
@@ -94,18 +116,60 @@ export default function DashboardPage() {
     load()
   }, [])
 
-  const pipelineMax = Math.max(
-    stats?.classified ?? 0,
-    stats?.routed ?? 0,
-    stats?.validated ?? 0,
-    stats?.flagged ?? 0,
-    1,
+  // The map's waiting/due badges come from the same report the Zones page uses.
+  useEffect(() => {
+    let cancelled = false
+    apiRequest('/routes/zone-load')
+      .then((data) => {
+        if (!cancelled) setZoneLoad(Array.isArray(data) ? data : data?.items ?? [])
+      })
+      .catch(() => {
+        // The map still draws without the badges, so a failure here is not
+        // worth taking over the page with an error banner.
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const loadByZone = useMemo(
+    () => new Map(zoneLoad.map((row) => [row.zoneId, row])),
+    [zoneLoad],
   )
+
+  const collectorName = useMemo(() => (zone) => {
+    if (!zone.assignedCollectorId) return null
+    return shortProfileName(catalog.profileMap.get(zone.assignedCollectorId))
+  }, [catalog.profileMap])
+
+  // Categories are counted from the open requests the catalog already holds,
+  // because the API has no aggregate-by-category endpoint. The subtitle says so
+  // rather than implying this covers every request ever made.
+  const categoryRows = useMemo(() => {
+    const counts = new Map()
+    catalog.pickups.forEach((pickup) => {
+      if (!pickup.category) return
+      counts.set(pickup.category, (counts.get(pickup.category) || 0) + 1)
+    })
+    return CATEGORY_ORDER
+      .filter((key) => counts.has(key))
+      .map((key) => ({ label: CATEGORY_LABELS[key] || key, value: counts.get(key), key }))
+  }, [catalog.pickups])
+
+  const pipeline = [
+    { name: 'Classified', value: stats?.classified ?? 0, Icon: ScanSearch },
+    { name: 'Routed', value: stats?.routed ?? 0, Icon: Route },
+    { name: 'Validated', value: stats?.validated ?? 0, Icon: ShieldCheck },
+    { name: 'Flagged', value: stats?.flagged ?? 0, Icon: Flag, flag: true },
+  ]
+  const pipelineMax = Math.max(...pipeline.map((stage) => stage.value), 1)
+
+  const collectedPct = stats?.requestsToday
+    ? Math.round((stats.collectedToday / stats.requestsToday) * 100)
+    : 0
 
   if (loading) {
     return (
-      <PageShell title="Overview" showDate showSearch showBell eyebrow={null}>
-        <p className="admin-loading">Loading dashboard</p>
+      <PageShell title="Overview" showDate showSearch showBell>
+        <p className="ac-empty">Loading dashboard…</p>
       </PageShell>
     )
   }
@@ -116,98 +180,140 @@ export default function DashboardPage() {
       showDate
       showSearch
       showBell
+      hasAlerts={(stats?.pendingApprovals ?? 0) > 0}
       searchValue={search}
       onSearchChange={setSearch}
-      eyebrow={null}
     >
-      <AdminAlert type="error" message={error} onClose={() => setError(null)} />
+      <AcAlert message={error} onClose={() => setError(null)} />
 
-      <div className="admin-grid admin-grid-4">
-        <div className="stat-card">
-          <div className="stat-card-label">Requests today</div>
-          <p className="stat-card-value">{stats?.requestsToday ?? 0}</p>
-          <p className="stat-card-hint stat-card-hint-up">▲ Active submissions</p>
-        </div>
-        <div className="stat-card stat-card--danger">
-          <div className="stat-card-label">Pending approval</div>
-          <p className="stat-card-value">{stats?.pendingApprovals ?? 0}</p>
-          <p className="stat-card-hint stat-card-hint-danger">Needs your review</p>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-label">Collected today</div>
-          <p className="stat-card-value">{stats?.collectedToday ?? 0}</p>
-          <p className="stat-card-hint">of {stats?.requestsToday ?? 0} scheduled</p>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-label">Open complaints</div>
-          <p className="stat-card-value">{stats?.openComplaints ?? 0}</p>
-          <p className="stat-card-hint stat-card-hint-up">{stats?.resolvedRate ?? 0}% resolution rate</p>
-        </div>
+      <div className="ac-grid ac-g4">
+        <AcKpi
+          label="Requests today"
+          icon={<Inbox size={18} strokeWidth={2} aria-hidden="true" />}
+          value={stats?.requestsToday ?? 0}
+          foot="Pending and collected"
+        />
+        <AcKpi
+          label="Pending approval"
+          icon={<ShieldCheck size={18} strokeWidth={2} aria-hidden="true" />}
+          value={stats?.pendingApprovals ?? 0}
+          alert={(stats?.pendingApprovals ?? 0) > 0}
+          foot={(
+            <Link className="ac-link-btn" to="/admin/approvals">
+              Review now <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />
+            </Link>
+          )}
+        />
+        <AcKpi
+          label="Collected"
+          icon={<Truck size={18} strokeWidth={2} aria-hidden="true" />}
+          value={stats?.collectedToday ?? 0}
+          unit={`/ ${stats?.requestsToday ?? 0}`}
+          foot={(
+            <>
+              <span className="ac-meter" style={{ flex: 1 }}>
+                <i style={{ width: `${collectedPct}%` }} />
+              </span>
+              {collectedPct}%
+            </>
+          )}
+        />
+        <AcKpi
+          label="Open complaints"
+          icon={<MessageSquare size={18} strokeWidth={2} aria-hidden="true" />}
+          value={stats?.openComplaints ?? 0}
+          foot={`${stats?.resolvedRate ?? 0}% resolved overall`}
+        />
       </div>
 
-      <div className="admin-split-grid">
-        <AdminCard title="Agent pipeline · today" subtitle="Requests flowing through the 4-agent workflow">
-          <div className="admin-pipeline">
-            <div className="admin-pipeline-step">
-              <div
-                className="admin-pipeline-bar admin-pipeline-bar-1"
-                style={{ height: pipelineHeight(stats?.classified ?? 0, pipelineMax) }}
-              >
-                {stats?.classified ?? 0}
-              </div>
-              <span>Classified</span>
-            </div>
-            <span className="admin-pipeline-arrow" aria-hidden>→</span>
-            <div className="admin-pipeline-step">
-              <div
-                className="admin-pipeline-bar admin-pipeline-bar-2"
-                style={{ height: pipelineHeight(stats?.routed ?? 0, pipelineMax) }}
-              >
-                {stats?.routed ?? 0}
-              </div>
-              <span>Routed</span>
-            </div>
-            <span className="admin-pipeline-arrow" aria-hidden>→</span>
-            <div className="admin-pipeline-step">
-              <div
-                className="admin-pipeline-bar admin-pipeline-bar-3"
-                style={{ height: pipelineHeight(stats?.validated ?? 0, pipelineMax) }}
-              >
-                {stats?.validated ?? 0}
-              </div>
-              <span>Validated</span>
-            </div>
-            <span className="admin-pipeline-arrow" aria-hidden>→</span>
-            <div className="admin-pipeline-step">
-              <div
-                className="admin-pipeline-bar admin-pipeline-bar-flagged"
-                style={{ height: pipelineHeight(stats?.flagged ?? 0, pipelineMax) }}
-              >
-                {stats?.flagged ?? 0}
-              </div>
-              <span className="admin-pipeline-flagged-label">Flagged</span>
-            </div>
-          </div>
-        </AdminCard>
-
-        <AdminCard title="Recent activity">
-          {recentActivity.length === 0 ? (
-            <p className="admin-empty">No recent activity yet.</p>
-          ) : (
-            <ul className="admin-activity-list">
-              {recentActivity.map((item) => (
-                <li key={item.id} className="admin-activity-item">
-                  <span className={`admin-activity-dot admin-activity-dot-${item.tone}`} />
-                  <div>
-                    <p className="admin-activity-text">{item.text}</p>
-                    <p className="admin-activity-time">{item.time}</p>
+      <div className="ac-grid ac-g-2-1">
+        <AcCard title="Agent pipeline" subtitle="Requests moving through the four agents">
+          <div className="ac-pipe">
+            {pipeline.map(({ name, value, Icon, flag }) => (
+              <div className="ac-stage" key={name}>
+                <div className="ac-stage-col">
+                  <div
+                    className={`ac-stage-bar${flag ? ' is-flag' : ''}`}
+                    style={{ height: `${Math.max(6, (value / pipelineMax) * 100)}%` }}
+                  >
+                    <span>{value}</span>
                   </div>
+                </div>
+                <div className="ac-stage-name">
+                  <Icon size={15} strokeWidth={2} aria-hidden="true" />
+                  {name}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="ac-pipe-note">
+            Counts come from the pickup and approval records, not from a sample.
+          </p>
+        </AcCard>
+
+        <AcCard
+          title="Needs your attention"
+          subtitle={`${flagged.length} flagged by the Validator`}
+          action={(
+            <Link className="ac-link-btn" to="/admin/approvals">
+              Open queue <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />
+            </Link>
+          )}
+        >
+          {flagged.length === 0 ? (
+            <p className="ac-empty">Nothing is waiting for approval.</p>
+          ) : (
+            <ul className="ac-list">
+              {flagged.map((item) => (
+                <li className="ac-row" key={item.id}>
+                  <span className="ac-ic bad"><Flag size={18} strokeWidth={2} aria-hidden="true" /></span>
+                  <span className="ac-grow">
+                    <strong>{formatRequestId(item.pickupRequestId)}</strong>
+                    <span className="ac-sub">{item.flagReason || 'Flagged for review'}</span>
+                  </span>
                 </li>
               ))}
             </ul>
           )}
-        </AdminCard>
+        </AcCard>
       </div>
+
+      <div className="ac-grid ac-g-2-1">
+        <AcCard
+          title="Zone load"
+          subtitle="Pickups waiting per zone. Tap a truck for details"
+          action={(
+            <Link className="ac-link-btn" to="/admin/routes">
+              Manage zones <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />
+            </Link>
+          )}
+        >
+          <ZoneMap zones={catalog.zones} loadByZone={loadByZone} collectorName={collectorName} />
+        </AcCard>
+
+        <AcCard
+          title="Open requests by category"
+          subtitle="From the Classifier, across requests not yet collected"
+        >
+          <AcBars rows={categoryRows} renderIcon={(row) => <AcCategoryIcon category={row.key} />} />
+        </AcCard>
+      </div>
+
+      <AcCard title="Recent activity">
+        {recentActivity.length === 0 ? (
+          <p className="ac-empty">No recent activity yet.</p>
+        ) : (
+          <ul className="ac-list">
+            {recentActivity.map((item) => (
+              <li className="ac-row" key={item.id}>
+                <span className={`ac-ic ${item.tone}`}>{item.icon}</span>
+                <span className="ac-grow">{item.text}</span>
+                <span className="ac-time">{item.time}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </AcCard>
     </PageShell>
   )
 }

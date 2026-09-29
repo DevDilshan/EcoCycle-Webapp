@@ -72,8 +72,11 @@ public class RoutesController : ControllerBase
         return Ok(report);
     }
 
+    // Admin only. The Router agent assigns pickups automatically when an approval
+    // is granted; this stays as the manual fallback for a pickup the pipeline
+    // failed to route, which is an admin's job, not a collector's.
     [HttpPost("assign/{pickupRequestId:guid}")]
-    [Authorize(Roles = "admin,collector")]
+    [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(RouteAssignmentDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

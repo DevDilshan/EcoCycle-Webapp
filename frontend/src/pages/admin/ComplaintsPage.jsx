@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import AdminCard from '../../components/admin/AdminCard'
+import PageShell from '../../components/admin/AdminPageShell'
+import { AcAlert, AcCard, AcChips, AcDrawer, AcToast } from '../../components/admin/AcUi'
+import { AcStatusPill } from '../../components/admin/AcPills'
 import ComplaintRowCard from '../../components/admin/ComplaintRowCard'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
+import { formatCompactDate, formatRequestId } from '../../lib/adminUi'
 import { apiRequest } from '../../lib/api'
 
 const STATUS_TABS = [
-  { key: 'Open', label: 'Open', className: 'header-tab-open' },
-  { key: 'InProgress', label: 'In review', className: 'header-tab-review' },
-  { key: 'Resolved', label: 'Resolved', className: 'header-tab-resolved' },
+  { key: '', label: 'All' },
+  { key: 'Open', label: 'Open' },
+  { key: 'InProgress', label: 'In review' },
+  { key: 'Resolved', label: 'Resolved' },
 ]
 
 export default function ComplaintsPage() {
@@ -61,17 +63,19 @@ export default function ComplaintsPage() {
     ? Math.round((counts.Resolved / counts.total) * 100)
     : 0
 
-  const headerTabs = useMemo(
+  const tabs = useMemo(
     () => STATUS_TABS.map((tab) => ({
       ...tab,
-      count: counts[tab.key],
+      count: tab.key ? counts[tab.key] : counts.total,
     })),
     [counts],
   )
 
-  async function handleResolve(complaint) {
+  const editing = items.find((item) => item.id === editingId) || null
+
+  function handleResolve(complaint) {
     setEditingId(complaint.id)
-    setEditForm({ status: 'Resolved', adminNotes: complaint.adminNotes || '' })
+    setEditForm({ status: complaint.status || 'Resolved', adminNotes: complaint.adminNotes || '' })
   }
 
   async function handleUpdate(e) {
@@ -97,67 +101,124 @@ export default function ComplaintsPage() {
   return (
     <PageShell
       title="Complaints"
-      eyebrow={null}
-      description={`${counts.Open} open · ${resolvedRate}% resolved this month`}
-      actions={(
-        <div className="admin-header-tabs">
-          {headerTabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={`admin-header-tab ${tab.className}${statusFilter === tab.key ? ' admin-header-tab-active' : ''}`}
-              onClick={() => setStatusFilter(statusFilter === tab.key ? '' : tab.key)}
-            >
-              {tab.label}{tab.count != null ? ` ${tab.count}` : ''}
-            </button>
-          ))}
+      description={`${counts.Open} open · ${resolvedRate}% resolved overall`}
+      showBell
+      hasAlerts={counts.Open > 0}
+      filterBar={(
+        <div className="ac-toolbar">
+          <AcChips
+            options={tabs}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            label="Filter by status"
+          />
         </div>
       )}
     >
-      <AdminAlert type="error" message={error || catalog.error} onClose={() => setError(null)} />
-      <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
+      <AcAlert message={error || catalog.error} onClose={() => setError(null)} />
 
-      {editingId && (
-        <AdminCard title="Resolve complaint">
-          <form className="admin-form" onSubmit={handleUpdate}>
-            <div>
-              <label>Status</label>
-              <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
-                <option value="Open">Open</option>
-                <option value="InProgress">In review</option>
-                <option value="Resolved">Resolved</option>
-              </select>
-            </div>
-            <div>
-              <label>Admin notes</label>
-              <textarea value={editForm.adminNotes} onChange={(e) => setEditForm({ ...editForm, adminNotes: e.target.value })} />
-            </div>
-            <div className="admin-actions">
-              <button type="submit" className="btn-primary btn-sm" disabled={busy}>Save</button>
-              <button type="button" className="btn-secondary btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
-            </div>
-          </form>
-        </AdminCard>
-      )}
+      <AcCard>
+        {loading ? (
+          <p className="ac-empty">Loading complaints…</p>
+        ) : items.length === 0 ? (
+          <p className="ac-empty">No complaints found.</p>
+        ) : (
+          <div className="ac-table-wrap">
+            <table className="ac-table">
+              <thead>
+                <tr>
+                  <th>Complaint</th>
+                  <th>Resident / issue</th>
+                  <th>Type</th>
+                  <th>Raised</th>
+                  <th>Status</th>
+                  <th><span className="ac-sr-only">Open details</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <ComplaintRowCard
+                    key={item.id}
+                    complaint={item}
+                    residentLabel={catalog.profileLabel(item.residentId)}
+                    onView={handleResolve}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AcCard>
 
-      {loading ? (
-        <p className="admin-loading">Loading complaints…</p>
-      ) : items.length === 0 ? (
-        <p className="admin-empty">No complaints found.</p>
-      ) : (
-        <div className="complaint-row-list">
-          {items.map((item) => (
-            <ComplaintRowCard
-              key={item.id}
-              complaint={item}
-              residentLabel={catalog.profileLabel(item.residentId)}
-              zoneLabel="—"
-              onResolve={handleResolve}
-              onView={handleResolve}
-            />
-          ))}
-        </div>
-      )}
+      <AcDrawer
+        open={Boolean(editing)}
+        onClose={() => setEditingId(null)}
+        title={editing ? formatRequestId(editing.id, 'CMP') : 'Complaint'}
+      >
+        {editing && (
+          <>
+            <div className="ac-drawer-pills">
+              <AcStatusPill status={editing.status} />
+            </div>
+
+            <dl className="ac-kv">
+              <dt>Resident</dt>
+              <dd>{catalog.profileLabel(editing.residentId)}</dd>
+              <dt>Raised</dt>
+              <dd>{formatCompactDate(editing.createdAt)}</dd>
+              {editing.resolvedAt && (
+                <>
+                  <dt>Resolved</dt>
+                  <dd>{formatCompactDate(editing.resolvedAt)}</dd>
+                </>
+              )}
+              {editing.pickupRequestId && (
+                <>
+                  <dt>Pickup</dt>
+                  <dd>{formatRequestId(editing.pickupRequestId)}</dd>
+                </>
+              )}
+            </dl>
+
+            <div>
+              <h3 className="ac-drawer-sub">What the resident said</h3>
+              <p className="ac-drawer-text">{editing.description || 'No description given.'}</p>
+            </div>
+
+            <form className="ac-form" onSubmit={handleUpdate}>
+              <div className="ac-field">
+                <label htmlFor="complaint-status">Status</label>
+                <select
+                  id="complaint-status"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                >
+                  <option value="Open">Open</option>
+                  <option value="InProgress">In review</option>
+                  <option value="Resolved">Resolved</option>
+                </select>
+              </div>
+              <div className="ac-field">
+                <label htmlFor="complaint-notes">Admin notes</label>
+                <textarea
+                  id="complaint-notes"
+                  rows={4}
+                  value={editForm.adminNotes}
+                  onChange={(e) => setEditForm({ ...editForm, adminNotes: e.target.value })}
+                />
+              </div>
+              <div className="ac-actions">
+                <button type="submit" className="ac-btn ac-btn-primary" disabled={busy}>Save</button>
+                <button type="button" className="ac-btn ac-btn-ghost" onClick={() => setEditingId(null)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </AcDrawer>
+
+      <AcToast message={success} />
     </PageShell>
   )
 }

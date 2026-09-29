@@ -1,6 +1,8 @@
+import { useState } from 'react'
+import { Calendar, Camera, Flag, MapPin, UserRound } from 'lucide-react'
 import { formatCompactDate, formatRequestId, inferCategory } from '../../lib/adminUi'
 import AgentInsightPanel from './AgentInsightPanel'
-import CategoryPill from './CategoryPill'
+import { AcCategory, AcStatusPill } from './AcPills'
 
 export default function FlaggedApprovalCard({
   approval,
@@ -14,61 +16,124 @@ export default function FlaggedApprovalCard({
   onReject,
   onRevision,
 }) {
+  // Reject needs a reason, so the field opens in place rather than in a browser
+  // prompt: the admin can still see the flag and the photo while typing it.
+  const [rejecting, setRejecting] = useState(false)
+  const [reason, setReason] = useState('')
+
   // Prefer the category the agents actually decided on; fall back to guessing
   // from the description only when there is no agent result.
   const category =
     detail?.agentInsight?.category || pickup?.category || inferCategory(pickup?.description)
   const title = pickup?.description?.slice(0, 80) || approval.flagReason || 'Flagged pickup request'
+  const draft = detail?.agentInsight?.residentNotification
+
+  function submitReject() {
+    const trimmed = reason.trim()
+    if (!trimmed) return
+    onReject(approval.id, trimmed)
+    setReason('')
+    setRejecting(false)
+  }
 
   return (
-    <article className="flagged-approval-card">
-      <div className="flagged-approval-photo" aria-hidden>
-        photo
-      </div>
-      <div className="flagged-approval-body">
-        <div className="flagged-approval-meta">
-          <span className="flagged-approval-id">#{formatRequestId(approval.pickupRequestId || approval.id)}</span>
-          <CategoryPill category={category} />
-          <span className="flagged-approval-tag flagged-approval-tag-danger">Requires approval</span>
+    <article className="ac-approval">
+      <div>
+        <div className="ac-approval-head">
+          <span className="ac-id">{formatRequestId(approval.pickupRequestId || approval.id)}</span>
+          <AcCategory category={category} confidence={detail?.agentInsight?.confidence} />
+          <AcStatusPill status="Flagged" label="Requires approval" />
         </div>
-        <h3 className="flagged-approval-title">{title}</h3>
-        <p className="flagged-approval-sub">
-          {residentLabel || 'Resident'} · {zoneLabel || '—'} · submitted {formatCompactDate(approval.createdAt)}
-        </p>
-        <div className="flagged-approval-reason">
-          <strong>🚩 Flagged because:</strong> {approval.flagReason || 'Manual review required.'}
+
+        <h3>{title}</h3>
+
+        <div className="ac-facts">
+          <span><UserRound size={15} strokeWidth={2} aria-hidden="true" />{residentLabel || 'Resident'}</span>
+          <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{zoneLabel || 'No zone'}</span>
+          <span><Calendar size={15} strokeWidth={2} aria-hidden="true" />Submitted {formatCompactDate(approval.createdAt)}</span>
         </div>
+
+        <div className="ac-reason">
+          <Flag size={18} strokeWidth={2} aria-hidden="true" />
+          <span>
+            <strong>Flagged because:</strong> {approval.flagReason || 'Manual review required.'}
+          </span>
+        </div>
+
         <AgentInsightPanel
           insight={detail?.agentInsight}
           note={detail?.agentResultNote}
           loading={detailLoading}
         />
+
+        {draft && (
+          <p className="ac-draft">
+            <strong>Draft message to the resident:</strong> {draft}
+          </p>
+        )}
+
+        <div className="ac-actions">
+          <button
+            type="button"
+            className="ac-btn ac-btn-primary"
+            disabled={busy}
+            onClick={() => onApprove(approval.id)}
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            className="ac-btn ac-btn-danger"
+            disabled={busy}
+            onClick={() => setRejecting((open) => !open)}
+            aria-expanded={rejecting}
+          >
+            Reject
+          </button>
+          <button
+            type="button"
+            className="ac-btn ac-btn-ghost"
+            disabled={busy}
+            onClick={() => onRevision?.(approval.id)}
+          >
+            Request revision
+          </button>
+        </div>
+
+        <div className={`ac-reject-box${rejecting ? ' is-open' : ''}`}>
+          <label className="ac-sr-only" htmlFor={`reject-${approval.id}`}>Rejection reason</label>
+          <input
+            id={`reject-${approval.id}`}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                submitReject()
+              }
+            }}
+            placeholder="Why is this being rejected?"
+          />
+          <button
+            type="button"
+            className="ac-btn ac-btn-danger"
+            disabled={busy || !reason.trim()}
+            onClick={submitReject}
+          >
+            Confirm reject
+          </button>
+        </div>
       </div>
-      <div className="flagged-approval-actions">
-        <button
-          type="button"
-          className="btn-primary btn-sm flagged-approval-btn"
-          disabled={busy}
-          onClick={() => onApprove(approval.id)}
-        >
-          Approve
-        </button>
-        <button
-          type="button"
-          className="btn-danger btn-sm flagged-approval-btn"
-          disabled={busy}
-          onClick={() => onReject(approval.id)}
-        >
-          Reject
-        </button>
-        <button
-          type="button"
-          className="btn-secondary btn-sm flagged-approval-btn"
-          disabled={busy}
-          onClick={() => onRevision?.(approval.id)}
-        >
-          Request revision
-        </button>
+
+      <div className="ac-photo">
+        {pickup?.photoUrl ? (
+          <img src={pickup.photoUrl} alt={`Photo submitted with ${title}`} />
+        ) : (
+          <span>
+            <Camera size={22} strokeWidth={2} aria-hidden="true" />
+            No photo submitted
+          </span>
+        )}
       </div>
     </article>
   )

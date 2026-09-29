@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import AdminCard from '../../components/admin/AdminCard'
+import PageShell from '../../components/admin/AdminPageShell'
+import { AcAlert, AcCard, AcToast } from '../../components/admin/AcUi'
 import EntitySelect from '../../components/admin/EntitySelect'
 import FlaggedApprovalCard from '../../components/admin/FlaggedApprovalCard'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
@@ -160,45 +159,47 @@ export default function ApprovalsPage() {
     await approveById(id)
   }
 
-  async function handleCardReject(id) {
-    const reason = window.prompt('Rejection reason:')
-    if (reason) await rejectById(id, reason)
+  // The reason now comes from the field on the card itself rather than from a
+  // browser prompt, so the admin can still see the flag while typing it.
+  async function handleCardReject(id, reason) {
+    await rejectById(id, reason)
   }
 
   function getPickup(approval) {
     return catalog.pickups.find((p) => p.id === approval.pickupRequestId)
   }
 
+  function zoneLabelFor(pickup) {
+    if (!pickup) return null
+    return pickup.zoneName || catalog.zoneMap.get(pickup.zoneId)?.name || null
+  }
+
   return (
     <PageShell
       title="Approval queue"
-      eyebrow={null}
-      description={`${approvals.length} request${approvals.length === 1 ? '' : 's'} flagged by the Validator Agent — awaiting your decision`}
-      actions={(
-        <div className="admin-header-tabs">
-          <span className="admin-header-tab admin-header-tab-active">
-            Pending {approvals.length}
-          </span>
-          <span className="admin-header-tab">Resolved</span>
-        </div>
-      )}
+      description={`${approvals.length} request${approvals.length === 1 ? '' : 's'} flagged by the Validator, awaiting your decision`}
+      showBell
+      hasAlerts={approvals.length > 0}
     >
-      <AdminAlert type="error" message={error || catalog.error} onClose={() => setError(null)} />
-      <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
-      <AdminAlert type="error" message={warning} onClose={() => setWarning(null)} />
+      <AcAlert message={error || catalog.error} onClose={() => setError(null)} />
+      <AcAlert message={warning} onClose={() => setWarning(null)} />
 
       {targetMissing && (
-        <p className="admin-empty">
+        <p className="ac-empty">
           The request you followed here is no longer pending — it has already been reviewed.
         </p>
       )}
 
       {loading ? (
-        <p className="admin-empty">Loading flagged requests…</p>
+        <p className="ac-empty">Loading flagged requests…</p>
       ) : approvals.length === 0 ? (
-        <p className="admin-empty">Nothing is waiting for review. Flagged pickups appear here automatically.</p>
+        <AcCard>
+          <p className="ac-empty">
+            Nothing is waiting for review. Flagged pickups appear here automatically.
+          </p>
+        </AcCard>
       ) : (
-        <section className="flagged-approval-queue">
+        <div className="ac-grid">
           {approvals.map((approval) => {
             const pickup = getPickup(approval)
             const profile = pickup ? catalog.profileMap.get(pickup.residentId) : null
@@ -210,63 +211,90 @@ export default function ApprovalsPage() {
                   if (node) cardRefs.current.set(approval.id, node)
                   else cardRefs.current.delete(approval.id)
                 }}
-                className={isTarget ? 'flagged-approval-target' : undefined}
+                className={isTarget ? 'ac-approval-target' : undefined}
               >
-              <FlaggedApprovalCard
-                approval={approval}
-                pickup={pickup}
-                residentLabel={profile ? shortProfileName(profile) : 'Resident'}
-                zoneLabel="—"
-                busy={busy}
-                detail={details[approval.id]}
-                detailLoading={detailsLoading && !details[approval.id]}
-                onApprove={handleCardApprove}
-                onReject={handleCardReject}
-                onRevision={() => setError('Request revision is not yet implemented on the backend.')}
-              />
+                <FlaggedApprovalCard
+                  approval={approval}
+                  pickup={pickup}
+                  residentLabel={profile ? shortProfileName(profile) : 'Resident'}
+                  zoneLabel={zoneLabelFor(pickup)}
+                  busy={busy}
+                  detail={details[approval.id]}
+                  detailLoading={detailsLoading && !details[approval.id]}
+                  onApprove={handleCardApprove}
+                  onReject={handleCardReject}
+                  onRevision={() => setError('Request revision is not yet implemented on the backend.')}
+                />
               </div>
             )
           })}
-        </section>
+        </div>
       )}
 
-      <AdminCard title="Review by ID" subtitle="Select a recent flagged pickup or paste an approval ID">
-        <form className="admin-form">
-          <div className="admin-form-row">
+      <AcCard title="Review by ID" subtitle="Select a recent flagged pickup or paste an approval ID">
+        <div className="ac-form">
+          <div className="ac-two">
             {approvalOptions.length > 0 && (
-              <EntitySelect
-                id="approval-select"
-                label="Recent flagged approvals"
-                value={approvalForm.approvalId}
-                onChange={(value) => setApprovalForm({ ...approvalForm, approvalId: value })}
-                options={approvalOptions}
-                placeholder="Select approval from recent flags"
-              />
+              <div className="ac-field">
+                <EntitySelect
+                  id="approval-select"
+                  label="Recent flagged approvals"
+                  value={approvalForm.approvalId}
+                  onChange={(value) => setApprovalForm({ ...approvalForm, approvalId: value })}
+                  options={approvalOptions}
+                  placeholder="Select approval from recent flags"
+                />
+              </div>
             )}
-            <div>
-              <label>Approval request ID</label>
+            <div className="ac-field">
+              <label htmlFor="approval-id">Approval request ID</label>
               <input
+                id="approval-id"
                 value={approvalForm.approvalId}
                 onChange={(e) => setApprovalForm({ ...approvalForm, approvalId: e.target.value })}
                 placeholder="From classify-evaluate response"
               />
             </div>
-            <div>
-              <label>Approve notes (optional)</label>
-              <input value={approvalForm.notes} onChange={(e) => setApprovalForm({ ...approvalForm, notes: e.target.value })} />
+            <div className="ac-field">
+              <label htmlFor="approval-notes">Approve notes (optional)</label>
+              <input
+                id="approval-notes"
+                value={approvalForm.notes}
+                onChange={(e) => setApprovalForm({ ...approvalForm, notes: e.target.value })}
+              />
             </div>
-            <div>
-              <label>Reject reason</label>
-              <input value={approvalForm.reason} onChange={(e) => setApprovalForm({ ...approvalForm, reason: e.target.value })} />
+            <div className="ac-field">
+              <label htmlFor="approval-reason">Reject reason</label>
+              <input
+                id="approval-reason"
+                value={approvalForm.reason}
+                onChange={(e) => setApprovalForm({ ...approvalForm, reason: e.target.value })}
+              />
             </div>
           </div>
-          <div className="admin-actions">
-            <button type="button" className="btn-primary btn-sm" disabled={busy || !approvalForm.approvalId} onClick={handleApprove}>Approve</button>
-            <button type="button" className="btn-danger btn-sm" disabled={busy || !approvalForm.approvalId} onClick={handleReject}>Reject</button>
-            <Link to="/admin/pickup-requests" className="btn-secondary btn-sm">Go to pickups</Link>
+          <div className="ac-actions">
+            <button
+              type="button"
+              className="ac-btn ac-btn-primary"
+              disabled={busy || !approvalForm.approvalId}
+              onClick={handleApprove}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              className="ac-btn ac-btn-danger"
+              disabled={busy || !approvalForm.approvalId}
+              onClick={handleReject}
+            >
+              Reject
+            </button>
+            <Link to="/admin/pickup-requests" className="ac-btn ac-btn-ghost">Go to pickups</Link>
           </div>
-        </form>
-      </AdminCard>
+        </div>
+      </AcCard>
+
+      <AcToast message={success} />
     </PageShell>
   )
 }
