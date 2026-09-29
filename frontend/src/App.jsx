@@ -72,7 +72,10 @@ export default function App() {
           >
             <Route index element={<CollectorDashboardPage />} />
             <Route path="route" element={<CollectorRoutePage />} />
-            <Route path="account" element={<AccountPage eyebrow="Collector" />} />
+            {/* The console-styled account screen, shared with /admin/account:
+                it is role-agnostic, so the collector side reuses it rather than
+                keeping a second copy of the same profile and password forms. */}
+            <Route path="account" element={<AdminAccountPage />} />
           </Route>
         </Routes>
       </AuthProvider>

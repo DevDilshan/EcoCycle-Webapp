@@ -35,6 +35,18 @@ public class RoutesController : ControllerBase
         return Ok(routes);
     }
 
+    // GET /api/routes/{collectorId}/upcoming?days=7 — stops after today, so a
+    // collector can see what is coming rather than only the current day.
+    [HttpGet("{collectorId:guid}/upcoming")]
+    [ProducesResponseType(typeof(List<RouteAssignmentDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<RouteAssignmentDto>>> GetUpcomingRoute(
+        Guid collectorId,
+        [FromQuery] int days = 7)
+    {
+        var routes = await _routeService.GetUpcomingRouteForCollectorAsync(collectorId, days);
+        return Ok(routes);
+    }
+
     [HttpPatch("{id:guid}/complete")]
     [ProducesResponseType(typeof(RouteAssignmentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -42,6 +54,38 @@ public class RoutesController : ControllerBase
     {
         var route = await _routeService.MarkCompleteAsync(id, dto?.IssueNotes);
         return route is null ? NotFound() : Ok(route);
+    }
+
+    // GET /api/routes/day?date=2026-09-29 — every stop on one day, across all
+    // collectors, so an admin can see the round rather than one collector's view.
+    [HttpGet("day")]
+    [Authorize(Roles = "admin")]
+    [ProducesResponseType(typeof(List<RouteAssignmentDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<RouteAssignmentDto>>> GetDay([FromQuery] DateTime? date)
+    {
+        var routes = await _routeService.GetAssignmentsForDayAsync(date);
+        return Ok(routes);
+    }
+
+    // PATCH /api/routes/{id}/missed — admin-only. A collector marks work done;
+    // an admin accounts for work that was not, which is the only way a Missed
+    // row can come into existence.
+    [HttpPatch("{id:guid}/missed")]
+    [Authorize(Roles = "admin")]
+    [ProducesResponseType(typeof(RouteAssignmentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RouteAssignmentDto>> MarkMissed(Guid id, [FromBody] CompleteRouteDto? dto)
+    {
+        try
+        {
+            var route = await _routeService.MarkMissedAsync(id, dto?.IssueNotes);
+            return route is null ? NotFound() : Ok(route);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id:guid}/reassign")]
