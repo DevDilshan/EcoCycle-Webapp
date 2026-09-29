@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;
+  bool _showPassword = false;
   String? _error;
 
   @override
@@ -47,79 +48,97 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return EcoScreen(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 30),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 48),
-            const EcoLogo(),
-            const SizedBox(height: 26),
-            Text(
-              'Welcome back',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 28),
+    return EcoAuthScaffold(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: EcoColors.celadon.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'Schedule smart waste pickups in seconds.',
-              style: TextStyle(fontSize: 14, color: EcoColors.body),
+            alignment: Alignment.center,
+            child: const Icon(Icons.lock_outline_rounded, color: EcoColors.green),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Welcome back',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 26),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Log in to manage your pickups and rewards.',
+            style: TextStyle(fontSize: 15, height: 1.45, color: EcoColors.body),
+          ),
+          const SizedBox(height: 24),
+          const EcoFieldLabel('Email'),
+          EcoTextField(
+            controller: _email,
+            hint: 'you@example.com',
+            keyboardType: TextInputType.emailAddress,
+            prefixIcon: Icons.mail_outline_rounded,
+          ),
+          const SizedBox(height: 16),
+          const EcoFieldLabel('Password'),
+          EcoTextField(
+            controller: _password,
+            obscure: !_showPassword,
+            prefixIcon: Icons.lock_outline_rounded,
+            suffix: IconButton(
+              onPressed: () => setState(() => _showPassword = !_showPassword),
+              icon: Icon(
+                _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                color: EcoColors.body,
+                size: 20,
+              ),
             ),
-            const SizedBox(height: 30),
-            const EcoFieldLabel('Email'),
-            EcoTextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
-            const EcoFieldLabel('Password'),
-            EcoTextField(controller: _password, obscure: true),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {},
-                child: const Text(
-                  'Forgot password?',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: EcoColors.primary,
-                  ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {},
+              child: const Text(
+                'Forgot password?',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: EcoColors.green,
                 ),
               ),
             ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_error!, style: const TextStyle(color: EcoColors.danger, fontSize: 13)),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(_error!, style: const TextStyle(color: EcoColors.danger, fontSize: 13)),
+            ),
+          EcoPrimaryButton(label: 'Log in', loading: _loading, onPressed: _signIn),
+          const SizedBox(height: 20),
+          Center(
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const RegisterScreen()),
               ),
-            EcoPrimaryButton(label: 'Log in', loading: _loading, onPressed: _signIn),
-            const SizedBox(height: 20),
-            Center(
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const RegisterScreen()),
-                ),
-                child: RichText(
-                  text: const TextSpan(
-                    style: TextStyle(fontSize: 13, color: EcoColors.body),
-                    children: [
-                      TextSpan(text: 'New here? '),
-                      TextSpan(
-                        text: 'Create account',
-                        style: TextStyle(
-                          color: EcoColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
+              child: RichText(
+                text: const TextSpan(
+                  style: TextStyle(fontSize: 14, color: EcoColors.body),
+                  children: [
+                    TextSpan(text: 'New here? '),
+                    TextSpan(
+                      text: 'Create account',
+                      style: TextStyle(
+                        color: EcoColors.green,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

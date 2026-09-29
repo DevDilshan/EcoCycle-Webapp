@@ -3,8 +3,101 @@ import 'package:flutter/material.dart';
 import '../theme/eco_theme.dart';
 
 class EcoLogo extends StatelessWidget {
-  const EcoLogo({super.key, this.size = 60});
+  const EcoLogo({super.key, this.size = 36});
 
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = size >= 48 ? 12.0 : 10.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: EcoColors.green,
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
+            color: EcoColors.green.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        'E',
+        style: TextStyle(
+          color: EcoColors.ivory,
+          fontWeight: FontWeight.w800,
+          fontSize: size * 0.48,
+        ),
+      ),
+    );
+  }
+}
+
+class EcoBrand extends StatelessWidget {
+  const EcoBrand({super.key, this.compact = false});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        EcoLogo(size: compact ? 32 : 36),
+        const SizedBox(width: 10),
+        Text(
+          'EcoCycle',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: compact ? 17 : 19,
+            color: EcoColors.green,
+            letterSpacing: -0.02 * 16,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class EcoEyebrow extends StatelessWidget {
+  const EcoEyebrow({super.key, required this.label, this.icon, this.light = false});
+
+  final String label;
+  final IconData? icon;
+  final bool light;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = light ? EcoColors.ivory.withValues(alpha: 0.9) : EcoColors.green;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 16, color: fg),
+          const SizedBox(width: 6),
+        ],
+        Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.08 * 16,
+            color: fg,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class EcoIconTile extends StatelessWidget {
+  const EcoIconTile({super.key, required this.icon, this.size = 48});
+
+  final IconData icon;
   final double size;
 
   @override
@@ -13,16 +106,79 @@ class EcoLogo extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: EcoColors.primary,
-        borderRadius: BorderRadius.circular(size * 0.3),
+        color: EcoColors.celadon.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(size * 0.28),
       ),
       alignment: Alignment.center,
-      child: Text(
-        'E',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
-          fontSize: size * 0.5,
+      child: Icon(icon, color: EcoColors.green, size: size * 0.45),
+    );
+  }
+}
+
+class EcoAuthScaffold extends StatelessWidget {
+  const EcoAuthScaffold({
+    super.key,
+    required this.child,
+    this.onBack,
+  });
+
+  final Widget child;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: EcoColors.honeydew,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: onBack ?? () => Navigator.maybePop(context),
+                    child: const EcoBrand(compact: true),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: onBack ?? () => Navigator.maybePop(context),
+                    icon: const Icon(Icons.arrow_back_rounded, size: 18, color: EcoColors.green),
+                    label: const Text(
+                      'Back to home',
+                      style: TextStyle(fontWeight: FontWeight.w600, color: EcoColors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+                    decoration: BoxDecoration(
+                      color: EcoColors.ivory,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: EcoColors.cardBorder),
+                      boxShadow: [
+                        BoxShadow(
+                          color: EcoColors.green.withValues(alpha: 0.08),
+                          blurRadius: 32,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -76,6 +232,7 @@ class EcoTextField extends StatelessWidget {
     this.keyboardType,
     this.readOnly = false,
     this.onTap,
+    this.prefixIcon,
     this.suffix,
   });
 
@@ -86,17 +243,18 @@ class EcoTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool readOnly;
   final VoidCallback? onTap;
+  final IconData? prefixIcon;
   final Widget? suffix;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: EcoColors.border),
+        color: EcoColors.surface,
+        border: Border.all(color: EcoColors.green.withValues(alpha: 0.12)),
         borderRadius: BorderRadius.circular(14),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: TextField(
         controller: controller,
         obscureText: obscure,
@@ -112,6 +270,11 @@ class EcoTextField extends StatelessWidget {
             letterSpacing: obscure ? 3 : 0,
           ),
           border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          prefixIcon: prefixIcon != null
+              ? Icon(prefixIcon, size: 20, color: EcoColors.body)
+              : null,
+          prefixIconConstraints: const BoxConstraints(minWidth: 44),
           suffixIcon: suffix,
           suffixIconConstraints: const BoxConstraints(minWidth: 32),
         ),
@@ -127,15 +290,25 @@ class EcoPrimaryButton extends StatelessWidget {
     this.onPressed,
     this.loading = false,
     this.color = EcoColors.primary,
+    this.labelColor = Colors.white,
+    this.icon,
+    this.compact = false,
+    this.expand = true,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
   final Color color;
+  final Color labelColor;
+  final IconData? icon;
+  final bool compact;
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
+    final vPad = compact ? 10.0 : 16.0;
+    final hPad = compact ? 16.0 : 0.0;
     return Material(
       color: color,
       borderRadius: BorderRadius.circular(14),
@@ -144,36 +317,82 @@ class EcoPrimaryButton extends StatelessWidget {
         onTap: loading ? null : onPressed,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          width: expand ? double.infinity : null,
+          padding: EdgeInsets.symmetric(vertical: vPad, horizontal: hPad),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: color.withValues(alpha: 0.45),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                color: color.withValues(alpha: 0.35),
+                blurRadius: compact ? 12 : 20,
+                offset: Offset(0, compact ? 6 : 10),
               ),
             ],
           ),
           alignment: Alignment.center,
           child: loading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: labelColor,
                   ),
                 )
-              : Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
+              : Row(
+                  mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: labelColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: compact ? 14 : 15,
+                      ),
+                    ),
+                    if (icon != null) ...[
+                      const SizedBox(width: 8),
+                      Icon(icon, color: labelColor, size: 20),
+                    ],
+                  ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+class EcoSecondaryButton extends StatelessWidget {
+  const EcoSecondaryButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: EcoColors.ivory,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: EcoColors.green,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
+          ),
         ),
       ),
     );
@@ -392,9 +611,9 @@ class EcoBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFEAEFE9))),
+      decoration: BoxDecoration(
+        color: EcoColors.ivory,
+        border: Border(top: BorderSide(color: EcoColors.green.withValues(alpha: 0.08))),
       ),
       padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
       child: Row(

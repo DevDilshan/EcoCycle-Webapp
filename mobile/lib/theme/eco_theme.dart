@@ -1,39 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Design tokens from EcoCycle Mobile App.dc.html
+/// Matches web `public.css` / design tokens (landing, login, register).
 abstract final class EcoColors {
-  static const canvas = Color(0xFFF4F6F2);
-  static const primary = Color(0xFF2F7D51);
-  static const primaryDark = Color(0xFF256A44);
-  static const ink = Color(0xFF17231C);
-  static const body = Color(0xFF5F6F66);
-  static const label = Color(0xFF3A4A40);
-  static const muted = Color(0xFF9AA8A0);
+  static const ivory = Color(0xFFFFFFF0);
+  static const honeydew = Color(0xFFF0FFF0);
+  static const celadon = Color(0xFFACE1AF);
+  static const celadonStrong = Color(0xFF9CD8A0);
+  static const green = Color(0xFF00563B);
+  static const greenHover = Color(0xFF00452F);
+  static const ink = Color(0xFF16241D);
+  static const body = Color(0xFF4A5D53);
+  static const label = Color(0xFF16241D);
+  static const muted = Color(0xFF8A9A91);
   static const monoMuted = Color(0xFF7A8A80);
-  static const border = Color(0xFFE0E8E0);
-  static const cardBorder = Color(0xFFE5EBE5);
-  static const mintBg = Color(0xFFEAF3EC);
-  static const mintLight = Color(0xFFE4EFE6);
-  static const avatarBg = Color(0xFFDFE9DF);
-  static const danger = Color(0xFFC0392B);
+  static const border = Color(0x1A00563B);
+  static const cardBorder = Color(0x1A00563B);
+  static const surface = Color(0xFFFFFFFF);
+  static const mintBg = Color(0x73ACE1AF);
+  static const mintLight = honeydew;
+  static const avatarBg = celadon;
+  static const danger = Color(0xFF8A1C12);
+  static const dangerBg = Color(0xFFFDECEA);
   static const amber = Color(0xFFB7791F);
   static const purple = Color(0xFF6D4BB0);
   static const blue = Color(0xFF2B6CB0);
+
+  // Legacy aliases used across feature screens
+  static const primary = green;
+  static const primaryDark = greenHover;
+  static const canvas = ivory;
 }
 
 TextTheme _textTheme() {
-  final base = GoogleFonts.plusJakartaSansTextTheme();
+  final base = GoogleFonts.manropeTextTheme();
   return base.copyWith(
     headlineMedium: base.headlineMedium?.copyWith(
       fontWeight: FontWeight.w800,
       letterSpacing: -0.02 * 16,
-      color: EcoColors.ink,
+      color: EcoColors.green,
     ),
     titleLarge: base.titleLarge?.copyWith(
       fontWeight: FontWeight.w800,
       fontSize: 20,
-      color: EcoColors.ink,
+      color: EcoColors.green,
     ),
     titleMedium: base.titleMedium?.copyWith(
       fontWeight: FontWeight.w700,
@@ -59,22 +69,22 @@ TextTheme _textTheme() {
 ThemeData buildEcoTheme() {
   return ThemeData(
     useMaterial3: true,
-    scaffoldBackgroundColor: EcoColors.canvas,
+    scaffoldBackgroundColor: EcoColors.ivory,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: EcoColors.primary,
-      primary: EcoColors.primary,
-      surface: EcoColors.canvas,
+      seedColor: EcoColors.green,
+      primary: EcoColors.green,
+      surface: EcoColors.ivory,
     ),
     textTheme: _textTheme(),
     appBarTheme: AppBarTheme(
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: EcoColors.canvas,
-      foregroundColor: EcoColors.ink,
-      titleTextStyle: GoogleFonts.plusJakartaSans(
+      backgroundColor: EcoColors.ivory,
+      foregroundColor: EcoColors.green,
+      titleTextStyle: GoogleFonts.manrope(
         fontWeight: FontWeight.w800,
         fontSize: 18,
-        color: EcoColors.ink,
+        color: EcoColors.green,
       ),
     ),
   );
