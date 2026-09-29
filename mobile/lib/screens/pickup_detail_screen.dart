@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/api.dart';
+import '../services/pickup_photo_service.dart';
+import '../widgets/waste_photo_preview.dart';
 import '../theme/eco_theme.dart';
 import '../utils/user_helpers.dart';
 import '../widgets/eco_components.dart';
@@ -71,7 +73,11 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
                         tone: BadgeTone.pendingApproval,
                       ),
                     ),
-                  const StripedPhotoZone(height: 130, subtitle: 'waste photo'),
+                  WastePhotoPreview(
+                    height: 130,
+                    subtitle: 'waste photo',
+                    photoUrl: pickupPhotoUrl(p),
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     'Pipeline progress',
