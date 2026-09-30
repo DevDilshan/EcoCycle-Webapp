@@ -16,7 +16,7 @@ import { apiRequest } from '../../lib/api'
 import { profileInitials, shortProfileName } from '../../lib/adminUi'
 
 const menuItems = [
-  { to: '/admin', label: 'Overview', Icon: LayoutDashboard, end: true },
+  { to: '/admin', label: 'Dashboard', Icon: LayoutDashboard, end: true },
   { to: '/admin/pickup-requests', label: 'Requests', Icon: Inbox },
   { to: '/admin/approvals', label: 'Approvals', Icon: ShieldCheck, badge: true },
   { to: '/admin/routes', label: 'Zones & Routes', Icon: Map },

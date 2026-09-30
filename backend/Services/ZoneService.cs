@@ -96,6 +96,23 @@ public class ZoneService
         return MapToDto(zone);
     }
 
+    /// <summary>
+    /// Retires a zone by deactivating it. Despite the name and the DELETE verb,
+    /// the row is kept.
+    /// </summary>
+    /// <remarks>
+    /// Removing the row is not survivable: RouteAssignment.ZoneId is Restrict
+    /// and PickupRequest.ZoneId has no cascade, so any zone that has ever been
+    /// used would fail at the database with an unhandled 500. Worse, a zone that
+    /// deleted cleanly would take its history with it, and every completed
+    /// pickup in it would lose the zone it was collected from.
+    ///
+    /// Deactivating does everything an admin wants from "delete": the zone stops
+    /// being offered for routing (AssignPickupToRouteAsync only accepts active
+    /// zones) and drops off the map, while the records that point at it stay
+    /// readable.
+    /// </remarks>
+    /// <returns>False when no such zone exists; true once it is inactive.</returns>
     public async Task<bool> DeleteZoneAsync(Guid id)
     {
         var zone = await _context.Zones.FirstOrDefaultAsync(z => z.Id == id);
@@ -104,7 +121,14 @@ public class ZoneService
             return false;
         }
 
-        _context.Zones.Remove(zone);
+        // Already retired: report success so a repeated click is harmless.
+        if (!zone.IsActive)
+        {
+            return true;
+        }
+
+        zone.IsActive = false;
+        zone.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         return true;

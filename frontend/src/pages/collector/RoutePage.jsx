@@ -1,161 +1,248 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import AdminCard from '../../components/admin/AdminCard'
-import StatusBadge from '../../components/admin/StatusBadge'
+import { useMemo, useState } from 'react'
+import {
+  Camera,
+  Check,
+  ChevronRight,
+  Clock,
+  MapPin,
+  Navigation,
+  TriangleAlert,
+  X,
+} from 'lucide-react'
+import PageShell from '../../components/admin/AdminPageShell'
+import { AcAlert, AcCard, AcChips, AcToast } from '../../components/admin/AcUi'
+import { AcCategory, AcCategoryIcon, AcStatusPill, CATEGORY_LABELS } from '../../components/admin/AcPills'
+import MarkCompleteDrawer from '../../components/collector/MarkCompleteDrawer'
+import { useCollectorData } from '../../components/collector/collectorShell'
 import { useAuth } from '../../context/AuthContext'
-import { formatCompletionStatus, isRoutePending } from '../../lib/collector'
-import { apiRequest, formatDate, shortId } from '../../lib/api'
+import { formatRequestId } from '../../lib/adminUi'
+import { formatShiftDate, formatStopTime } from '../../lib/collectorUi'
 
 export default function CollectorRoutePage() {
-  const { user, role } = useAuth()
-  const [routes, setRoutes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { role } = useAuth()
+  const {
+    stops, upcoming, upcomingCount, counts, nextStop,
+    loading, error, setError, completeStop,
+  } = useCollectorData()
+
+  const [filter, setFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const [openId, setOpenId] = useState(null)
+  const [completing, setCompleting] = useState(null)
+  const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState(null)
-  const [busyId, setBusyId] = useState(null)
-  const [expandedId, setExpandedId] = useState(null)
-  const [issueNotes, setIssueNotes] = useState('')
 
-  const load = useCallback(async () => {
-    if (!user?.id) return
-    setLoading(true)
+  const filters = [
+    { key: '', label: 'All', count: counts.total },
+    { key: 'Pending', label: 'Pending', count: counts.pending },
+    { key: 'Completed', label: 'Completed', count: counts.completed },
+    { key: 'Missed', label: 'Missed', count: counts.missed },
+  ]
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return stops.filter((stop) => {
+      if (filter && stop.status !== filter) return false
+      if (!q) return true
+      const text = `${stop.pickup?.description ?? ''} ${stop.pickup?.zoneName ?? ''} ${stop.pickup?.category ?? ''}`
+      return text.toLowerCase().includes(q)
+    })
+  }, [stops, filter, search])
+
+  // The number on a pending dot is its place in the whole round, not in the
+  // filtered view, so it still matches the sheet after filtering.
+  const positions = useMemo(
+    () => new Map(stops.map((stop, index) => [stop.id, index + 1])),
+    [stops],
+  )
+
+  async function handleComplete(stop, notes) {
+    setBusy(true)
     setError(null)
     try {
-      const data = await apiRequest(`/routes/${user.id}/today`)
-      setRoutes(data)
+      await completeStop(stop.id, notes)
+      setSuccess('Stop marked complete.')
+      setCompleting(null)
+      setOpenId(null)
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      setBusy(false)
     }
-  }, [user?.id])
+  }
 
-  useEffect(() => { load() }, [load])
-
-  async function handleComplete(routeId) {
-    setBusyId(routeId)
-    setError(null)
-    setSuccess(null)
-    try {
-      await apiRequest(`/routes/${routeId}/complete`, {
-        method: 'PATCH',
-        body: JSON.stringify({ issueNotes: issueNotes.trim() || undefined }),
-      })
-      setSuccess('Route stop marked complete.')
-      setIssueNotes('')
-      setExpandedId(null)
-      load()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusyId(null)
-    }
+  function stopClass(stop) {
+    if (stop.status === 'Completed') return 'done'
+    if (stop.status === 'Missed') return 'missed'
+    if (stop.id === nextStop?.id) return 'current'
+    return ''
   }
 
   return (
     <PageShell
-      eyebrow="Collector"
       title="Today's route"
-      description="View and complete your scheduled pickup stops."
+      showDate
+      showSearch
+      showBell
+      hasAlerts={counts.pending > 0}
+      searchValue={search}
+      onSearchChange={setSearch}
+      searchPlaceholder="Search today's stops"
+      filterBar={(
+        <div className="ac-toolbar">
+          <AcChips options={filters} value={filter} onChange={setFilter} label="Filter stops by status" />
+          <span className="ac-toolbar-meta">{visible.length} of {counts.total} stops</span>
+        </div>
+      )}
     >
       {role !== 'collector' && (
-        <AdminAlert type="error" message="Route completion requires the collector role." />
+        <AcAlert message="Route completion requires the collector role." />
       )}
-      <AdminAlert type="error" message={error} onClose={() => setError(null)} />
-      <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
+      <AcAlert message={error} onClose={() => setError(null)} />
 
-      <AdminCard title="Assignments" subtitle="GET /api/routes/{collectorId}/today">
-        {loading ? (
-          <p className="admin-loading">Loading today's route…</p>
-        ) : routes.length === 0 ? (
-          <p className="admin-empty">No assignments scheduled for today.</p>
-        ) : (
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Route ID</th>
-                  <th>Pickup</th>
-                  <th>Zone</th>
-                  <th>Scheduled</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {routes.map((route) => (
-                  <Fragment key={route.id}>
-                    <tr>
-                      <td>{shortId(route.id)}</td>
-                      <td>{shortId(route.pickupRequestId)}</td>
-                      <td>{shortId(route.zoneId)}</td>
-                      <td>{formatDate(route.scheduledDate)}</td>
-                      <td>
-                        <StatusBadge status={formatCompletionStatus(route.completionStatus)} />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn-secondary btn-sm"
-                          onClick={() => {
-                            if (expandedId === route.id) {
-                              setExpandedId(null)
-                              return
-                            }
-                            setIssueNotes(route.issueNotes || '')
-                            setExpandedId(route.id)
-                          }}
-                        >
-                          {expandedId === route.id ? 'Hide' : 'Details'}
-                        </button>
-                      </td>
-                    </tr>
-                    {expandedId === route.id && (
-                      <tr>
-                        <td colSpan={6}>
-                          <div className="admin-panel">
-                            <p><strong>Created:</strong> {formatDate(route.createdAt)}</p>
-                            {route.completedAt && (
-                              <p><strong>Completed:</strong> {formatDate(route.completedAt)}</p>
-                            )}
-                            {route.issueNotes && (
-                              <p><strong>Issue notes:</strong> {route.issueNotes}</p>
-                            )}
-                            {isRoutePending(route.completionStatus) && (
-                              <div className="admin-form" style={{ marginTop: '1rem' }}>
-                                <div>
-                                  <label htmlFor={`issue-${route.id}`}>Issue notes (optional)</label>
-                                  <textarea
-                                    id={`issue-${route.id}`}
-                                    value={issueNotes}
-                                    onChange={(e) => setIssueNotes(e.target.value)}
-                                    placeholder="Note any issues encountered at this stop…"
-                                  />
-                                </div>
-                                <div className="admin-actions">
-                                  <button
-                                    type="button"
-                                    className="btn-primary btn-sm"
-                                    disabled={busyId === route.id}
-                                    onClick={() => handleComplete(route.id)}
-                                  >
-                                    Mark complete
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+      {loading ? (
+        <p className="ac-empty">Loading today&rsquo;s route…</p>
+      ) : counts.total === 0 ? (
+        <AcCard><p className="ac-empty">No stops scheduled today.</p></AcCard>
+      ) : visible.length === 0 ? (
+        <AcCard><p className="ac-empty">No stops match that filter.</p></AcCard>
+      ) : (
+        <ol className="c-stops">
+          {visible.map((stop) => {
+            const tone = stopClass(stop)
+            const open = openId === stop.id
+            const pickup = stop.pickup
+
+            return (
+              <li className={`c-stop ${tone}${open ? ' is-open' : ''}`.trim()} key={stop.id}>
+                <span className="c-stop-dot" aria-hidden="true">
+                  {stop.status === 'Completed' ? <Check size={18} strokeWidth={2.6} />
+                    : stop.status === 'Missed' ? <X size={18} strokeWidth={2.6} />
+                      : positions.get(stop.id)}
+                </span>
+
+                <div className="c-stop-card">
+                  <div className="c-stop-head">
+                    <strong>{pickup?.description || formatRequestId(stop.pickupRequestId)}</strong>
+                    {tone === 'current' ? (
+                      <span className="ac-pill ac-s-info">
+                        <Navigation size={13} strokeWidth={2.4} aria-hidden="true" />
+                        Next stop
+                      </span>
+                    ) : (
+                      <AcStatusPill status={stop.status} />
                     )}
-                  </Fragment>
+                  </div>
+
+                  <div className="c-meta">
+                    <span>
+                      <Clock size={15} strokeWidth={2} aria-hidden="true" />
+                      {formatStopTime(stop.scheduledDate)}
+                      {stop.completedAt ? ` · done ${formatStopTime(stop.completedAt)}` : null}
+                    </span>
+                    {pickup?.category && (
+                      <AcCategory category={pickup.category} confidence={pickup.confidence} />
+                    )}
+                    {pickup?.zoneName && (
+                      <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{pickup.zoneName}</span>
+                    )}
+                  </div>
+
+                  {stop.issueNotes && (
+                    <div className="c-stop-note" style={{ marginTop: '10px' }}>
+                      <TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />
+                      <span>{stop.issueNotes}</span>
+                    </div>
+                  )}
+
+                  {open && (
+                    <div className="c-stop-more">
+                      <div className="c-ns-grid sm">
+                        <div className="c-ns-photo">
+                          {pickup?.photoUrl
+                            ? <img src={pickup.photoUrl} alt={`Photo submitted with ${pickup.description || 'this pickup'}`} />
+                            : <Camera size={18} strokeWidth={2} aria-hidden="true" />}
+                        </div>
+                        <div>
+                          <p className="ac-id">
+                            {formatRequestId(stop.id, 'RT')} · {formatRequestId(stop.pickupRequestId)}
+                          </p>
+                          <span className="ac-sub">Scheduled {formatStopTime(stop.scheduledDate)}</span>
+                        </div>
+                      </div>
+
+                      {stop.status === 'Pending' && (
+                        <div className="ac-actions">
+                          <button
+                            type="button"
+                            className="ac-btn ac-btn-primary"
+                            onClick={() => setCompleting(stop)}
+                          >
+                            <Check size={16} strokeWidth={2.4} aria-hidden="true" />
+                            Mark complete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    className="ac-link-btn"
+                    aria-expanded={open}
+                    onClick={() => setOpenId(open ? null : stop.id)}
+                  >
+                    {open ? 'Hide details' : 'Details'}
+                    <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+
+      {/* Beyond today. Read-only: a stop can only be completed on its own day,
+          so these carry no actions -- they are here to plan around. */}
+      {upcoming.length > 0 && (
+        <AcCard
+          title="Upcoming"
+          subtitle={`${upcomingCount} stop${upcomingCount === 1 ? '' : 's'} scheduled over the next 7 days`}
+        >
+          {upcoming.map((day) => (
+            <div className="c-upcoming-day" key={day.key}>
+              <h3>{formatShiftDate(day.date)}</h3>
+              <ul className="ac-list">
+                {day.stops.map((stop) => (
+                  <li className="ac-row" key={stop.id}>
+                    <span className="ac-ic">
+                      <AcCategoryIcon category={stop.pickup?.category} size={18} />
+                    </span>
+                    <span className="ac-grow">
+                      <strong>{stop.pickup?.description || formatRequestId(stop.pickupRequestId)}</strong>
+                      <span className="ac-sub">
+                        {[
+                          stop.pickup?.category ? CATEGORY_LABELS[stop.pickup.category] || stop.pickup.category : null,
+                          stop.pickup?.zoneName,
+                        ].filter(Boolean).join(' · ') || 'No details available'}
+                      </span>
+                    </span>
+                    <span className="ac-time">{formatStopTime(stop.scheduledDate)}</span>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </AdminCard>
+              </ul>
+            </div>
+          ))}
+        </AcCard>
+      )}
+
+      <MarkCompleteDrawer
+        stop={completing}
+        busy={busy}
+        onClose={() => setCompleting(null)}
+        onComplete={handleComplete}
+      />
+      <AcToast message={success} />
     </PageShell>
   )
 }

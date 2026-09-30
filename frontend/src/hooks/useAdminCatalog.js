@@ -6,9 +6,12 @@ import { pickupLabel, profileLabel as profileLabelFor, toSelectOptions } from '.
 // nothing on these pages acts on them, and they grow without bound.
 const PICKUP_STATUSES = ['Pending', 'Classified', 'Approved', 'Scheduled']
 
-// Only approved pickups can be given a route assignment, which is what the
-// pickup dropdown on the Routes page is for.
-const ROUTABLE_STATUS = 'Approved'
+// What the manual assignment dropdown offers. Anything not yet scheduled or
+// collected can be routed by hand -- an admin assigning a collector should not
+// have to push a pickup through Approved first, which is why Pending and
+// Classified are here too. The option label carries the status, so it is clear
+// what is being routed.
+const ROUTABLE_STATUSES = ['Pending', 'Classified', 'Approved']
 
 /**
  * Shared reference data for the admin screens: profiles, zones and pickups,
@@ -96,7 +99,7 @@ export function useAdminCatalog() {
   const pickupOptions = useMemo(
     () =>
       toSelectOptions(
-        pickups.filter((pickup) => pickup.status === ROUTABLE_STATUS),
+        pickups.filter((pickup) => ROUTABLE_STATUSES.includes(pickup.status)),
         (pickup) =>
           pickupLabel(pickup, {
             residentName: shortNameFor(profileMap.get(pickup.residentId)),

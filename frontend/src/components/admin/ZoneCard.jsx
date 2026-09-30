@@ -1,8 +1,16 @@
-import { MapPin, Pencil, TrendingUp, TriangleAlert } from 'lucide-react'
+import { Archive, MapPin, Pencil, TrendingUp, TriangleAlert } from 'lucide-react'
 import { profileInitials, shortProfileName } from '../../lib/adminUi'
 import { AcStatusPill } from './AcPills'
 
-export default function ZoneCard({ zone, collectorProfile, stats, onEdit, isBusiest = false }) {
+export default function ZoneCard({
+  zone,
+  collectorProfile,
+  stats,
+  onEdit,
+  onDeactivate,
+  busy = false,
+  isBusiest = false,
+}) {
   // Counts come from RouteAssignments for this zone. There is no recorded
   // capacity per zone, so there is no honest "% loaded" to show -- the counts
   // are reported as they are. `stats` is undefined until the report loads.
@@ -55,6 +63,18 @@ export default function ZoneCard({ zone, collectorProfile, stats, onEdit, isBusi
         <button type="button" className="ac-btn ac-btn-ghost ac-btn-sm" onClick={onEdit}>
           <Pencil size={14} strokeWidth={2} aria-hidden="true" />
           Edit
+        </button>
+        {/* Retiring a zone keeps the row: pickups and route assignments point at
+            it, so the label says what actually happens. */}
+        <button
+          type="button"
+          className="ac-btn ac-btn-danger ac-btn-sm"
+          onClick={() => onDeactivate?.(zone)}
+          disabled={busy || inactive}
+          title={inactive ? 'This zone is already deactivated' : 'Stop routing new pickups to this zone'}
+        >
+          <Archive size={14} strokeWidth={2} aria-hidden="true" />
+          {inactive ? 'Deactivated' : 'Deactivate'}
         </button>
         {isBusiest && (
           <span className="ac-pill ac-s-ok">

@@ -261,7 +261,7 @@
 .admin-console .ac-top {
   position: sticky;
   top: env(safe-area-inset-top, 0px);
-  z-index: 20;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -816,6 +816,12 @@
 
 .admin-console .ac-map {
   position: relative;
+  /* Leaflet gives its panes z-index 400 and its zoom controls 1000, which are
+     far above the sticky top bar's 20. Without a stacking context of its own
+     the map's controls float over the header as the page scrolls past. z-index
+     on a positioned element contains that whole subtree here. */
+  z-index: 0;
+  isolation: isolate;
   overflow: hidden;
   border-radius: var(--r-lg);
   background: var(--honeydew);

@@ -1,0 +1,328 @@
+/* ==========================================================================
+   Collector console
+   Only the pieces the collector screens add on top of the shared console:
+   the greeting banner and its % ring, the four count tiles, the next-stop
+   card, the stop timeline and the quick-note chips.
+
+   Everything else -- shell, sidebar, top bar, cards, pills, chips, drawer,
+   toast, alerts -- is reused from admin.css, so nothing here restates it.
+   Values are copied from collector-design-handoff/screens/collector.html.
+
+   Scoped under `.admin-console`, the class both layouts carry, and prefixed
+   `c-` so these rules can never collide with the admin's `ac-` ones.
+   ========================================================================== */
+
+/* ---------- Greeting banner ---------- */
+
+.admin-console .c-greet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px;
+  border-radius: var(--r-xl);
+  background: var(--green);
+  color: var(--ivory);
+  box-shadow: var(--sh-md);
+}
+
+.admin-console .c-greet h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.admin-console .c-greet p { margin: 4px 0 0; color: rgba(255, 255, 240, 0.8); }
+
+/* ---------- Progress ring ---------- */
+
+.admin-console .c-ring { position: relative; width: 96px; height: 96px; flex: none; }
+
+/* Rotated so the arc starts at twelve o'clock rather than three. */
+.admin-console .c-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.admin-console .c-ring .c-trk { fill: none; stroke: rgba(255, 255, 240, 0.18); stroke-width: 10; }
+
+.admin-console .c-ring .c-val {
+  fill: none;
+  stroke: var(--celadon);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 900ms var(--ease);
+}
+
+.admin-console .c-ring span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.admin-console .c-ring small {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 240, 0.75);
+  margin-top: 3px;
+}
+
+/* ---------- Count tiles ---------- */
+
+.admin-console .c-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+
+.admin-console .c-mini {
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-sm);
+  min-width: 0;
+}
+
+.admin-console .c-mini b {
+  display: block;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-console .c-mini span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-console .c-mini span svg { color: var(--green); flex: none; }
+.admin-console .c-mini.warn span svg { color: var(--warn-ink); }
+.admin-console .c-mini.ok span svg { color: var(--ok-ink); }
+.admin-console .c-mini.bad span svg { color: var(--bad-ink); }
+
+/* ---------- Next stop ---------- */
+
+.admin-console .c-ns-grid {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-console .c-ns-grid.sm { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; }
+
+.admin-console .c-ns-photo {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  border-radius: var(--r-lg);
+  background: var(--honeydew);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.admin-console .c-ns-photo span { color: var(--muted); }
+.admin-console .c-ns-photo img { width: 100%; height: 100%; object-fit: cover; }
+.admin-console .c-ns-grid.sm .c-ns-photo { aspect-ratio: 1; border-radius: 10px; }
+
+.admin-console .c-ns-info { display: grid; gap: 8px; }
+.admin-console .c-ns-info h3 { margin: 0; font-size: 19px; }
+
+/* ---------- Stop timeline ---------- */
+
+.admin-console .c-stops { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+
+.admin-console .c-stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 14px;
+  padding: 0 0 18px;
+}
+
+/* The dashed spine joining the stops; hidden on the last one so it does not
+   trail off the bottom of the list. */
+.admin-console .c-stop::before {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 40px;
+  bottom: 0;
+  border-left: 2px dashed var(--line-strong);
+}
+
+.admin-console .c-stop:last-child::before { display: none; }
+
+.admin-console .c-stop-dot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--green);
+  color: var(--green);
+  font-weight: 800;
+}
+
+.admin-console .c-stop.done .c-stop-dot { background: var(--green); color: var(--ivory); box-shadow: none; }
+.admin-console .c-stop.missed .c-stop-dot { background: var(--bad-bg); color: var(--bad-ink); box-shadow: none; }
+.admin-console .c-stop.current .c-stop-dot { background: var(--celadon); box-shadow: 0 0 0 5px rgba(172, 225, 175, 0.45); }
+
+.admin-console .c-stop-card {
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-sm);
+  min-width: 0;
+}
+
+.admin-console .c-stop.current .c-stop-card { box-shadow: var(--sh-md), inset 0 0 0 2px var(--celadon); }
+
+.admin-console .c-stop-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-console .c-stop-head strong { font-size: 15px; }
+
+.admin-console .c-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-console .c-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.admin-console .c-meta svg { color: var(--green); flex: none; }
+
+.admin-console .c-stop-more {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+}
+
+.admin-console .c-stop-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-console .c-stop-note svg { flex: none; margin-top: 2px; }
+
+/* ---------- Quick-add note chips ---------- */
+
+.admin-console .c-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.admin-console .c-quick button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--honeydew);
+  color: var(--green);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.admin-console .c-quick button:hover { background: var(--celadon); }
+.admin-console .c-quick button.is-on { background: var(--celadon); }
+
+/* The drawer sits outside `.admin-console`, so its chips need the values again
+   rather than inheriting the console's custom properties. */
+.ac-drawer .c-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.ac-drawer .c-quick button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #f0fff0;
+  color: #00563b;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ac-drawer .c-quick button:hover,
+.ac-drawer .c-quick button.is-on { background: #ace1af; }
+
+.ac-drawer .c-ns-grid { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; }
+
+.ac-drawer .c-ns-photo {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: #f0fff0;
+  color: #00563b;
+  overflow: hidden;
+}
+
+.ac-drawer .c-ns-photo img { width: 100%; height: 100%; object-fit: cover; }
+.ac-drawer .c-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; color: #4a5d53; font-size: 13px; font-weight: 600; }
+.ac-drawer .c-hint { margin: 0; color: #4a5d53; font-size: 13px; }
+
+/* ---------- Upcoming days ---------- */
+
+.admin-console .c-upcoming-day + .c-upcoming-day { margin-top: 18px; }
+
+.admin-console .c-upcoming-day h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ---------- Sidebar shift card ---------- */
+
+/* Same treatment as the admin's "Agents running" card, so the two sidebars
+   stay recognisably the same component. */
+.admin-console .c-shift {
+  padding: 14px;
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 240, 0.07);
+  font-size: 13px;
+}
+
+.admin-console .c-shift strong { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.admin-console .c-shift p { margin: 4px 0 0; color: rgba(255, 255, 240, 0.7); }
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 900px) {
+  .admin-console .c-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .admin-console .c-greet { padding: 18px; }
+  .admin-console .c-ring { width: 80px; height: 80px; }
+  .admin-console .c-strip { grid-template-columns: minmax(0, 1fr); }
+  .admin-console .c-ns-grid { grid-template-columns: minmax(0, 1fr); }
+}
