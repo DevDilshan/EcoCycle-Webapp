@@ -139,3 +139,6 @@ key.properties
 
 # Backups
 *.bak
+
+# Supabase CLI local link state
+supabase/.temp/

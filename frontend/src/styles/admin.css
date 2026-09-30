@@ -335,6 +335,7 @@
 }
 
 .admin-console .ac-icon-btn:hover { background: var(--honeydew); }
+.admin-console a.ac-icon-btn { text-decoration: none; }
 
 .admin-console .ac-icon-btn .ac-pip {
   position: absolute;
@@ -1119,29 +1120,78 @@
 
 /* ---------- Toast ---------- */
 
-.ac-toast:not(.is-on) { visibility: hidden; }
-
-.ac-toast {
+.ac-toast-region {
   position: fixed;
-  left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-radius: 10px;
-  background: #003626;
-  color: #fffff0;
-  font-weight: 700;
-  font-family: Manrope, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 14px;
-  box-shadow: 0 4px 8px rgba(0, 56, 38, 0.05), 0 24px 56px rgba(0, 56, 38, 0.14);
-  transform: translate(-50%, 140%);
-  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: 20px;
+  z-index: 220;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
 }
 
-.ac-toast.is-on { transform: translate(-50%, 0); }
+.ac-toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+  border-radius: 14px;
+  border-left: 4px solid #135c33;
+  background: #ffffff;
+  color: #16241d;
+  font-family: Manrope, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 4px 8px rgba(0, 56, 38, 0.06), 0 18px 40px rgba(0, 56, 38, 0.18);
+  pointer-events: auto;
+  animation: ac-toast-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ac-toast-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #e2f4e3;
+  color: #135c33;
+}
+
+.ac-toast-text { flex: 1; min-width: 0; line-height: 1.35; }
+
+.ac-toast-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #4a5d53;
+  cursor: pointer;
+}
+
+.ac-toast-close:hover { background: #edf2ea; }
+.ac-toast-close:focus-visible { outline: 3px solid #9cd8a0; outline-offset: 1px; }
+
+/* Red for deletions, amber for problems; green is the default above. */
+.ac-toast.is-danger { border-left-color: #b3261e; }
+.ac-toast.is-danger .ac-toast-icon { background: #fdecea; color: #b3261e; }
+.ac-toast.is-warning { border-left-color: #d9960b; }
+.ac-toast.is-warning .ac-toast-icon { background: #fcf1d8; color: #7a4b00; }
+
+@keyframes ac-toast-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 560px) {
+  .ac-toast-region { right: 16px; left: 16px; width: auto; }
+}
 
 /* ---------- Status / feedback ---------- */
 
@@ -1220,4 +1270,342 @@
   .ac-drawer,
   .ac-scrim,
   .ac-toast { animation: none !important; transition: none !important; }
+}
+
+/* --------------------------------------------------------------------------
+   Hub tiles: launchers for an admin page's tools (card layout from the
+   reference, recoloured to the EcoCycle green theme).
+   -------------------------------------------------------------------------- */
+.admin-console .ac-section-title {
+  margin: 8px 0 -4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.admin-console .ac-hub {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.admin-console .ac-hub-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--sh-sm);
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.admin-console .ac-hub-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--celadon-strong);
+  box-shadow: var(--sh-lg);
+}
+
+.admin-console .ac-hub-card:focus-visible {
+  outline: 3px solid var(--celadon-strong);
+  outline-offset: 2px;
+}
+
+.admin-console .ac-hub-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 10px;
+  border-radius: 18px;
+  background: var(--honeydew);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--green);
+}
+
+.admin-console .ac-hub-card.has-attention .ac-hub-icon { background: var(--warn-bg); color: var(--warn-ink); }
+
+.admin-console .ac-hub-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.admin-console .ac-hub-title { font-size: 22px; font-weight: 800; line-height: 1.15; color: var(--green); }
+.admin-console .ac-hub-desc { max-width: 28ch; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+
+.admin-console .ac-hub-meta {
+  margin-top: 6px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.admin-console .ac-hub-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 14px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--green);
+}
+
+@media (max-width: 1100px) {
+  .admin-console .ac-hub { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .admin-console .ac-hub { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Second-level links under a nav section (Rewards). */
+.admin-console .ac-nav-sub {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 6px 21px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 240, 0.18);
+}
+
+.admin-console .ac-nav-sublink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-md);
+  color: rgba(255, 255, 240, 0.72);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 200ms, color 200ms;
+}
+
+.admin-console .ac-nav-sublink:hover { background: rgba(255, 255, 240, 0.08); color: var(--ivory); }
+.admin-console .ac-nav-sublink.is-active { background: rgba(172, 225, 175, 0.22); color: var(--ivory); }
+.admin-console .ac-nav-sublink .ac-count { margin-left: auto; }
+
+.admin-console .ac-nav-link.is-parent-open { color: var(--ivory); }
+
+/* --------------------------------------------------------------------------
+   Confirmation dialog (components/ConfirmDialog.jsx). Not scoped to
+   .admin-console because it is rendered into <body> and is also used by the
+   resident pages, so it carries its own literal EcoCycle colours.
+   -------------------------------------------------------------------------- */
+.ecoc-confirm-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 38, 26, 0.45);
+  backdrop-filter: blur(2px);
+  animation: ecoc-confirm-fade 140ms ease-out;
+}
+
+.ecoc-confirm {
+  width: min(420px, 100%);
+  padding: 24px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 56, 38, 0.06), 0 24px 56px rgba(0, 56, 38, 0.22);
+  font-family: Manrope, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #16241d;
+  animation: ecoc-confirm-pop 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ecoc-confirm h2 { margin: 0 0 8px; font-size: 18px; font-weight: 800; color: #00563b; }
+.ecoc-confirm p { margin: 0; font-size: 14px; line-height: 1.55; color: #4a5d53; white-space: pre-line; }
+
+.ecoc-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
+.ecoc-confirm-actions button {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ecoc-confirm-cancel { background: #ffffff; color: #00563b; box-shadow: inset 0 0 0 1px rgba(0, 86, 59, 0.18); }
+.ecoc-confirm-cancel:hover { background: #f0fff0; }
+.ecoc-confirm-ok { background: #00563b; color: #ffffff; }
+.ecoc-confirm-ok:hover { background: #00452f; }
+.ecoc-confirm-ok.is-danger { background: #8a1c12; }
+.ecoc-confirm-ok.is-danger:hover { background: #6f160e; }
+.ecoc-confirm-actions button:focus-visible { outline: 3px solid #9cd8a0; outline-offset: 2px; }
+
+@keyframes ecoc-confirm-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ecoc-confirm-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ecoc-confirm-scrim, .ecoc-confirm { animation: none; }
+}
+
+/* Inline form errors. */
+.admin-console .ac-field-error {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--warn-ink);
+}
+
+.admin-console .ac-form input[aria-invalid='true'],
+.admin-console .ac-form select[aria-invalid='true'] {
+  background: #fffaf0;
+  box-shadow: inset 0 0 0 1.5px #d9960b;
+}
+
+/* A form that opens at the top of a card needs room before the list under it. */
+.admin-console .ac-card > .ac-form { margin-bottom: 16px; }
+
+/* --------------------------------------------------------------------------
+   Form pop-up (components/FormModal.jsx), for create and edit forms.
+   -------------------------------------------------------------------------- */
+.ecoc-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 38, 26, 0.45);
+  backdrop-filter: blur(2px);
+  animation: ecoc-confirm-fade 140ms ease-out;
+}
+
+.ecoc-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(680px, calc(100vh - 40px));
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 56, 38, 0.06), 0 24px 56px rgba(0, 56, 38, 0.22);
+  font-family: Manrope, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #16241d;
+  animation: ecoc-confirm-pop 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ecoc-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 24px 14px;
+  border-bottom: 1px solid rgba(0, 86, 59, 0.1);
+}
+
+.ecoc-modal-head h2 { margin: 0; font-size: 18px; font-weight: 800; color: #00563b; }
+.ecoc-modal-head p { margin: 2px 0 0; font-size: 13px; color: #4a5d53; }
+
+.ecoc-modal-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0, 86, 59, 0.18);
+  color: #00563b;
+  cursor: pointer;
+}
+
+.ecoc-modal-close:hover { background: #f0fff0; }
+.ecoc-modal-close:focus-visible { outline: 3px solid #9cd8a0; outline-offset: 2px; }
+
+.ecoc-modal-body { padding: 18px 24px 24px; overflow-y: auto; }
+.ecoc-modal-body .ac-form,
+.ecoc-modal-body .admin-form { margin: 0; }
+
+.ecoc-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+@media (max-width: 560px) {
+  .ecoc-modal-scrim { align-items: end; padding: 0; }
+  .ecoc-modal { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecoc-modal-scrim, .ecoc-modal { animation: none; }
+}
+
+/* Dropdown nav section: a row with a chevron that opens and closes its links. */
+/* The section row: the label goes to the section's page, the arrow opens its links. */
+.admin-console .ac-nav-row {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--r-md);
+  color: rgba(255, 255, 240, 0.82);
+  transition: background-color 200ms, color 200ms;
+}
+
+.admin-console .ac-nav-row:hover { background: rgba(255, 255, 240, 0.08); color: var(--ivory); }
+.admin-console .ac-nav-row.is-parent-open { color: var(--ivory); }
+.admin-console .ac-nav-row.is-active { background: var(--celadon); color: var(--green); }
+
+.admin-console .ac-nav-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 0 10px 12px;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--r-md) 0 0 var(--r-md);
+}
+
+.admin-console .ac-nav-main .ac-count { margin-left: auto; }
+
+.admin-console .ac-nav-chevron-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  border: 0;
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.admin-console .ac-nav-chevron-btn:hover { background: rgba(255, 255, 240, 0.12); }
+.admin-console .ac-nav-row.is-active .ac-nav-chevron-btn:hover { background: rgba(0, 86, 59, 0.12); }
+.admin-console .ac-nav-main:focus-visible,
+.admin-console .ac-nav-chevron-btn:focus-visible { outline: 3px solid var(--celadon-strong); outline-offset: -2px; }
+
+.admin-console .ac-nav-chevron { transition: transform 220ms ease; }
+.admin-console .ac-nav-chevron.is-open { transform: rotate(180deg); }
+
+.admin-console .ac-nav-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.admin-console .ac-nav-collapse.is-open { grid-template-rows: 1fr; }
+.admin-console .ac-nav-collapse > .ac-nav-sub { min-height: 0; overflow: hidden; }
+.admin-console .ac-nav-collapse:not(.is-open) > .ac-nav-sub { visibility: hidden; transition: visibility 0s 240ms; margin-bottom: 0; margin-top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-console .ac-nav-chevron,
+  .admin-console .ac-nav-collapse { transition: none; }
 }
