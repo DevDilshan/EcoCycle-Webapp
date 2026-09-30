@@ -15,6 +15,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Complaint> Complaints => Set<Complaint>();
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
     public DbSet<RewardPoint> RewardPoints => Set<RewardPoint>();
+    public DbSet<RedemptionRequest> RedemptionRequests => Set<RedemptionRequest>();
+    public DbSet<RewardItem> RewardItems => Set<RewardItem>();
     public DbSet<ComplianceViolation> ComplianceViolations => Set<ComplianceViolation>();
     public DbSet<WasteClassification> WasteClassifications => Set<WasteClassification>();
 
@@ -93,6 +95,34 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(r => r.PickupRequestId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RedemptionRequest>()
+            .HasOne(r => r.Resident)
+            .WithMany()
+            .HasForeignKey(r => r.ResidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RedemptionRequest>()
+            .HasOne(r => r.ReviewedByAdmin)
+            .WithMany()
+            .HasForeignKey(r => r.ReviewedByAdminId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<RedemptionRequest>()
+            .HasOne(r => r.RewardItem)
+            .WithMany()
+            .HasForeignKey(r => r.RewardItemId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Residents browse active items, cheapest first.
+        modelBuilder.Entity<RewardItem>()
+            .HasIndex(i => new { i.IsActive, i.PointsCost });
+
+        // A resident's own list and the admin's status filter are the two hot queries.
+        modelBuilder.Entity<RedemptionRequest>()
+            .HasIndex(r => new { r.ResidentId, r.Status });
+        modelBuilder.Entity<RedemptionRequest>()
+            .HasIndex(r => r.Status);
 
         modelBuilder.Entity<ComplianceViolation>()
             .HasOne(v => v.Resident)

@@ -505,7 +505,7 @@ export default function RoutesPage() {
         </form>
       </AcDrawer>
 
-      <AcToast message={success} />
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }

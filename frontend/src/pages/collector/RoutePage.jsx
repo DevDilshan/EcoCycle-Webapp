@@ -242,7 +242,7 @@ export default function CollectorRoutePage() {
         onClose={() => setCompleting(null)}
         onComplete={handleComplete}
       />
-      <AcToast message={success} />
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }

@@ -27,16 +27,6 @@ public class UpdateRewardPointDto
     public string Reason { get; set; } = string.Empty;
 }
 
-public class RedeemRewardPointsDto
-{
-    [Range(1, int.MaxValue)]
-    public int Points { get; set; }
-
-    [Required]
-    [MaxLength(480)]
-    public string Reason { get; set; } = string.Empty;
-}
-
 public class RewardPointResponseDto
 {
     public Guid Id { get; set; }
@@ -81,10 +71,4 @@ public class RewardLeaderboardEntryDto
     public Guid ResidentId { get; set; }
     public string ResidentName { get; set; } = string.Empty;
     public int PointsEarned { get; set; }
-}
-
-public class RewardRedemptionResponseDto
-{
-    public RewardPointResponseDto Transaction { get; set; } = null!;
-    public int RemainingBalance { get; set; }
 }

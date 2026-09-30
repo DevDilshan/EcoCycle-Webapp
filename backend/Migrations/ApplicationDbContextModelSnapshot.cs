@@ -213,6 +213,95 @@ namespace backend.Migrations
                         });
                 });
 
+            modelBuilder.Entity("backend.Models.RedemptionRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdminNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(480)
+                        .HasColumnType("character varying(480)");
+
+                    b.Property<Guid>("ResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByAdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RewardItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewedByAdminId");
+
+                    b.HasIndex("RewardItemId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ResidentId", "Status");
+
+                    b.ToTable("RedemptionRequests");
+                });
+
+            modelBuilder.Entity("backend.Models.RewardItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("PointsCost")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Stock")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive", "PointsCost");
+
+                    b.ToTable("RewardItems");
+                });
+
             modelBuilder.Entity("backend.Models.RewardPoint", b =>
                 {
                     b.Property<Guid>("Id")
@@ -431,6 +520,31 @@ namespace backend.Migrations
                     b.Navigation("Resident");
 
                     b.Navigation("Zone");
+                });
+
+            modelBuilder.Entity("backend.Models.RedemptionRequest", b =>
+                {
+                    b.HasOne("backend.Models.Profile", "Resident")
+                        .WithMany()
+                        .HasForeignKey("ResidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.Profile", "ReviewedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("backend.Models.RewardItem", "RewardItem")
+                        .WithMany()
+                        .HasForeignKey("RewardItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Resident");
+
+                    b.Navigation("ReviewedByAdmin");
+
+                    b.Navigation("RewardItem");
                 });
 
             modelBuilder.Entity("backend.Models.RewardPoint", b =>

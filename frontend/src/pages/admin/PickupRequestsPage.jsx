@@ -309,7 +309,7 @@ export default function PickupRequestsPage() {
         )}
       </AcDrawer>
 
-      <AcToast message={success} />
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }
