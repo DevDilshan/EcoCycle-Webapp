@@ -24,7 +24,7 @@ authentication — **by both the web app and the Flutter app**.
    
 2. The backend calls the Python agent service, which runs four agents in order:
    - 🧠 **Classifier** — decides the waste category. OpenAI reads the resident's
-     description; Gemini describes the photo when one is supplied.
+     description, and also describes the photo when one is supplied.
    - ✅ **Validator** — deterministic business rules (hazardous waste, max 2 bulk
      pickups per resident per month). No AI, no network.
    - 🚛 **Routing** — picks the collector with the lowest pending load. Skipped
@@ -117,10 +117,9 @@ Each app has its own `.env` file in its own folder, all **gitignored**. Copy the
 
 | Variable | Purpose |
 | --- | --- |
-| `OPENAI_API_KEY` | Required. All agent reasoning runs on `gpt-4o-mini`. |
+| `OPENAI_API_KEY` | Required. All agent reasoning and photo recognition run on `gpt-4o-mini`. |
 | `INTERNAL_API_KEY` | ⚠️ **Must match the `backend/.env` value**, or every call is 401 |
-| `GEMINI_API_KEY` | Optional. Without it, photos are ignored and classification is text-only. |
-| `GEMINI_MODEL` | Optional. Gemini model for photo recognition (default `gemini-3.5-flash`). |
+| `OPENAI_VISION_MODEL` | Optional. Vision-capable model for photo recognition (default `gpt-4o-mini`). |
 
 ### `frontend/.env` — read by Vite
 

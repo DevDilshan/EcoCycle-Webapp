@@ -47,7 +47,7 @@ def run_pipeline(pickup_request: dict) -> dict:
     Args:
         pickup_request: A dict describing the request:
             description:        required, the resident's own words
-            photo_url:          optional, image for Gemini recognition
+            photo_url:          optional, image for photo recognition
             resident_zone_id:   required, zone used for routing
             collector_loads:    required, {collector_id: pickups_assigned}
             resident_history:   optional, past pickups for the bulk-limit rule
