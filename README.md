@@ -154,7 +154,9 @@ was never set).
 | 🚩 Approvals (admin) | `GET /approvals`, `GET /approvals/{id}`, `POST /approvals/{id}/approve`, `POST /approvals/{id}/reject` |
 | 🚛 Routes | `GET /routes/{collectorId}/today`, `GET /routes/load-report`, `GET /routes/zone-load`, `POST /routes/assign/{pickupRequestId}`, `PUT /routes/{id}/reassign` |
 | 🗺️ Zones | `GET /zones`, `POST /zones`, `PUT /zones/{id}`, `DELETE /zones/{id}` |
-| 🎁 Rewards | `POST /rewards`, `GET /rewards/leaderboard`, `GET /rewards/{residentId}/history`, `POST /rewards/redeem` |
+| 🎁 Rewards | `POST /rewards`, `GET /rewards/leaderboard`, `GET /rewards/{residentId}/history`, `PUT`/`DELETE /rewards/{id}` (admin corrections) |
+| 🛍️ Reward catalog | `GET /reward-items`, `GET /reward-items/{id}` (residents see active items only), `POST`, `PUT`, `DELETE /reward-items/{id}` (admin) |
+| 🎟️ Redemptions | `POST /redemptions` (pick a catalog item), `GET /redemptions`, `GET /redemptions/{id}`, `PUT`/`DELETE /redemptions/{id}` (resident, while Pending), `POST /redemptions/{id}/approve` and `/reject` (admin) |
 | 💬 Complaints | `POST /complaints`, `GET /complaints`, `PUT`, `DELETE` |
 | 👤 Profiles | `GET /profiles?role=resident\|collector\|admin` |
 
@@ -243,8 +245,8 @@ Things that work but are not finished, so nobody rediscovers them the hard way:
 - ⏱️ **The AI pipeline runs inline on the request thread**, which is why pickup
   creation takes 8–17 seconds. It belongs in a background job — and this will be
   more noticeable on mobile than on desktop.
-- 🎁 **Reward points are awarded entirely by hand.** Nothing grants them
-  automatically on pickup completion, and there is no points-per-category table.
+- 🎁 **Points are awarded automatically** when a collector completes a stop (per-category
+  table in `PointsRules`); admins can still correct or reverse entries.
 - 🔁 **`RewardRules` (C#) duplicates the Python Validator** — same rule codes,
   same limits. Still wired to `POST /rewards/validate`; remove once nothing
   depends on it.
