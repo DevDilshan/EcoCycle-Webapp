@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Calendar, Clock, MapPin, Plus, Route, Users } from 'lucide-react'
+import { Calendar, CircleX, Clock, MapPin, Plus, Route, Users } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
 import { AcAlert, AcCard, AcDrawer, AcKpi, AcToast } from '../../components/admin/AcUi'
+import { AcStatusPill } from '../../components/admin/AcPills'
 import EntitySelect from '../../components/admin/EntitySelect'
 import ZoneCard from '../../components/admin/ZoneCard'
 import ZoneMap from '../../components/admin/ZoneMap'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
-import { shortProfileName } from '../../lib/adminUi'
+import { formatRequestId, shortProfileName } from '../../lib/adminUi'
+import { formatCompletionStatus } from '../../lib/collector'
+import { formatStopTime } from '../../lib/collectorUi'
 import { apiRequest } from '../../lib/api'
 
 const EMPTY_ZONE = {
@@ -22,6 +25,9 @@ export default function RoutesPage() {
   const catalog = useAdminCatalog(['Approved'])
   const [loadReport, setLoadReport] = useState([])
   const [zoneLoad, setZoneLoad] = useState([])
+  // Today's stops across every collector, so an admin can close off one
+  // nobody completed. Nothing else in the system can create a Missed row.
+  const [dayStops, setDayStops] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -40,12 +46,14 @@ export default function RoutesPage() {
     setLoading(true)
     setError(null)
     try {
-      const [loads, zoneReport] = await Promise.all([
+      const [loads, zoneReport, today] = await Promise.all([
         apiRequest('/routes/load-report'),
         apiRequest('/routes/zone-load'),
+        apiRequest('/routes/day'),
       ])
       setLoadReport(loads)
       setZoneLoad(zoneReport)
+      setDayStops(Array.isArray(today) ? today : today?.items ?? [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -146,6 +154,51 @@ export default function RoutesPage() {
     }
   }
 
+  // "Deactivate" rather than delete: the endpoint keeps the row and clears the
+  // active flag, so the zone stops taking new pickups without breaking the
+  // history that points at it.
+  async function handleDeactivateZone(zone) {
+    const ok = window.confirm(
+      `Deactivate ${zone.name}? It will stop taking new pickups. Existing records keep it.`,
+    )
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await apiRequest(`/zones/${zone.id}`, { method: 'DELETE' })
+      setSuccess(`${zone.name} deactivated.`)
+      catalog.refresh()
+      loadReportData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleMarkMissed(stop) {
+    const ok = window.confirm(
+      'Mark this stop as missed? Use this when a collector did not complete it.',
+    )
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await apiRequest(`/routes/${stop.id}/missed`, {
+        method: 'PATCH',
+        body: JSON.stringify({}),
+      })
+      setSuccess('Stop marked missed.')
+      loadReportData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleCreateRoute(e) {
     e.preventDefault()
     setBusy(true)
@@ -163,6 +216,9 @@ export default function RoutesPage() {
       })
       setSuccess('Route assignment created.')
       setRouteForm({ ...routeForm, pickupRequestId: '' })
+      // The pickup is Scheduled now, so refresh the catalog too or it lingers
+      // in the dropdown as though it still needed a collector.
+      catalog.refresh()
       loadReportData()
     } catch (err) {
       setError(err.message)
@@ -276,6 +332,65 @@ export default function RoutesPage() {
         </AcCard>
       </div>
 
+      <AcCard
+        title="Today's stops"
+        subtitle="Every scheduled stop today, across all collectors"
+      >
+        {dayStops.length === 0 ? (
+          <p className="ac-empty">No stops are scheduled for today.</p>
+        ) : (
+          <div className="ac-table-wrap">
+            <table className="ac-table">
+              <thead>
+                <tr>
+                  <th>Stop</th>
+                  <th>Pickup</th>
+                  <th>Collector</th>
+                  <th>Zone</th>
+                  <th>Scheduled</th>
+                  <th>Status</th>
+                  <th><span className="ac-sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {dayStops.map((stop) => {
+                  const status = formatCompletionStatus(stop.completionStatus)
+                  const pickup = catalog.pickups.find((p) => p.id === stop.pickupRequestId)
+                  return (
+                    <tr key={stop.id}>
+                      <td className="ac-id">{formatRequestId(stop.id, 'RT')}</td>
+                      <td>
+                        <strong>{pickup?.description?.slice(0, 40) || formatRequestId(stop.pickupRequestId)}</strong>
+                        <span className="ac-sub">{formatRequestId(stop.pickupRequestId)}</span>
+                      </td>
+                      <td>{shortProfileName(catalog.profileMap.get(stop.collectorId))}</td>
+                      <td>{catalog.zoneMap.get(stop.zoneId)?.name || '—'}</td>
+                      <td>{formatStopTime(stop.scheduledDate)}</td>
+                      <td><AcStatusPill status={status} /></td>
+                      <td>
+                        {/* Only a stop still pending can be missed: a completed
+                            one has a CompletedAt that must not be erased. */}
+                        {status === 'Pending' && (
+                          <button
+                            type="button"
+                            className="ac-btn ac-btn-danger ac-btn-sm"
+                            disabled={busy}
+                            onClick={() => handleMarkMissed(stop)}
+                          >
+                            <CircleX size={14} strokeWidth={2} aria-hidden="true" />
+                            Mark missed
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AcCard>
+
       <div className="ac-section-head">
         <h2>Zones &amp; collectors</h2>
         <button
@@ -301,7 +416,9 @@ export default function RoutesPage() {
               collectorProfile={zone.assignedCollectorId ? catalog.profileMap.get(zone.assignedCollectorId) : null}
               stats={zoneStats.get(zone.id)}
               isBusiest={Boolean(busiestNamed && busiestNamed.zoneId === zone.id)}
+              busy={busy}
               onEdit={() => startEdit(zone)}
+              onDeactivate={handleDeactivateZone}
             />
           ))}
         </div>

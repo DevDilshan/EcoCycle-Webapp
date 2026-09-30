@@ -3,8 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config/app_config.dart';
 import '../services/api.dart';
+import '../services/pickup_photo_service.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
 import 'pickup_submitted_screen.dart';
@@ -41,29 +44,74 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     super.dispose();
   }
 
-  Future<void> _pickPhoto() async {
+  Future<void> _pickPhoto(ImageSource source) async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.camera);
+    final file = await picker.pickImage(source: source, imageQuality: 85);
     if (file != null) setState(() => _photo = file);
+  }
+
+  Future<void> _choosePhotoSource() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from library'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null) await _pickPhoto(source);
   }
 
   Future<void> _submit() async {
     setState(() => _loading = true);
     try {
+      String? photoUrl;
+      if (_photo != null) {
+        photoUrl = await PickupPhotoService.upload(_photo!);
+      }
       final body = {
         'description': _description.text.trim(),
         'preferredDate': _date.toUtc().toIso8601String(),
         'isRecurring': _recurring,
         if (_recurring) 'recurrenceInterval': _interval,
+        if (photoUrl != null) 'photoUrl': photoUrl,
       };
       final created = await _api.post('/pickuprequests', body: body);
       widget.onSubmitted?.call();
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => PickupSubmittedScreen(pickup: created as Map<String, dynamic>),
+          builder: (_) => PickupSubmittedScreen(
+            pickup: created as Map<String, dynamic>,
+            localPhotoPath: _photo?.path,
+          ),
         ),
       );
+    } on StorageException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Photo upload failed: ${e.message}. '
+              'If this mentions row-level security, run supabase/pickup-photos-storage.sql '
+              'in the Supabase SQL Editor. Otherwise create a public '
+              '"${AppConfig.pickupPhotoBucket}" bucket.',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
@@ -87,7 +135,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   StripedPhotoZone(
-                    onTap: _pickPhoto,
+                    onTap: _choosePhotoSource,
                     title: 'Take a photo of the waste',
                     subtitle: 'or upload from library',
                     child: _photo != null

@@ -168,7 +168,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <PageShell title="Overview" showDate showSearch showBell>
+      <PageShell title="Dashboard" showDate showSearch showBell>
         <p className="ac-empty">Loading dashboard…</p>
       </PageShell>
     )
@@ -176,7 +176,7 @@ export default function DashboardPage() {
 
   return (
     <PageShell
-      title="Overview"
+      title="Dashboard"
       showDate
       showSearch
       showBell

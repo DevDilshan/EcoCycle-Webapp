@@ -213,12 +213,10 @@ class _HomeTabState extends State<HomeTab> {
               child: Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: EcoColors.surface,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: const Color(0xFFB6CEBA),
-                    style: BorderStyle.solid,
-                    width: 1,
+                    color: EcoColors.green.withValues(alpha: 0.12),
                   ),
                 ),
                 child: Row(

@@ -65,6 +65,9 @@ public class ZonesController : ControllerBase
         return zone is null ? NotFound() : Ok(zone);
     }
 
+    // Deactivates the zone rather than removing the row: pickups and route
+    // assignments reference it, and their history has to stay readable. See
+    // ZoneService.DeleteZoneAsync.
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

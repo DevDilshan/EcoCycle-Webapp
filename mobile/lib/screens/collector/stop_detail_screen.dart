@@ -1,24 +1,54 @@
 import 'package:flutter/material.dart';
 
+import '../../services/api.dart';
+import '../../services/pickup_photo_service.dart';
 import '../../theme/eco_theme.dart';
 import '../../utils/user_helpers.dart';
 import '../../widgets/eco_components.dart';
+import '../../widgets/waste_photo_preview.dart';
 
-class StopDetailScreen extends StatelessWidget {
+class StopDetailScreen extends StatefulWidget {
   const StopDetailScreen({super.key, required this.stop, required this.stopNumber});
 
   final Map<String, dynamic> stop;
   final int stopNumber;
 
   @override
+  State<StopDetailScreen> createState() => _StopDetailScreenState();
+}
+
+class _StopDetailScreenState extends State<StopDetailScreen> {
+  final _api = Api();
+  String? _photoUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _photoUrl = pickupPhotoUrl(widget.stop);
+    _loadPhotoIfNeeded();
+  }
+
+  Future<void> _loadPhotoIfNeeded() async {
+    if (_photoUrl != null) return;
+    final id = widget.stop['pickupRequestId'] as String? ?? widget.stop['id'] as String? ?? '';
+    if (id.isEmpty) return;
+    try {
+      final json = await _api.get('/pickuprequests/$id');
+      if (!mounted) return;
+      setState(() => _photoUrl = pickupPhotoUrl(json as Map<String, dynamic>));
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final stop = widget.stop;
     final id = stop['pickupRequestId'] as String? ?? stop['id'] as String? ?? '';
     return EcoScreen(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           EcoBackHeader(
-            title: 'Stop $stopNumber · ${stop['address'] ?? 'Address'}',
+            title: 'Stop ${widget.stopNumber} · ${stop['address'] ?? 'Address'}',
             subtitle: id.isNotEmpty ? shortPickupId(id) : null,
           ),
           Expanded(
@@ -27,7 +57,11 @@ class StopDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const StripedPhotoZone(height: 130, subtitle: "resident's waste photo"),
+                  WastePhotoPreview(
+                    height: 130,
+                    subtitle: "resident's waste photo",
+                    photoUrl: _photoUrl,
+                  ),
                   const SizedBox(height: 14),
                   Wrap(
                     spacing: 8,
@@ -81,7 +115,10 @@ class StopDetailScreen extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 2,
-                  child: EcoPrimaryButton(label: '✓ Mark collected', onPressed: () => Navigator.pop(context)),
+                  child: EcoPrimaryButton(
+                    label: '✓ Mark collected',
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
               ],
             ),
@@ -105,7 +142,13 @@ class _Row extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: ecoMono(color: EcoColors.monoMuted)),
-          Flexible(child: Text(value, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ),
         ],
       ),
     );

@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../theme/eco_theme.dart';
+import '../services/pickup_photo_service.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/waste_photo_preview.dart';
 
 class PickupSubmittedScreen extends StatelessWidget {
-  const PickupSubmittedScreen({super.key, required this.pickup});
+  const PickupSubmittedScreen({
+    super.key,
+    required this.pickup,
+    this.localPhotoPath,
+  });
 
   final Map<String, dynamic> pickup;
+  final String? localPhotoPath;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +52,12 @@ class PickupSubmittedScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 13, color: EcoColors.body),
                   ),
                   const SizedBox(height: 16),
-                  const StripedPhotoZone(height: 120, subtitle: 'waste photo'),
+                  WastePhotoPreview(
+                    height: 120,
+                    subtitle: 'waste photo',
+                    photoUrl: pickupPhotoUrl(pickup),
+                    localPath: localPhotoPath,
+                  ),
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(18),
