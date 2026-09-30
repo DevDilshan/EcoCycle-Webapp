@@ -78,6 +78,12 @@ public class PickupRequestResponseDto
 
     /// <summary>The approval row's id, so the UI can link straight to the review screen.</summary>
     public Guid? ApprovalRequestId { get; set; }
+
+    /// <summary>Admin notes or rejection reason from the latest approval review.</summary>
+    public string? ApprovalReviewNotes { get; set; }
+
+    /// <summary>When the latest approval was approved or rejected.</summary>
+    public DateTime? ApprovalReviewedAt { get; set; }
 }
 
 // Lightweight shape for the status-check endpoint

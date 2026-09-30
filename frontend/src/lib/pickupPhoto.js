@@ -14,7 +14,11 @@ function extensionFromFile(file) {
   return 'jpg'
 }
 
-/** Uploads a waste photo to Supabase Storage; returns a public URL for the API. */
+/**
+ * Uploads a waste photo to Supabase Storage.
+ * Returns the public URL stored on the pickup as `photoUrl` and sent to the
+ * classifier agent (`photo_url` in the agent pipeline).
+ */
 export async function uploadPickupPhoto(file) {
   const { data: { user }, error: userError } = await supabase.auth.getUser()
   if (userError) throw userError

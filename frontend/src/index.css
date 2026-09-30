@@ -2965,6 +2965,57 @@ a:hover {
   max-width: 280px;
 }
 
+.admin-theme .resident-approval-notice {
+  padding: 14px 16px;
+  border-radius: 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-theme .resident-approval-notice strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.admin-theme .resident-approval-notice p {
+  margin: 0 0 8px;
+  color: var(--admin-text, #1a1a1a);
+}
+
+.admin-theme .resident-approval-notice p:last-child {
+  margin-bottom: 0;
+}
+
+.admin-theme .resident-approval-notice.rejected {
+  background: #fdf3f2;
+  border: 1px solid #f0c9c4;
+}
+
+.admin-theme .resident-approval-notice.rejected strong {
+  color: #c0392b;
+}
+
+.admin-theme .resident-approval-notice.pending {
+  background: #f5ecd6;
+  border: 1px solid #e8d4a8;
+}
+
+.admin-theme .resident-approval-notice.approved {
+  background: #eef8f0;
+  border: 1px solid #cddbd0;
+}
+
+.admin-theme .resident-approval-meta {
+  font-size: 11px;
+  color: var(--admin-muted, #7a8a80);
+}
+
+.admin-theme .resident-approval-meta span {
+  font-weight: 700;
+}
+
 .admin-theme .resident-type-toggle {
   display: flex;
   gap: 10px;

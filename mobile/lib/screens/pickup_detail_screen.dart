@@ -6,6 +6,8 @@ import '../widgets/waste_photo_preview.dart';
 import '../theme/eco_theme.dart';
 import '../utils/user_helpers.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/resident_approval_banner.dart';
+import '../utils/pickup_approval_ui.dart';
 
 class PickupDetailScreen extends StatefulWidget {
   const PickupDetailScreen({super.key, required this.pickupId});
@@ -52,7 +54,9 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
     }
 
     final title = '${p['description'] ?? 'Pickup'} · ${p['category'] ?? '—'}';
-    final flagged = p['hasApprovalRequest'] == true;
+    final approval = pickupApprovalStatus(p)?.toLowerCase();
+    final approvalPending = approval == 'pending';
+    final approvalRejected = approval == 'rejected';
 
     return EcoScreen(
       child: Column(
@@ -65,14 +69,7 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (flagged)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 14),
-                      child: StatusBadge(
-                        label: 'Pending admin approval',
-                        tone: BadgeTone.pendingApproval,
-                      ),
-                    ),
+                  ResidentApprovalBanner(pickup: p),
                   WastePhotoPreview(
                     height: 130,
                     subtitle: 'waste photo',
@@ -100,21 +97,29 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
                     subtitle: p['zoneName'] as String? ?? 'Zone assignment',
                   ),
                   _PipelineStep(
-                    done: !flagged,
-                    error: flagged,
+                    done: !approvalPending && !approvalRejected,
+                    error: approvalPending || approvalRejected,
                     title: 'Validator Agent',
-                    subtitle: flagged
-                        ? (p['flagReason'] as String? ??
-                              'Flagged: needs approval')
-                        : 'Validated',
+                    subtitle: approvalRejected
+                        ? 'Review complete — not approved'
+                        : approvalPending
+                            ? (p['flagReason'] as String? ??
+                                  'Flagged: needs approval')
+                            : 'Validated',
                   ),
                   _PipelineStep(
-                    done: false,
+                    done: approval == 'approved',
+                    error: approvalRejected,
                     last: true,
-                    title: 'Notifier Agent',
-                    subtitle: flagged
-                        ? 'Waiting on admin decision'
-                        : 'Pending completion',
+                    title: 'Admin review',
+                    subtitle: approvalRejected
+                        ? (p['approvalReviewNotes'] as String? ??
+                              'Your pickup was not approved.')
+                        : approvalPending
+                            ? 'Waiting on admin decision'
+                            : approval == 'approved'
+                                ? 'Approved — scheduling in progress'
+                                : 'Not required',
                   ),
                 ],
               ),

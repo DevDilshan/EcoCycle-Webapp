@@ -12,9 +12,9 @@ export default function FlaggedApprovalCard({
   busy,
   detail,
   detailLoading,
+  readOnly = false,
   onApprove,
   onReject,
-  onRevision,
 }) {
   // Reject needs a reason, so the field opens in place rather than in a browser
   // prompt: the admin can still see the flag and the photo while typing it.
@@ -42,7 +42,11 @@ export default function FlaggedApprovalCard({
         <div className="ac-approval-head">
           <span className="ac-id">{formatRequestId(approval.pickupRequestId || approval.id)}</span>
           <AcCategory category={category} confidence={detail?.agentInsight?.confidence} />
-          <AcStatusPill status="Flagged" label="Requires approval" />
+          {readOnly ? (
+            <AcStatusPill status={approval.status} />
+          ) : (
+            <AcStatusPill status="Flagged" label="Requires approval" />
+          )}
         </div>
 
         <h3>{title}</h3>
@@ -66,63 +70,75 @@ export default function FlaggedApprovalCard({
           loading={detailLoading}
         />
 
-        {draft && (
+        {draft && !readOnly && (
           <p className="ac-draft">
             <strong>Draft message to the resident:</strong> {draft}
           </p>
         )}
 
-        <div className="ac-actions">
-          <button
-            type="button"
-            className="ac-btn ac-btn-primary"
-            disabled={busy}
-            onClick={() => onApprove(approval.id)}
-          >
-            Approve
-          </button>
-          <button
-            type="button"
-            className="ac-btn ac-btn-danger"
-            disabled={busy}
-            onClick={() => setRejecting((open) => !open)}
-            aria-expanded={rejecting}
-          >
-            Reject
-          </button>
-          <button
-            type="button"
-            className="ac-btn ac-btn-ghost"
-            disabled={busy}
-            onClick={() => onRevision?.(approval.id)}
-          >
-            Request revision
-          </button>
-        </div>
+        {readOnly && (
+          <div className="ac-review-outcome">
+            <p>
+              <strong>Reviewed {formatCompactDate(approval.reviewedAt)}</strong>
+            </p>
+            {approval.reviewNotes ? (
+              <p>
+                <strong>{approval.status === 'Rejected' ? 'Rejection reason' : 'Admin notes'}:</strong>{' '}
+                {approval.reviewNotes}
+              </p>
+            ) : (
+              <p className="ac-muted">No review notes recorded.</p>
+            )}
+          </div>
+        )}
 
-        <div className={`ac-reject-box${rejecting ? ' is-open' : ''}`}>
-          <label className="ac-sr-only" htmlFor={`reject-${approval.id}`}>Rejection reason</label>
-          <input
-            id={`reject-${approval.id}`}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                submitReject()
-              }
-            }}
-            placeholder="Why is this being rejected?"
-          />
-          <button
-            type="button"
-            className="ac-btn ac-btn-danger"
-            disabled={busy || !reason.trim()}
-            onClick={submitReject}
-          >
-            Confirm reject
-          </button>
-        </div>
+        {!readOnly && (
+          <>
+            <div className="ac-actions">
+              <button
+                type="button"
+                className="ac-btn ac-btn-primary"
+                disabled={busy}
+                onClick={() => onApprove(approval.id)}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                className="ac-btn ac-btn-danger"
+                disabled={busy}
+                onClick={() => setRejecting((open) => !open)}
+                aria-expanded={rejecting}
+              >
+                Reject
+              </button>
+            </div>
+
+            <div className={`ac-reject-box${rejecting ? ' is-open' : ''}`}>
+              <label className="ac-sr-only" htmlFor={`reject-${approval.id}`}>Rejection reason</label>
+              <input
+                id={`reject-${approval.id}`}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    submitReject()
+                  }
+                }}
+                placeholder="Why is this being rejected?"
+              />
+              <button
+                type="button"
+                className="ac-btn ac-btn-danger"
+                disabled={busy || !reason.trim()}
+                onClick={submitReject}
+              >
+                Confirm reject
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="ac-photo">
