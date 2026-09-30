@@ -38,6 +38,18 @@ class EcoCycleApp extends StatelessWidget {
       title: 'EcoCycle',
       debugShowCheckedModeBanner: false,
       theme: buildEcoTheme(),
+      // On a phone this changes nothing. On a tablet or a browser window the
+      // app stays phone-width and centred instead of stretching edge to edge.
+      builder: (context, child) => ColoredBox(
+        color: EcoColors.canvas,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: child,
+          ),
+        ),
+      ),
       home: const AuthGate(),
     );
   }

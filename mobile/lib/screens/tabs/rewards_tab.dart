@@ -7,6 +7,8 @@ import '../../theme/eco_theme.dart';
 import '../leaderboard_screen.dart';
 import '../redeem_screen.dart';
 
+const _historyPreview = 5;
+
 class RewardsTab extends StatefulWidget {
   const RewardsTab({super.key});
 
@@ -19,6 +21,7 @@ class _RewardsTabState extends State<RewardsTab> {
   bool _loading = true;
   int _balance = 0;
   List<Map<String, dynamic>> _history = [];
+  bool _showAllHistory = false;
 
   @override
   void initState() {
@@ -50,18 +53,8 @@ class _RewardsTabState extends State<RewardsTab> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Rewards', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-              TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => RedeemScreen(balance: _balance)),
-                ),
-                child: const Text('Redeem', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
+          const Text('Rewards', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
@@ -101,14 +94,32 @@ class _RewardsTabState extends State<RewardsTab> {
             ),
           ),
           const SizedBox(height: 14),
+          // Both actions sit right under the balance, so they never scroll away
+          // however long the points history gets.
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(context)
+                      .push(MaterialPageRoute<void>(builder: (_) => RedeemScreen(balance: _balance)))
+                      .then((_) => _load()),
+                  icon: const Icon(Icons.card_giftcard, size: 18),
+                  label: const Text('Redeem'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: EcoColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(builder: (_) => const LeaderboardScreen()),
                   ),
-                  child: const Text('Leaderboard 🏆'),
+                  icon: const Icon(Icons.emoji_events_outlined, size: 18),
+                  label: const Text('Leaderboard'),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                 ),
               ),
             ],
@@ -121,8 +132,17 @@ class _RewardsTabState extends State<RewardsTab> {
           const SizedBox(height: 10),
           if (_history.isEmpty)
             const Text('No history yet.', style: TextStyle(color: EcoColors.body))
-          else
-            ..._history.map((h) => _HistoryRow(entry: h)),
+          else ...[
+            // Only the latest few, so the page stays short; the rest is one tap away.
+            ...(_showAllHistory ? _history : _history.take(_historyPreview)).map((h) => _HistoryRow(entry: h)),
+            if (_history.length > _historyPreview)
+              Center(
+                child: TextButton(
+                  onPressed: () => setState(() => _showAllHistory = !_showAllHistory),
+                  child: Text(_showAllHistory ? 'Show less' : 'Show all ${_history.length}'),
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -135,7 +155,7 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pts = (entry['points'] as num?)?.toInt() ?? 0;
+    final pts = (entry['pointsEarned'] as num?)?.toInt() ?? 0;
     final positive = pts >= 0;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),

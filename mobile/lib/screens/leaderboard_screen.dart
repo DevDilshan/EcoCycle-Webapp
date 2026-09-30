@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/api.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
+import 'redeem_screen.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -16,6 +17,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   final _api = Api();
   List<Map<String, dynamic>> _entries = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  int _limit = _pageSize;
+  int _balance = 0;
+
+  static const _pageSize = 10;
+  static const _maxEntries = 50;
 
   @override
   void initState() {
@@ -25,13 +32,34 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Future<void> _load() async {
     try {
-      final json = await _api.get('/rewards/leaderboard', query: {'limit': '50'});
-      setState(() {
-        _entries = (json as List?)?.cast<Map<String, dynamic>>() ?? [];
-      });
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      final results = await Future.wait([
+        _api.get('/rewards/leaderboard', query: {'limit': '$_limit'}),
+        if (userId != null) _api.get('/rewards/$userId/history', query: {'pageSize': '1'}),
+      ]);
+      _entries = (results[0] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      if (results.length > 1) {
+        _balance = ((results[1] as Map?)?['currentBalance'] as num?)?.toInt() ?? 0;
+      }
     } catch (_) {}
-    if (mounted) setState(() => _loading = false);
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+      });
+    }
   }
+
+  void _showMore() {
+    setState(() {
+      _limit = (_limit + _pageSize).clamp(0, _maxEntries);
+      _loadingMore = true;
+    });
+    _load();
+  }
+
+  // A full page came back, so there may be more; stop at the cap.
+  bool get _canShowMore => _entries.length >= _limit && _limit < _maxEntries;
 
   @override
   Widget build(BuildContext context) {
@@ -47,13 +75,22 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
-                itemCount: _entries.length,
+                itemCount: _entries.length + (_canShowMore ? 1 : 0),
                 itemBuilder: (context, i) {
+                  if (i == _entries.length) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: TextButton(
+                        onPressed: _loadingMore ? null : _showMore,
+                        child: Text(_loadingMore ? 'Loading…' : 'Show more'),
+                      ),
+                    );
+                  }
                   final e = _entries[i];
                   final rank = (e['rank'] as num?)?.toInt() ?? i + 1;
                   final isMe = e['residentId'] == userId;
                   final name = e['residentName'] as String? ?? 'Resident';
-                  final pts = (e['totalPoints'] as num?)?.toInt() ?? 0;
+                  final pts = (e['pointsEarned'] as num?)?.toInt() ?? 0;
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -109,6 +146,36 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 },
               ),
             ),
+          // Always visible under the scrolling list, so Redeem is never pushed off screen.
+          Container(
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: EcoColors.cardBorder)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Your balance', style: TextStyle(fontSize: 12, color: EcoColors.body)),
+                      Text('$_balance pts', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: EcoColors.primary)),
+                    ],
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => RedeemScreen(balance: _balance)),
+                  ),
+                  icon: const Icon(Icons.card_giftcard, size: 18),
+                  label: const Text('Redeem'),
+                  style: FilledButton.styleFrom(backgroundColor: EcoColors.primary),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

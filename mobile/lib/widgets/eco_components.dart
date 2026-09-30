@@ -234,6 +234,8 @@ class EcoTextField extends StatelessWidget {
     this.onTap,
     this.prefixIcon,
     this.suffix,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   final TextEditingController? controller;
@@ -245,6 +247,8 @@ class EcoTextField extends StatelessWidget {
   final VoidCallback? onTap;
   final IconData? prefixIcon;
   final Widget? suffix;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -262,6 +266,8 @@ class EcoTextField extends StatelessWidget {
         keyboardType: keyboardType,
         readOnly: readOnly,
         onTap: onTap,
+        textInputAction: textInputAction,
+        onSubmitted: onSubmitted,
         style: const TextStyle(fontSize: 14, color: EcoColors.ink),
         decoration: InputDecoration(
           hintText: hint,

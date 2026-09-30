@@ -28,15 +28,28 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
+    if (_loading) return;
+
+    final email = _email.text.trim();
+    final password = _password.text;
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Enter your email and password.');
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       await Supabase.instance.client.auth.signInWithPassword(
-        email: _email.text.trim(),
-        password: _password.text,
+        email: email,
+        password: password,
       );
+      // AuthGate swaps the home screen as soon as a session exists, but this
+      // screen was pushed on top of it, so without this the login form would
+      // stay visible and it would look as if the button did nothing.
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
@@ -78,6 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _email,
             hint: 'you@example.com',
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
             prefixIcon: Icons.mail_outline_rounded,
           ),
           const SizedBox(height: 16),
@@ -85,6 +99,8 @@ class _LoginScreenState extends State<LoginScreen> {
           EcoTextField(
             controller: _password,
             obscure: !_showPassword,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _signIn(),
             prefixIcon: Icons.lock_outline_rounded,
             suffix: IconButton(
               onPressed: () => setState(() => _showPassword = !_showPassword),
