@@ -1,11 +1,11 @@
 """Manual smoke test for the Classifier Agent.
 
-Run from the agentic-ai folder with a .env holding OPENAI_API_KEY, and
-GEMINI_API_KEY set too if you want to exercise real image recognition:
+Run from the agentic-ai folder with a .env holding OPENAI_API_KEY (used for
+both the classification and the image recognition):
     python test_classifier_agent.py
 
 Replace PHOTO_URL with a real, public image URL (e.g. a Supabase Storage URL)
-to test Gemini. With the placeholder URL below, the image fetch fails on
+to test image recognition. With the placeholder URL below, the image fetch fails on
 purpose, so you'll see the graceful fallback (image_used = False).
 """
 import logging

@@ -1,10 +1,9 @@
 """Classifier Agent: decides what kind of waste a pickup request contains.
 
-Two models cooperate:
-  * Gemini (vision) 'looks' at the photo and describes the items -- image
-    recognition the local text model cannot do itself.
-  * The local Ollama model makes the actual category judgement, using the
-    resident's description plus (when available) Gemini's visual description.
+Two OpenAI calls cooperate:
+  * A vision call 'looks' at the photo and describes the items.
+  * A text call makes the actual category judgement, using the resident's
+    description plus (when available) that visual description.
 
 If image recognition is unavailable for any reason, the agent falls back to
 classifying from the resident's text alone. The category is always validated
@@ -36,7 +35,7 @@ def classify_waste(photo_url: str, description: str) -> dict:
         category:   one of VALID_CATEGORIES (validated)
         confidence: float in 0.0..1.0 (clamped)
         reasoning:  short explanation
-        image_used: True if Gemini's visual description was included, else False
+        image_used: True if the photo's visual description was included, else False
 
     Raises:
         ValueError: if `description` is empty, or the local model never returns
@@ -45,7 +44,7 @@ def classify_waste(photo_url: str, description: str) -> dict:
     if not description or not description.strip():
         raise ValueError("description must not be empty")
 
-    # Image recognition (Gemini). None on any failure -> description-only.
+    # Image recognition (OpenAI vision). None on any failure -> description-only.
     visual_description = describe_image(photo_url) if photo_url else None
 
     prompt = _build_prompt(description, visual_description)
