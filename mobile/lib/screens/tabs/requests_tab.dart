@@ -5,6 +5,7 @@ import '../../services/api.dart';
 import '../../theme/eco_theme.dart';
 import '../../utils/user_helpers.dart';
 import '../../widgets/eco_components.dart';
+import '../../utils/pickup_approval_ui.dart';
 import '../pickup_detail_screen.dart';
 
 class RequestsTab extends StatefulWidget {
@@ -115,17 +116,15 @@ class _RequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final id = pickup['id'] as String;
     final status = pickup['status'] as String? ?? 'Pending';
-    final flagged = pickup['hasApprovalRequest'] == true;
+    final hasApproval = pickup['hasApprovalRequest'] == true;
     final cat = pickup['category'] as String? ?? '';
     final desc = pickup['description'] as String? ?? 'Pickup';
     final date = pickup['preferredDate'] as String?;
-    final tone = toneForPickupStatus(
-      status,
-      hasApproval: flagged && status.toLowerCase() != 'completed',
-    );
-    final label = flagged && status.toLowerCase() == 'pending'
-        ? 'Pending approval'
-        : status;
+    final (approvalLabel, approvalTone) = hasApproval
+        ? residentApprovalBadge(pickup)
+        : (status, toneForPickupStatus(status));
+    final label = hasApproval ? approvalLabel : status;
+    final tone = hasApproval ? approvalTone : toneForPickupStatus(status);
 
     return GestureDetector(
       onTap: onTap,

@@ -82,6 +82,13 @@ public class ApproveApprovalDto
     public string? Notes { get; set; }
 }
 
+public class RequestRevisionDto
+{
+    [Required]
+    [MaxLength(2000)]
+    public string Message { get; set; } = string.Empty;
+}
+
 /// <summary>
 /// One approval plus what the agents decided, for the admin review screen.
 /// </summary>

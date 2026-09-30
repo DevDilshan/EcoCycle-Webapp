@@ -813,6 +813,20 @@
 /* The card an admin followed a link to, so it is findable after the scroll. */
 .admin-console .ac-approval-target .ac-approval { box-shadow: var(--sh-md), inset 0 0 0 2px var(--celadon); }
 
+.admin-console .ac-review-outcome {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--wash, #f4f6f2);
+  border: 1px solid var(--line, #e3ebe3);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-console .ac-review-outcome p { margin: 0 0 8px; }
+.admin-console .ac-review-outcome p:last-child { margin-bottom: 0; }
+.admin-console .ac-review-outcome .ac-muted { color: var(--muted); }
+
 /* ---------- Map ---------- */
 
 .admin-console .ac-map {

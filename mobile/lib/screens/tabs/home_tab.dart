@@ -419,7 +419,9 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = pickup['status'] as String? ?? '';
-    final flagged = pickup['hasApprovalRequest'] == true;
+    final hasApproval = pickup['hasApprovalRequest'] == true;
+    final approval = pickup['approvalStatus'] as String?;
+    final isRejected = approval?.toLowerCase() == 'rejected';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -433,14 +435,16 @@ class _ActivityRow extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: flagged
-                  ? const Color(0xFFF7E3E0)
-                  : const Color(0xFFE2ECF7),
+              color: isRejected
+                  ? EcoColors.dangerBg
+                  : hasApproval
+                      ? const Color(0xFFF7E3E0)
+                      : const Color(0xFFE2ECF7),
               borderRadius: BorderRadius.circular(10),
             ),
             alignment: Alignment.center,
             child: Text(
-              flagged ? '⚠️' : '♻️',
+              isRejected ? '✕' : (hasApproval ? '⚠️' : '♻️'),
               style: const TextStyle(fontSize: 16),
             ),
           ),
@@ -459,14 +463,16 @@ class _ActivityRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '${pickup['category'] ?? status} · ${status.toLowerCase()}',
+                  '${pickup['category'] ?? status} · ${isRejected ? 'not approved' : (approval?.toLowerCase() == 'pending' ? 'in review' : status.toLowerCase())}',
                   style: const TextStyle(fontSize: 11, color: EcoColors.body),
                 ),
               ],
             ),
           ),
-          if (flagged)
-            const StatusBadge(label: 'Pending', tone: BadgeTone.pending)
+          if (isRejected)
+            const StatusBadge(label: 'Not approved', tone: BadgeTone.pendingApproval)
+          else if (hasApproval && approval?.toLowerCase() == 'pending')
+            const StatusBadge(label: 'In review', tone: BadgeTone.pendingApproval)
           else
             const Text(
               '✓',
