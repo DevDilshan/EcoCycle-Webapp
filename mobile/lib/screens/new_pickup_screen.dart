@@ -105,7 +105,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
           SnackBar(
             content: Text(
               'Photo upload failed: ${e.message}. '
-              'Create a public "${AppConfig.pickupPhotoBucket}" bucket in Supabase Storage.',
+              'If this mentions row-level security, run supabase/pickup-photos-storage.sql '
+              'in the Supabase SQL Editor. Otherwise create a public '
+              '"${AppConfig.pickupPhotoBucket}" bucket.',
             ),
           ),
         );
