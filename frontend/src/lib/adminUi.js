@@ -49,7 +49,8 @@ export const STATUS_PILLS = {
   Approved: { label: 'Pending appr.', className: 'pill-status-danger' },
   Scheduled: { label: 'Scheduled', className: 'pill-status-scheduled' },
   Completed: { label: 'Completed', className: 'pill-status-completed' },
-  Rejected: { label: 'Rejected', className: 'pill-status-danger' },
+  Rejected: { label: 'Not approved', className: 'pill-status-danger' },
+  'In review': { label: 'In review', className: 'pill-status-pending' },
   RevisionRequested: { label: 'Revision', className: 'pill-status-pending' },
 }
 

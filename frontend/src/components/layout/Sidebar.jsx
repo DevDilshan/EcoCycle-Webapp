@@ -13,8 +13,10 @@ import {
 } from 'lucide-react'
 import { EcoMark } from '../public/EcoLogo'
 import { useAuth } from '../../context/AuthContext'
+import { APPROVALS_UPDATED_EVENT } from '../../lib/approvalEvents'
 import { apiRequest } from '../../lib/api'
 import { profileInitials, shortProfileName } from '../../lib/adminUi'
+import { pagedTotalCount } from '../../lib/paging'
 
 const menuItems = [
   { to: '/admin', label: 'Dashboard', Icon: LayoutDashboard, end: true },
@@ -39,7 +41,7 @@ const menuItems = [
 ]
 
 export default function Sidebar({ isOpen = false, onNavigate }) {
-  const { user, signOut } = useAuth()
+  const { user, session, signOut } = useAuth()
   const [approvalCount, setApprovalCount] = useState(0)
   const [redemptionCount, setRedemptionCount] = useState(0)
   const { pathname } = useLocation()
@@ -48,28 +50,40 @@ export default function Sidebar({ isOpen = false, onNavigate }) {
   const [toggled, setToggled] = useState({})
 
   useEffect(() => {
-    // The pending queue lives in the database, not in this browser: reading it
-    // from localStorage showed 0 on any machine that had not raised the flag
-    // itself. A failure leaves the badge hidden rather than showing a wrong one.
-    function refreshCount() {
-      apiRequest('/approvals?status=Pending&pageSize=1')
-        .then((page) => setApprovalCount(page?.totalCount ?? 0))
-        .catch(() => setApprovalCount(0))
+    if (!session?.access_token) return undefined
+
+    let cancelled = false
+
+    async function refreshCount(retry = 0) {
+      try {
+        const page = await apiRequest('/approvals?status=Pending&pageSize=1')
+        if (!cancelled) setApprovalCount(pagedTotalCount(page))
+      } catch {
+        if (!cancelled && retry < 2) {
+          window.setTimeout(() => refreshCount(retry + 1), 350 * (retry + 1))
+        }
+      }
     }
+
+    function onUpdated(event) {
+      const pending = event?.detail?.pendingCount
+      if (typeof pending === 'number') setApprovalCount(pending)
+      refreshCount()
+    }
+
     refreshCount()
-    window.addEventListener('storage', refreshCount)
-    window.addEventListener('ecocycle-approvals-updated', refreshCount)
+    window.addEventListener(APPROVALS_UPDATED_EVENT, onUpdated)
     return () => {
-      window.removeEventListener('storage', refreshCount)
-      window.removeEventListener('ecocycle-approvals-updated', refreshCount)
+      cancelled = true
+      window.removeEventListener(APPROVALS_UPDATED_EVENT, onUpdated)
     }
-  }, [])
+  }, [session?.access_token])
 
   useEffect(() => {
     // Pending redemption requests, refreshed whenever an admin decides one.
     function refreshRedemptions() {
       apiRequest('/redemptions?status=Pending&pageSize=1')
-        .then((page) => setRedemptionCount(page?.totalCount ?? 0))
+        .then((page) => setRedemptionCount(pagedTotalCount(page)))
         .catch(() => setRedemptionCount(0))
     }
     refreshRedemptions()

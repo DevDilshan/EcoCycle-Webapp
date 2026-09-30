@@ -38,7 +38,7 @@ public class PickupRequestService : IPickupRequestService
         var entity = new PickupRequest
         {
             ResidentId = residentId,
-            PhotoUrl = dto.PhotoUrl,
+            PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl),
             Description = dto.Description,
             PreferredDate = NormalizeToUtc(dto.PreferredDate),
             IsRecurring = dto.IsRecurring,
@@ -98,6 +98,11 @@ public class PickupRequestService : IPickupRequestService
                     "nothing to choose from; leaving pickup {PickupId} Pending.", entity.Id);
                 return;
             }
+
+            _logger.LogInformation(
+                "Running agent pipeline for pickup {PickupId} (photo supplied: {HasPhoto})",
+                entity.Id,
+                !string.IsNullOrWhiteSpace(entity.PhotoUrl));
 
             result = await _agents.RunPipelineAsync(new RunPipelineRequestDto
             {
@@ -224,6 +229,34 @@ public class PickupRequestService : IPickupRequestService
         return report.ToDictionary(c => c.CollectorId.ToString(), c => c.PendingAssignments);
     }
 
+    private static string? NormalizePhotoUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        return url.Trim();
+    }
+
+    /// <summary>
+    /// Drops prior classification/approval rows so a pending pickup can be
+    /// re-run through the agent pipeline (e.g. after a Supabase photo URL is added).
+    /// </summary>
+    private async Task ClearStalePipelineResultsAsync(Guid pickupRequestId)
+    {
+        var pendingApprovals = await _db.ApprovalRequests
+            .Where(a => a.PickupRequestId == pickupRequestId && a.Status == ApprovalStatus.Pending)
+            .ToListAsync();
+        if (pendingApprovals.Count > 0)
+            _db.ApprovalRequests.RemoveRange(pendingApprovals);
+
+        var classifications = await _db.WasteClassifications
+            .Where(w => w.PickupRequestId == pickupRequestId)
+            .ToListAsync();
+        if (classifications.Count > 0)
+            _db.WasteClassifications.RemoveRange(classifications);
+
+        if (pendingApprovals.Count > 0 || classifications.Count > 0)
+            await _db.SaveChangesAsync();
+    }
+
     private static string Truncate(string? value, int maxLength) =>
         string.IsNullOrEmpty(value) ? string.Empty
         : value.Length <= maxLength ? value
@@ -309,13 +342,26 @@ public class PickupRequestService : IPickupRequestService
         if (entity.Status != PickupStatus.Pending)
             throw new InvalidOperationException("Only pending requests can be edited.");
 
-        entity.PhotoUrl = dto.PhotoUrl;
+        var previousPhoto = entity.PhotoUrl;
+        var previousDescription = entity.Description;
+
+        entity.PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl);
         entity.Description = dto.Description;
         entity.PreferredDate = NormalizeToUtc(dto.PreferredDate);
         entity.IsRecurring = dto.IsRecurring;
         entity.RecurrenceInterval = dto.RecurrenceInterval;
 
         await _db.SaveChangesAsync();
+
+        var photoChanged = !string.Equals(previousPhoto, entity.PhotoUrl, StringComparison.Ordinal);
+        var descriptionChanged = !string.Equals(previousDescription, entity.Description, StringComparison.Ordinal);
+        if (photoChanged || descriptionChanged)
+        {
+            await ClearStalePipelineResultsAsync(entity.Id);
+            await TryRunAgentPipelineAsync(entity);
+            await _db.Entry(entity).ReloadAsync();
+        }
+
         return ToDto(entity);
     }
 
@@ -436,6 +482,16 @@ public class PickupRequestService : IPickupRequestService
                 .Where(a => a.PickupRequestId == p.Id)
                 .OrderByDescending(a => a.CreatedAt)
                 .Select(a => a.FlagReason)
+                .FirstOrDefault(),
+            ApprovalReviewNotes = _db.ApprovalRequests
+                .Where(a => a.PickupRequestId == p.Id)
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => a.ReviewNotes)
+                .FirstOrDefault(),
+            ApprovalReviewedAt = _db.ApprovalRequests
+                .Where(a => a.PickupRequestId == p.Id)
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => a.ReviewedAt)
                 .FirstOrDefault(),
         });
 

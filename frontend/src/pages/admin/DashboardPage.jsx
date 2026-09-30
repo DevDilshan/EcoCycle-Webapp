@@ -16,7 +16,9 @@ import { AcAlert, AcBars, AcCard, AcKpi } from '../../components/admin/AcUi'
 import { AcCategoryIcon } from '../../components/admin/AcPills'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
 import { formatRequestId, shortProfileName } from '../../lib/adminUi'
+import { notifyApprovalsUpdated } from '../../lib/approvalEvents'
 import { apiRequest, formatDate } from '../../lib/api'
+import { pagedTotalCount } from '../../lib/paging'
 
 const CATEGORY_ORDER = ['Recyclable', 'Organic', 'EWaste', 'Hazardous', 'Bulk', 'General']
 const CATEGORY_LABELS = { EWaste: 'E-waste' }
@@ -55,7 +57,8 @@ export default function DashboardPage() {
         ])
 
         const flaggedItems = approvalQueue.items ?? []
-        const pendingApprovals = approvalQueue.totalCount ?? flaggedItems.length
+        const pendingApprovals = pagedTotalCount(approvalQueue) || flaggedItems.length
+        notifyApprovalsUpdated(pendingApprovals)
 
         const totalRequests = allPickups.totalCount || 0
         const resolvedRate = allComplaints.totalCount
