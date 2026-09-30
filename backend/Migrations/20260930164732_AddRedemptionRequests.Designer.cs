@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using backend.Data;
@@ -11,9 +12,11 @@ using backend.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260930164732_AddRedemptionRequests")]
+    partial class AddRedemptionRequests
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -243,9 +246,6 @@ namespace backend.Migrations
                     b.Property<Guid?>("ReviewedByAdminId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("RewardItemId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -256,50 +256,11 @@ namespace backend.Migrations
 
                     b.HasIndex("ReviewedByAdminId");
 
-                    b.HasIndex("RewardItemId");
-
                     b.HasIndex("Status");
 
                     b.HasIndex("ResidentId", "Status");
 
                     b.ToTable("RedemptionRequests");
-                });
-
-            modelBuilder.Entity("backend.Models.RewardItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<int>("PointsCost")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("Stock")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive", "PointsCost");
-
-                    b.ToTable("RewardItems");
                 });
 
             modelBuilder.Entity("backend.Models.RewardPoint", b =>
@@ -535,16 +496,9 @@ namespace backend.Migrations
                         .HasForeignKey("ReviewedByAdminId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("backend.Models.RewardItem", "RewardItem")
-                        .WithMany()
-                        .HasForeignKey("RewardItemId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Resident");
 
                     b.Navigation("ReviewedByAdmin");
-
-                    b.Navigation("RewardItem");
                 });
 
             modelBuilder.Entity("backend.Models.RewardPoint", b =>

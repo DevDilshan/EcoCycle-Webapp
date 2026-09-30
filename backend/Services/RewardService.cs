@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
+using backend.Services.Rules;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services;
@@ -33,6 +34,52 @@ public class RewardService : IRewardService
         await _db.SaveChangesAsync();
 
         return ToDto(reward);
+    }
+
+    public async Task<RewardPoint?> StageCompletionAwardAsync(Guid pickupRequestId)
+    {
+        var pickup = await _db.PickupRequests
+            .AsNoTracking()
+            .Where(p => p.Id == pickupRequestId)
+            .Select(p => new { p.Id, p.ResidentId })
+            .FirstOrDefaultAsync();
+        if (pickup is null)
+            return null;
+
+        // One award per pickup: completing the same pickup twice must not pay twice.
+        var alreadyAwarded = await _db.RewardPoints.AnyAsync(r =>
+            r.PickupRequestId == pickupRequestId && r.PointsEarned > 0);
+        if (alreadyAwarded)
+            return null;
+
+        // Newest classification wins, same as the Validator.
+        var category = await _db.WasteClassifications
+            .AsNoTracking()
+            .Where(c => c.PickupRequestId == pickupRequestId)
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => (WasteCategory?)c.Category)
+            .FirstOrDefaultAsync();
+        if (category is null)
+            return null;
+
+        var priorViolations = await _db.ComplianceViolations
+            .CountAsync(v => v.ResidentId == pickup.ResidentId
+                             && v.PickupRequestId != pickupRequestId);
+
+        var points = PointsRules.Calculate(category.Value, priorViolations);
+        if (points <= 0)
+            return null;
+
+        var reward = new RewardPoint
+        {
+            ResidentId = pickup.ResidentId,
+            PickupRequestId = pickupRequestId,
+            PointsEarned = points,
+            Reason = PointsRules.Reason(category.Value, priorViolations),
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.RewardPoints.Add(reward);
+        return reward;
     }
 
     public async Task<RewardHistoryResponseDto?> GetHistoryAsync(
@@ -189,39 +236,6 @@ public class RewardService : IRewardService
             ResidentName = names.GetValueOrDefault(entry.ResidentId, "Unknown resident"),
             PointsEarned = entry.PointsEarned
         }).ToList();
-    }
-
-    public async Task<RewardRedemptionResponseDto> RedeemAsync(
-        Guid residentId,
-        RedeemRewardPointsDto dto)
-    {
-        if (residentId == Guid.Empty)
-            throw new ArgumentException("ResidentId is required.");
-
-        var balance = await _db.RewardPoints
-            .Where(r => r.ResidentId == residentId)
-            .SumAsync(r => (int?)r.PointsEarned) ?? 0;
-
-        if (balance < dto.Points)
-            throw new InvalidOperationException("Insufficient reward points.");
-
-        var redemption = new RewardPoint
-        {
-            ResidentId = residentId,
-            PickupRequestId = null, // a redemption isn't tied to a pickup
-            PointsEarned = -dto.Points,
-            Reason = $"Redemption: {RequireReason(dto.Reason)}",
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _db.RewardPoints.Add(redemption);
-        await _db.SaveChangesAsync();
-
-        return new RewardRedemptionResponseDto
-        {
-            Transaction = ToDto(redemption),
-            RemainingBalance = balance - dto.Points
-        };
     }
 
     private async Task EnsurePickupBelongsToResidentAsync(Guid pickupRequestId, Guid residentId)
