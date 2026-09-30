@@ -270,6 +270,32 @@ public class ApprovalService : IApprovalService
         return ToDto(entity);
     }
 
+    public async Task<ApprovalResponseDto?> RequestRevisionAsync(
+        Guid id, Guid adminId, RequestRevisionDto dto)
+    {
+        var entity = await _db.ApprovalRequests
+            .Include(a => a.PickupRequest)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+        if (entity is null) return null;
+        if (entity.Status != ApprovalStatus.Pending)
+            throw new InvalidOperationException("Only pending approval requests can ask for a revision.");
+
+        entity.Status = ApprovalStatus.RevisionRequested;
+        entity.ReviewedByAdminId = adminId;
+        entity.ReviewedAt = DateTime.UtcNow;
+        entity.ReviewNotes = dto.Message.Trim();
+
+        if (entity.PickupRequest is not null
+            && entity.PickupRequest.Status is PickupStatus.Classified or PickupStatus.Approved)
+        {
+            entity.PickupRequest.Status = PickupStatus.Pending;
+        }
+
+        await _db.SaveChangesAsync();
+        return ToDto(entity);
+    }
+
     private static ApprovalResponseDto ToDto(ApprovalRequest a) => new()
     {
         Id = a.Id,

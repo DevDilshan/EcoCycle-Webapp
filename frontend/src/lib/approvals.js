@@ -1,3 +1,5 @@
+import { notifyApprovalsUpdated } from './approvalEvents'
+
 const STORAGE_KEY = 'ecocycle-pending-approvals'
 
 export function storeApproval(approval) {
@@ -14,7 +16,7 @@ export function storeApproval(approval) {
     ...existing.filter((item) => item.id !== approval.id),
   ].slice(0, 20)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  window.dispatchEvent(new Event('ecocycle-approvals-updated'))
+  notifyApprovalsUpdated()
 }
 
 export function loadStoredApprovals() {

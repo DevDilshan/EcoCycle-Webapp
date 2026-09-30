@@ -15,6 +15,8 @@ import {
 import { apiRequest } from '../../lib/api'
 import { uploadPickupPhoto } from '../../lib/pickupPhoto'
 import PickupPhotoField from '../../components/resident/PickupPhotoField'
+import ResidentApprovalNotice from '../../components/resident/ResidentApprovalNotice'
+import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
 
 const STATUS_FILTERS = ['', 'Pending', 'Classified', 'Scheduled', 'Completed', 'Rejected']
 
@@ -158,7 +160,7 @@ export default function ResidentPickupsPage() {
     setError(null)
     setSuccess(null)
     try {
-      let photoUrl = createForm.photoUrl || undefined
+      let photoUrl
       if (createPhotoFile) {
         photoUrl = await uploadPickupPhoto(createPhotoFile)
       }
@@ -166,7 +168,7 @@ export default function ResidentPickupsPage() {
         method: 'POST',
         body: JSON.stringify({
           description: createForm.description || undefined,
-          photoUrl,
+          ...(photoUrl ? { photoUrl } : {}),
           preferredDate: new Date(createForm.preferredDate).toISOString(),
           isRecurring: createForm.isRecurring,
           recurrenceInterval: createForm.isRecurring ? createForm.recurrenceInterval || undefined : undefined,
@@ -204,7 +206,7 @@ export default function ResidentPickupsPage() {
     setError(null)
     setSuccess(null)
     try {
-      let photoUrl = editForm.photoUrl || undefined
+      let photoUrl = editForm.photoUrl?.trim() || undefined
       if (editPhotoFile) {
         photoUrl = await uploadPickupPhoto(editPhotoFile)
       }
@@ -212,7 +214,7 @@ export default function ResidentPickupsPage() {
         method: 'PUT',
         body: JSON.stringify({
           description: editForm.description || undefined,
-          photoUrl,
+          ...(photoUrl ? { photoUrl } : {}),
           preferredDate: new Date(editForm.preferredDate).toISOString(),
           isRecurring: editForm.isRecurring,
           recurrenceInterval: editForm.isRecurring ? editForm.recurrenceInterval || undefined : undefined,
@@ -251,7 +253,7 @@ export default function ResidentPickupsPage() {
     setBusyId(`status-${id}`)
     setError(null)
     try {
-      const result = await apiRequest(`/pickuprequests/${id}/status`)
+      const result = await apiRequest(`/pickuprequests/${id}`)
       setStatusCheck({ id, ...result })
     } catch (err) {
       setError(err.message)
@@ -342,6 +344,7 @@ export default function ResidentPickupsPage() {
             // placeholder for pickups the pipeline has not classified yet.
             const category = item.category || inferCategory(item.description)
             const expanded = expandedId === item.id
+            const statusPillKey = residentPickupStatusPillKey(item)
             return (
               <Fragment key={item.id}>
                 <button
@@ -363,11 +366,12 @@ export default function ResidentPickupsPage() {
                   </span>
                   <span><CategoryPill category={category} /></span>
                   <span className="pickup-grid-muted">{formatCompactDate(item.preferredDate)}</span>
-                  <span><PickupStatusPill status={item.status} /></span>
+                  <span><PickupStatusPill status={statusPillKey} /></span>
                   <span className="pickup-grid-muted">›</span>
                 </button>
                 {expanded && (
                   <div className="pickup-grid-detail">
+                    <ResidentApprovalNotice pickup={item} />
                     {item.photoUrl && item.status !== 'Pending' && (
                       <div className="resident-pickup-photo-detail">
                         <strong>Waste photo</strong>
@@ -377,7 +381,7 @@ export default function ResidentPickupsPage() {
                       </div>
                     )}
                     {statusCheck?.id === item.id && (
-                      <p><strong>Live status:</strong> <PickupStatusPill status={statusCheck.status} /></p>
+                      <p><strong>Live status:</strong> <PickupStatusPill status={residentPickupStatusPillKey(statusCheck)} /></p>
                     )}
                     <div className="admin-actions">
                       <button type="button" className="btn-secondary btn-sm" onClick={() => handleCheckStatus(item.id)} disabled={busyId === `status-${item.id}`}>Check status</button>

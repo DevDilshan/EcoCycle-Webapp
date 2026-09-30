@@ -13,6 +13,7 @@ import {
 } from '../../lib/adminUi'
 import CategoryPill from '../../components/admin/CategoryPill'
 import { apiRequest } from '../../lib/api'
+import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
 
 function greetingForHour() {
   const hour = new Date().getHours()
@@ -176,7 +177,7 @@ export default function ResidentDashboardPage() {
               <strong>{nextPickup.description?.slice(0, 48) || 'Pickup request'}</strong>
               <small>{formatCompactDate(nextPickup.preferredDate)} · Kerbside window</small>
             </div>
-            <PickupStatusPill status={nextPickup.status} />
+            <PickupStatusPill status={residentPickupStatusPillKey(nextPickup)} />
           </div>
         )}
       </AdminCard>
