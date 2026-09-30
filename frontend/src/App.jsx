@@ -11,6 +11,11 @@ import DashboardPage from './pages/admin/DashboardPage'
 import PickupRequestsPage from './pages/admin/PickupRequestsPage'
 import RoutesPage from './pages/admin/RoutesPage'
 import RewardsPage from './pages/admin/RewardsPage'
+import RewardCatalogPage from './pages/admin/rewards/RewardCatalogPage'
+import RewardRequestsPage from './pages/admin/rewards/RewardRequestsPage'
+import RewardHistoryPage from './pages/admin/rewards/RewardHistoryPage'
+import RewardAwardPage from './pages/admin/rewards/RewardAwardPage'
+import RewardCheckPage from './pages/admin/rewards/RewardCheckPage'
 import ApprovalsPage from './pages/admin/ApprovalsPage'
 import ComplaintsPage from './pages/admin/ComplaintsPage'
 import CompliancePage from './pages/admin/CompliancePage'
@@ -43,6 +48,11 @@ export default function App() {
             <Route path="pickup-requests" element={<PickupRequestsPage />} />
             <Route path="routes" element={<RoutesPage />} />
             <Route path="rewards" element={<RewardsPage />} />
+            <Route path="rewards/catalog" element={<RewardCatalogPage />} />
+            <Route path="rewards/requests" element={<RewardRequestsPage />} />
+            <Route path="rewards/history" element={<RewardHistoryPage />} />
+            <Route path="rewards/award" element={<RewardAwardPage />} />
+            <Route path="rewards/check" element={<RewardCheckPage />} />
             <Route path="approvals" element={<ApprovalsPage />} />
             <Route path="complaints" element={<ComplaintsPage />} />
             <Route path="compliance" element={<CompliancePage />} />
