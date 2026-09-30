@@ -111,3 +111,31 @@ codex.md
 ai-scratch/
 *.prompt.local
 *.local.md
+
+# Knowledge-graph / agent skill output
+graphify-out/
+.superpowers/
+.github/modernize/
+
+# Agent service (Python)
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# .NET test / coverage output
+.vs/
+TestResults/
+coverage/
+*.trx
+
+# Mobile build output and signing
+*.apk
+*.aab
+*.jks
+*.keystore
+key.properties
+
+# Backups
+*.bak

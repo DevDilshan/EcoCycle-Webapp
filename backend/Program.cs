@@ -104,7 +104,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(
-        "Supabase connection string is missing. Copy .env.example to .env in the project root " +
+        "Supabase connection string is missing. Copy backend/.env.example to backend/.env " +
         "and set SUPABASE_CONNECTION_STRING (or ConnectionStrings:Supabase in appsettings.Development.json).");
 }
 
@@ -121,7 +121,7 @@ if (string.IsNullOrWhiteSpace(jwtSecret))
 if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(jwtSecret))
 {
     throw new InvalidOperationException(
-        "Supabase auth config is missing. Set SUPABASE_URL and SUPABASE_JWT_SECRET in .env " +
+        "Supabase auth config is missing. Set SUPABASE_URL and SUPABASE_JWT_SECRET in backend/.env " +
         "(or Supabase:Url and Supabase:JwtSecret in appsettings.Development.json).");
 }
 
