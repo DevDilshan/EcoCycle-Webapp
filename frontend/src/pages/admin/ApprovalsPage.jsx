@@ -294,7 +294,7 @@ export default function ApprovalsPage() {
         </div>
       </AcCard>
 
-      <AcToast message={success} />
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }

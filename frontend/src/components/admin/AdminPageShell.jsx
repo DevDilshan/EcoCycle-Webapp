@@ -1,4 +1,5 @@
-import { Bell, Menu, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, Bell, Menu, Search } from 'lucide-react'
 import { useAdminShell } from './adminShell'
 
 /**
@@ -21,6 +22,8 @@ export default function AdminPageShell({
   searchPlaceholder = 'Search requests, residents, zones',
   filterBar,
   hasAlerts = false,
+  backTo,
+  backLabel = 'Back',
 }) {
   const { openNav } = useAdminShell()
 
@@ -45,6 +48,12 @@ export default function AdminPageShell({
         >
           <Menu size={20} strokeWidth={2} aria-hidden="true" />
         </button>
+
+        {backTo && (
+          <Link to={backTo} className="ac-icon-btn" aria-label={backLabel} title={backLabel}>
+            <ArrowLeft size={18} strokeWidth={2.2} aria-hidden="true" />
+          </Link>
+        )}
 
         <div>
           <h1>{title}</h1>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import PageShell from '../../components/PageShell'
 import AdminAlert from '../../components/admin/AdminAlert'
 import AdminCard from '../../components/admin/AdminCard'
+import MyRedemptions from '../../components/resident/MyRedemptions'
 import { useAuth } from '../../context/AuthContext'
 import { MEDAL_ICONS, profileInitials, shortProfileName } from '../../lib/adminUi'
 import { apiRequest, formatDate, shortId } from '../../lib/api'
@@ -13,10 +14,8 @@ export default function ResidentRewardsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const [busy, setBusy] = useState(false)
   const [page, setPage] = useState(1)
   const [showRedeem, setShowRedeem] = useState(false)
-  const [redeemForm, setRedeemForm] = useState({ points: 50, reason: '' })
 
   const load = useCallback(async () => {
     if (!user?.id) return
@@ -39,27 +38,6 @@ export default function ResidentRewardsPage() {
 
   useEffect(() => { load() }, [load])
 
-  async function handleRedeem(e) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    setSuccess(null)
-    try {
-      const result = await apiRequest('/rewards/redeem', {
-        method: 'POST',
-        body: JSON.stringify(redeemForm),
-      })
-      setSuccess(`Redeemed ${redeemForm.points} points. Remaining balance: ${result.remainingBalance}.`)
-      setRedeemForm({ points: 50, reason: '' })
-      setShowRedeem(false)
-      load()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const totalPages = history?.totalPages ?? 1
   const myEntry = leaderboard.find((entry) => entry.residentId === user?.id)
 
@@ -67,15 +45,15 @@ export default function ResidentRewardsPage() {
     <PageShell
       title="Rewards & recycling"
       eyebrow={null}
-      description="View your points balance, redeem rewards, and compare on the leaderboard."
+      description="View your points balance, request redemptions, and compare on the leaderboard."
       actions={(
         <button type="button" className="btn-primary btn-sm" onClick={() => setShowRedeem((v) => !v)}>
-          Redeem points
+          Request redemption
         </button>
       )}
     >
       {role !== 'resident' && (
-        <AdminAlert type="error" message="Redeeming points requires the resident role." />
+        <AdminAlert type="error" message="Requesting a redemption requires the resident role." />
       )}
       <AdminAlert type="error" message={error} onClose={() => setError(null)} />
       <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
@@ -120,26 +98,15 @@ export default function ResidentRewardsPage() {
         </div>
       </div>
 
-      {showRedeem && (
-        <AdminCard title="Redeem points">
-          <form className="admin-form" onSubmit={handleRedeem}>
-            <div className="admin-form-row">
-              <div>
-                <label>Points to redeem</label>
-                <input type="number" min="1" value={redeemForm.points} onChange={(e) => setRedeemForm({ ...redeemForm, points: Number(e.target.value) })} required />
-              </div>
-              <div>
-                <label>Reason</label>
-                <input value={redeemForm.reason} onChange={(e) => setRedeemForm({ ...redeemForm, reason: e.target.value })} placeholder="e.g. Voucher redemption" required />
-              </div>
-            </div>
-            <div className="admin-actions">
-              <button type="submit" className="btn-primary btn-sm" disabled={busy || role !== 'resident'}>Redeem</button>
-              <button type="button" className="btn-secondary btn-sm" onClick={() => setShowRedeem(false)}>Cancel</button>
-            </div>
-          </form>
-        </AdminCard>
-      )}
+      <MyRedemptions
+        canRequest={role === 'resident'}
+        balance={history?.currentBalance ?? 0}
+        showForm={showRedeem}
+        onCloseForm={() => setShowRedeem(false)}
+        onError={setError}
+        onSuccess={setSuccess}
+        onChanged={load}
+      />
 
       <div className="admin-split-grid">
         <AdminCard title="🏆 Leaderboard · this month">

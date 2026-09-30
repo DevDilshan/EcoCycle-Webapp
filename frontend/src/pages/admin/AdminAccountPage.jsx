@@ -152,7 +152,7 @@ export default function AdminAccountPage() {
         </AcCard>
       </div>
 
-      <AcToast message={success} />
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }

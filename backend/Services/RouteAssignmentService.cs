@@ -11,10 +11,12 @@ public class RouteAssignmentService
     private const string CollectorRole = "collector";
 
     private readonly ApplicationDbContext _context;
+    private readonly IRewardService _rewards;
 
-    public RouteAssignmentService(ApplicationDbContext context)
+    public RouteAssignmentService(ApplicationDbContext context, IRewardService rewards)
     {
         _context = context;
+        _rewards = rewards;
     }
 
     public async Task<List<RouteAssignmentDto>> GetTodayRouteForCollectorAsync(Guid collectorId)
@@ -112,6 +114,15 @@ public class RouteAssignmentService
         route.CompletedAt = DateTime.UtcNow;
         route.IssueNotes = issueNotes;
         route.UpdatedAt = DateTime.UtcNow;
+
+        // Collected: close the pickup and pay the resident in the same save,
+        // so a completed pickup can never be left without its points.
+        var pickup = await _context.PickupRequests.FirstOrDefaultAsync(p => p.Id == route.PickupRequestId);
+        if (pickup is not null)
+        {
+            pickup.Status = PickupStatus.Completed;
+            await _rewards.StageCompletionAwardAsync(pickup.Id);
+        }
 
         await _context.SaveChangesAsync();
 
