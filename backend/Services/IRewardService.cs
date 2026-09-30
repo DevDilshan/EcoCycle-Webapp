@@ -1,10 +1,19 @@
 using backend.DTOs;
+using backend.Models;
 
 namespace backend.Services;
 
 public interface IRewardService
 {
     Task<RewardPointResponseDto> AwardAsync(AwardRewardPointsDto dto);
+
+    /// <summary>
+    /// Works out the points for a collected pickup and adds them to the
+    /// context WITHOUT saving, so the caller commits them in the same
+    /// transaction as the completion. Returns null when nothing is awarded
+    /// (already awarded, not classified, or worth zero points).
+    /// </summary>
+    Task<RewardPoint?> StageCompletionAwardAsync(Guid pickupRequestId);
 
     Task<RewardHistoryResponseDto?> GetHistoryAsync(
         Guid residentId,
@@ -19,8 +28,4 @@ public interface IRewardService
     Task<bool> DeleteAsync(Guid id);
 
     Task<IReadOnlyList<RewardLeaderboardEntryDto>> GetLeaderboardAsync(int limit);
-
-    Task<RewardRedemptionResponseDto> RedeemAsync(
-        Guid residentId,
-        RedeemRewardPointsDto dto);
 }
