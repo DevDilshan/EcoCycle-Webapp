@@ -36,3 +36,17 @@ public class PublicZoneDto
     public double Latitude { get; set; }
     public double Longitude { get; set; }
 }
+
+/// <summary>
+/// A zone as a chooser sees it: just enough to put in a dropdown.
+/// </summary>
+/// <remarks>
+/// Separate from PublicZoneDto, which the landing map uses and which drops any
+/// zone without coordinates. A zone with no lat/lng is still perfectly
+/// routable, so it has to remain selectable when a resident books a pickup.
+/// </remarks>
+public class ZoneOptionDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}

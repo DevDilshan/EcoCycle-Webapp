@@ -4,6 +4,9 @@ namespace backend.Services;
 
 public interface IPickupRequestService
 {
+    /// <summary>What is left of a resident's bulky-waste allowance this month.</summary>
+    Task<BulkAllowanceDto> GetBulkAllowanceAsync(Guid residentId);
+
     Task<PickupRequestResponseDto> CreateAsync(Guid residentId, CreatePickupRequestDto dto);
 
     // isAdmin = true → sees all; false → scoped to residentId

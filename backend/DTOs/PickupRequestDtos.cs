@@ -15,6 +15,22 @@ public class CreatePickupRequestDto : IValidatableObject
 
     public DateTime PreferredDate { get; set; }
 
+    /// <summary>
+    /// The zone the pickup is in, chosen by the resident.
+    /// </summary>
+    /// <remarks>
+    /// Required. Every pickup used to land in the oldest active zone regardless
+    /// of where the resident was, which made zone-based routing meaningless.
+    /// </remarks>
+    [Required(ErrorMessage = "Zone is required.")]
+    public Guid ZoneId { get; set; }
+
+    /// <summary>
+    /// The resident is booking a bulky-waste collection, which draws on their
+    /// monthly allowance. Enforced on this declaration, not on the classifier.
+    /// </summary>
+    public bool IsBulkRequest { get; set; } = false;
+
     public bool IsRecurring { get; set; } = false;
     public string? RecurrenceInterval { get; set; }
 
@@ -49,6 +65,8 @@ public class PickupRequestResponseDto
     public string? Description { get; set; }
     public DateTime PreferredDate { get; set; }
     public string Status { get; set; } = string.Empty;   // enum as string
+    public bool IsBulkRequest { get; set; }
+
     public bool IsRecurring { get; set; }
     public string? RecurrenceInterval { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -107,4 +125,14 @@ public class ClassifyResponseDto
     public string Category { get; set; } = string.Empty;   // e.g. "Recyclable"
     public double Confidence { get; set; }
     public string Status { get; set; } = string.Empty;     // new pickup status, e.g. "Classified"
+}
+/// <summary>
+/// A resident's bulky-waste allowance for the current calendar month, so the
+/// submit form can show it before they book rather than refusing afterwards.
+/// </summary>
+public class BulkAllowanceDto
+{
+    public int Limit { get; set; }
+    public int Used { get; set; }
+    public int Remaining { get; set; }
 }
