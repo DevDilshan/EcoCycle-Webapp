@@ -28,6 +28,9 @@ export default function RoutesPage() {
   // Today's stops across every collector, so an admin can close off one
   // nobody completed. Nothing else in the system can create a Missed row.
   const [dayStops, setDayStops] = useState([])
+  // Which day the table is showing. Defaults to today, but a stop routed by the
+  // agent is scheduled for tomorrow, so an admin needs to look ahead as well.
+  const [dayDate, setDayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -46,14 +49,12 @@ export default function RoutesPage() {
     setLoading(true)
     setError(null)
     try {
-      const [loads, zoneReport, today] = await Promise.all([
+      const [loads, zoneReport] = await Promise.all([
         apiRequest('/routes/load-report'),
         apiRequest('/routes/zone-load'),
-        apiRequest('/routes/day'),
       ])
       setLoadReport(loads)
       setZoneLoad(zoneReport)
-      setDayStops(Array.isArray(today) ? today : today?.items ?? [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -62,6 +63,14 @@ export default function RoutesPage() {
   }, [])
 
   useEffect(() => { loadReportData() }, [loadReportData])
+
+  const loadDayStops = useCallback(() => {
+    apiRequest(`/routes/day?date=${dayDate}`)
+      .then((data) => setDayStops(Array.isArray(data) ? data : data?.items ?? []))
+      .catch(() => setDayStops([]))
+  }, [dayDate])
+
+  useEffect(() => { loadDayStops() }, [loadDayStops])
 
   // Counts straight from /routes/zone-load, keyed by zone. Nothing is derived or
   // padded here: a zone with no assignments reports zero rather than a guess.
@@ -191,6 +200,7 @@ export default function RoutesPage() {
         body: JSON.stringify({}),
       })
       setSuccess('Stop marked missed.')
+      loadDayStops()
       loadReportData()
     } catch (err) {
       setError(err.message)
@@ -333,11 +343,29 @@ export default function RoutesPage() {
       </div>
 
       <AcCard
-        title="Today's stops"
-        subtitle="Every scheduled stop today, across all collectors"
+        title="Stops by day"
+        subtitle="Every scheduled stop on the chosen day, across all collectors"
+        action={(
+          <div className="ac-day-picker">
+            <label htmlFor="day-picker">Showing</label>
+            <input
+              id="day-picker"
+              type="date"
+              value={dayDate}
+              onChange={(e) => setDayDate(e.target.value || new Date().toISOString().slice(0, 10))}
+            />
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost ac-btn-sm"
+              onClick={() => setDayDate(new Date().toISOString().slice(0, 10))}
+            >
+              Today
+            </button>
+          </div>
+        )}
       >
         {dayStops.length === 0 ? (
-          <p className="ac-empty">No stops are scheduled for today.</p>
+          <p className="ac-empty">No stops are scheduled for this day.</p>
         ) : (
           <div className="ac-table-wrap">
             <table className="ac-table">
