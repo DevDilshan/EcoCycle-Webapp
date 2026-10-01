@@ -28,6 +28,48 @@ const emptyForm = {
   recurrenceInterval: '',
 }
 
+const ALLOWED_INTERVALS = ['Weekly', 'Bi-weekly']
+const MAX_FUTURE_DAYS = 365
+const fieldErrorStyle = { color: '#b42318', fontSize: '0.8rem', marginTop: '4px' }
+
+function validatePickupForm(form) {
+  const errors = {}
+  const desc = (form.description || '').trim()
+  if (desc.length === 0) errors.description = 'Please describe the waste to be collected.'
+  else if (desc.length < 5) errors.description = 'Description must be at least 5 characters.'
+  else if (desc.length > 1000) errors.description = 'Description must be 1000 characters or fewer.'
+
+  if (!form.preferredDate) {
+    errors.preferredDate = 'Please choose a preferred date.'
+  } else {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const picked = new Date(form.preferredDate); picked.setHours(0, 0, 0, 0)
+    const max = new Date(today); max.setDate(max.getDate() + MAX_FUTURE_DAYS)
+    if (Number.isNaN(picked.getTime())) errors.preferredDate = 'Please choose a valid date.'
+    else if (picked < today) errors.preferredDate = 'Preferred date cannot be in the past.'
+    else if (picked > max) errors.preferredDate = 'Preferred date must be within the next 12 months.'
+  }
+
+  if (form.isRecurring) {
+    const interval = (form.recurrenceInterval || '').trim()
+    if (!interval) errors.recurrenceInterval = 'Choose how often the pickup repeats.'
+    else if (!ALLOWED_INTERVALS.some((a) => a.toLowerCase() === interval.toLowerCase()))
+      errors.recurrenceInterval = 'Recurrence must be Weekly or Bi-weekly.'
+  }
+  return errors
+}
+
+// Map an ASP.NET ValidationProblemDetails .errors object to { field: firstMessage }
+function mapBackendErrors(details) {
+  if (!details) return null
+  const out = {}
+  for (const [key, msgs] of Object.entries(details)) {
+    const field = key.charAt(0).toLowerCase() + key.slice(1)
+    out[field] = Array.isArray(msgs) ? msgs[0] : String(msgs)
+  }
+  return Object.keys(out).length ? out : null
+}
+
 function revokeBlobPreview(url) {
   if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
 }
@@ -58,6 +100,8 @@ export default function ResidentPickupsPage() {
   const [editPhotoFile, setEditPhotoFile] = useState(null)
   const [editPhotoPreview, setEditPhotoPreview] = useState('')
   const [statusCheck, setStatusCheck] = useState(null)
+  const [createErrors, setCreateErrors] = useState({})
+  const [editErrors, setEditErrors] = useState({})
 
   function setCreatePhoto(file) {
     setCreatePhotoFile(file)
@@ -156,6 +200,10 @@ export default function ResidentPickupsPage() {
 
   async function handleCreate(e) {
     e.preventDefault()
+    const errs = validatePickupForm(createForm)
+    setCreateErrors(errs)
+    if (Object.keys(errs).length > 0) return      // client-side gate
+
     setBusyId('create')
     setError(null)
     setSuccess(null)
@@ -176,13 +224,16 @@ export default function ResidentPickupsPage() {
       })
       setSuccess('Pickup request submitted.')
       setCreateForm(emptyForm)
+      setCreateErrors({})
       clearCreatePhoto()
       setShowForm(false)
       setPage(1)
       load()
       loadCounts()
     } catch (err) {
-      setError(err.message)
+      const fieldErrors = mapBackendErrors(err.details)   // from api.js enhancement below
+      if (fieldErrors) setCreateErrors(fieldErrors)
+      else setError(err.message)
     } finally {
       setBusyId(null)
     }
@@ -202,6 +253,10 @@ export default function ResidentPickupsPage() {
 
   async function handleUpdate(e, id) {
     e.preventDefault()
+    const errs = validatePickupForm(editForm)
+    setEditErrors(errs)
+    if (Object.keys(errs).length > 0) return      // client-side gate
+
     setBusyId(id)
     setError(null)
     setSuccess(null)
@@ -222,10 +277,13 @@ export default function ResidentPickupsPage() {
       })
       setSuccess('Pickup request updated.')
       setEditForm((f) => ({ ...f, photoUrl: photoUrl || '' }))
+      setEditErrors({})
       clearEditPhotoSelection()
       load()
     } catch (err) {
-      setError(err.message)
+      const fieldErrors = mapBackendErrors(err.details)
+      if (fieldErrors) setEditErrors(fieldErrors)
+      else setError(err.message)
     } finally {
       setBusyId(null)
     }
@@ -300,12 +358,14 @@ export default function ResidentPickupsPage() {
             <div className="admin-form-row">
               <div>
                 <label>Preferred date</label>
-                <input type="date" value={createForm.preferredDate} onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })} required />
+                <input type="date" value={createForm.preferredDate} onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })} />
+                {createErrors.preferredDate && <p style={fieldErrorStyle}>{createErrors.preferredDate}</p>}
               </div>
             </div>
             <div>
               <label>Description</label>
               <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} placeholder="Describe the waste to collect…" />
+              {createErrors.description && <p style={fieldErrorStyle}>{createErrors.description}</p>}
             </div>
             <div className="resident-type-toggle">
               <button type="button" className={`resident-type-btn${!createForm.isRecurring ? ' active' : ''}`} onClick={() => setCreateForm({ ...createForm, isRecurring: false })}>One-off</button>
@@ -315,6 +375,7 @@ export default function ResidentPickupsPage() {
               <div>
                 <label>Recurrence interval</label>
                 <input value={createForm.recurrenceInterval} onChange={(e) => setCreateForm({ ...createForm, recurrenceInterval: e.target.value })} placeholder="e.g. weekly" />
+                {createErrors.recurrenceInterval && <p style={fieldErrorStyle}>{createErrors.recurrenceInterval}</p>}
               </div>
             )}
             <div className="admin-actions">
@@ -399,12 +460,14 @@ export default function ResidentPickupsPage() {
                         <div className="admin-form-row">
                           <div>
                             <label>Preferred date</label>
-                            <input type="date" value={editForm.preferredDate} onChange={(e) => setEditForm({ ...editForm, preferredDate: e.target.value })} required />
+                            <input type="date" value={editForm.preferredDate} onChange={(e) => setEditForm({ ...editForm, preferredDate: e.target.value })} />
+                            {editErrors.preferredDate && <p style={fieldErrorStyle}>{editErrors.preferredDate}</p>}
                           </div>
                         </div>
                         <div>
                           <label>Description</label>
                           <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+                          {editErrors.description && <p style={fieldErrorStyle}>{editErrors.description}</p>}
                         </div>
                         <div className="admin-actions">
                           <button type="button" className="btn-secondary btn-sm" onClick={() => startEdit(item)}>Reset</button>

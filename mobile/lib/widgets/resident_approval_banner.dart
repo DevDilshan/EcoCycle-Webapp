@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../theme/eco_theme.dart';
@@ -26,7 +27,9 @@ class ResidentApprovalBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: isRejected ? EcoColors.dangerBg : const Color(0xFFF5ECD6),
         border: Border.all(
-          color: isRejected ? EcoColors.danger.withValues(alpha: 0.35) : EcoColors.border,
+          color: isRejected
+              ? EcoColors.danger.withValues(alpha: 0.35)
+              : EcoColors.border,
         ),
         borderRadius: BorderRadius.circular(14),
       ),
