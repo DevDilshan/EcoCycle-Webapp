@@ -1,36 +1,43 @@
 using System.ComponentModel.DataAnnotations;
 using backend.Models;
+using backend.Validation;
 
 namespace backend.DTOs;
 
 // What the resident sends to CREATE a request
-public class CreatePickupRequestDto
+public class CreatePickupRequestDto : IValidatableObject
 {
+    [StringLength(2048, ErrorMessage = "Photo URL is too long.")]
+    [Url(ErrorMessage = "Photo URL must be a valid URL.")]
     public string? PhotoUrl { get; set; }
 
-    [MaxLength(1000)]
     public string? Description { get; set; }
 
-    [Required]
     public DateTime PreferredDate { get; set; }
 
     public bool IsRecurring { get; set; } = false;
     public string? RecurrenceInterval { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        => PickupRequestValidation.Validate(Description, PreferredDate, IsRecurring, RecurrenceInterval);
 }
 
 // What the resident sends to EDIT a pending request
-public class UpdatePickupRequestDto
+public class UpdatePickupRequestDto : IValidatableObject
 {
+    [StringLength(2048, ErrorMessage = "Photo URL is too long.")]
+    [Url(ErrorMessage = "Photo URL must be a valid URL.")]
     public string? PhotoUrl { get; set; }
 
-    [MaxLength(1000)]
     public string? Description { get; set; }
 
-    [Required]
     public DateTime PreferredDate { get; set; }
 
     public bool IsRecurring { get; set; } = false;
     public string? RecurrenceInterval { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        => PickupRequestValidation.Validate(Description, PreferredDate, IsRecurring, RecurrenceInterval);
 }
 
 // What the API RETURNS for a request (full detail)

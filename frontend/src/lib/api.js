@@ -32,10 +32,12 @@ export async function apiRequest(path, options = {}) {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
     const message = body.message
-      || (body.errors && JSON.stringify(body.errors))
       || body.title
       || `Request failed (${response.status})`
-    throw new Error(message)
+    const error = new Error(message)
+    error.status = response.status
+    error.details = body.errors || null   // ASP.NET ValidationProblemDetails field errors
+    throw error
   }
 
   if (response.status === 204) return null
