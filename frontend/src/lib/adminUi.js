@@ -70,7 +70,7 @@ export const FILTER_PILL_STYLES = {
 // appliances are tested before the bulky-item keywords. Loose chemicals are
 // hazardous; a device containing them is not.
 export function inferCategory(description = '') {
-  const text = description.toLowerCase()
+  const text = (description || '').toLowerCase()
   if (/e-waste|ewaste|electronic|appliance|fridge|refrigerator|freezer|washing machine|microwave|oven|tv|television|monitor|laptop|computer|phone|printer|cable/.test(text)) return 'EWaste'
   if (/paint|solvent|hazard|battery|chemical/.test(text)) return 'Hazardous'
   if (/garden|organic|compost|leaf/.test(text)) return 'Organic'
