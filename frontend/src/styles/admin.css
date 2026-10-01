@@ -1231,6 +1231,40 @@
 .admin-console .ac-avatar-lg { width: 52px; height: 52px; font-size: 17px; background: var(--celadon); }
 .admin-console .ac-kv dt { display: flex; align-items: center; gap: 6px; }
 
+/* The day picker in a card header: label, date input and a Today shortcut. */
+.admin-console .ac-day-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.admin-console .ac-day-picker label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-console .ac-day-picker input {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.admin-console .ac-day-picker input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
+}
+
+@media (max-width: 560px) {
+  .admin-console .ac-day-picker { flex-wrap: wrap; }
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1180px) {
