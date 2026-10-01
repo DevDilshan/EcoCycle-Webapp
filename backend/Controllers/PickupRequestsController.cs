@@ -42,9 +42,6 @@ private Guid CurrentUserId
     [Authorize(Roles = "resident")]
     public async Task<IActionResult> Create([FromBody] CreatePickupRequestDto dto)
     {
-        if (dto.PreferredDate.Date < DateTime.UtcNow.Date)
-            return BadRequest(new { message = "PreferredDate cannot be in the past." });
-
         var created = await _service.CreateAsync(CurrentUserId, dto);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }

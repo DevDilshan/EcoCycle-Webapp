@@ -31,6 +31,11 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   bool _loading = false;
   XFile? _photo;
 
+  static const _allowedIntervals = ['Weekly', 'Bi-weekly'];
+  String? _descriptionError;
+  String? _dateError;
+  String? _intervalError;
+
   @override
   void initState() {
     super.initState();
@@ -74,7 +79,51 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     if (source != null) await _pickPhoto(source);
   }
 
+  bool _validate() {
+    String? descErr;
+    String? dateErr;
+    String? intervalErr;
+
+    final desc = _description.text.trim();
+    if (desc.isEmpty) {
+      descErr = 'Please describe the waste to be collected.';
+    } else if (desc.length < 5) {
+      descErr = 'Description must be at least 5 characters.';
+    } else if (desc.length > 1000) {
+      descErr = 'Description must be 1000 characters or fewer.';
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final picked = DateTime(_date.year, _date.month, _date.day);
+    if (picked.isBefore(today)) {
+      dateErr = 'Preferred date cannot be in the past.';
+    } else if (picked.isAfter(today.add(const Duration(days: 365)))) {
+      dateErr = 'Preferred date must be within the next 12 months.';
+    }
+
+    if (_recurring && !_allowedIntervals.contains(_interval)) {
+      intervalErr = 'Recurrence must be Weekly or Bi-weekly.';
+    }
+
+    setState(() {
+      _descriptionError = descErr;
+      _dateError = dateErr;
+      _intervalError = intervalErr;
+    });
+    return descErr == null && dateErr == null && intervalErr == null;
+  }
+
+  Widget _fieldError(String text) => Padding(
+        padding: const EdgeInsets.only(top: 6, left: 4),
+        child: Text(
+          text,
+          style: const TextStyle(color: Color(0xFFB42318), fontSize: 12.5, fontWeight: FontWeight.w500),
+        ),
+      );
+
   Future<void> _submit() async {
+    if (!_validate()) return;
     setState(() => _loading = true);
     try {
       String? photoUrl;
@@ -148,6 +197,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Description'),
                   EcoTextField(controller: _description, maxLines: 3),
+                  if (_descriptionError != null) _fieldError(_descriptionError!),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Preferred date'),
                   EcoTextField(
@@ -169,6 +219,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                     controller: _dateLabel,
                     suffix: const Icon(Icons.calendar_today, color: EcoColors.primary, size: 20),
                   ),
+                  if (_dateError != null) _fieldError(_dateError!),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Pickup type'),
                   Row(
@@ -190,8 +241,11 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(color: EcoColors.border),
+                              color: active ? EcoColors.mintBg : Colors.white,
+                              border: Border.all(
+                                color: active ? EcoColors.primary : EcoColors.border,
+                                width: active ? 1.5 : 1,
+                              ),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -206,6 +260,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                         );
                       }).toList(),
                     ),
+                    if (_intervalError != null) _fieldError(_intervalError!),
                   ],
                 ],
               ),

@@ -75,6 +75,11 @@ class Api {
     try {
       final err = jsonDecode(response.body) as Map<String, dynamic>;
       serverMessage = (err['message'] ?? err['title']) as String?;
+      final errors = err['errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        final first = errors.values.first;
+        if (first is List && first.isNotEmpty) serverMessage = first.first.toString();
+      }
     } catch (_) {
       // Body was not JSON; fall through to the generic message.
     }
