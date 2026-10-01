@@ -62,14 +62,25 @@ def _build_prompt(description: str, visual_description) -> str:
     categories_text = ", ".join(VALID_CATEGORIES)
 
     if visual_description:
+        # The photo leads. A resident describes what they think they are getting
+        # rid of ("old TV stand") while the photo shows what is actually there
+        # (a TV stand with the TV still on it). The description stays as
+        # context -- it carries what a photo cannot show, such as the contents of
+        # a sealed box or that the paint tins are full -- but where the two
+        # disagree about the item itself, the photo is the evidence.
         evidence = (
-            f"Resident's description: {description}\n"
-            f"What the photo shows (image recognition): {visual_description}"
+            f"PRIMARY EVIDENCE -- what the photo shows: {visual_description}\n"
+            f"Supporting context -- what the resident wrote: {description}\n"
+            f"\n"
+            f"Classify from the photo. Use the resident's words only to fill in what the "
+            f"photo cannot show. Where the two disagree about what the item is, trust the "
+            f"photo and say so in your reasoning."
         )
     else:
         evidence = (
             f"Resident's description: {description}\n"
-            f"(No photo analysis available -- classify from the description alone.)"
+            f"(No photo analysis available -- classify from the description alone, and keep "
+            f"confidence lower than you would with a photo.)"
         )
 
     return f"""You are the Classifier Agent for a waste pickup system.
