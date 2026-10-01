@@ -140,7 +140,12 @@ public class RouteAssignmentService
     /// <param name="date">The day to report on, in UTC. Defaults to today.</param>
     public async Task<List<RouteAssignmentDto>> GetAssignmentsForDayAsync(DateTime? date = null)
     {
-        var from = (date ?? DateTime.UtcNow).Date;
+        // Kind matters here. ScheduledDate is "timestamp with time zone", and
+        // Npgsql refuses a DateTime whose Kind is Unspecified -- which is
+        // exactly what model binding produces from ?date=2026-10-02. Without
+        // this the query throws the moment a date is supplied, and the caller
+        // sees an empty table rather than an error.
+        var from = DateTime.SpecifyKind((date ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
         var to = from.AddDays(1);
 
         return await _context.RouteAssignments
