@@ -8,6 +8,7 @@ import {
   CircleX,
   Clock,
   MapPin,
+  Package,
   Route as RouteIcon,
 } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
@@ -166,6 +167,12 @@ export default function CollectorDashboardPage() {
                         )}
                         {nextStop.pickup?.zoneName && (
                           <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{nextStop.pickup.zoneName}</span>
+                        )}
+                        {nextStop.pickup?.isBulkRequest && (
+                          <span className="ac-pill ac-s-info">
+                            <Package size={13} strokeWidth={2.4} aria-hidden="true" />
+                            Bulky collection
+                          </span>
                         )}
                         <span><Clock size={15} strokeWidth={2} aria-hidden="true" />{formatStopTime(nextStop.scheduledDate)}</span>
                       </div>

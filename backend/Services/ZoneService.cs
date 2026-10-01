@@ -31,6 +31,24 @@ public class ZoneService
     /// placed, and sending it would leave the caller to filter anyway. Inactive
     /// zones are excluded because the page states these are areas we serve now.
     /// </remarks>
+    /// <summary>
+    /// Active zones as id + name, for a chooser.
+    /// </summary>
+    /// <remarks>
+    /// Unlike GetPublicZonesAsync this does NOT require coordinates: a zone with
+    /// no lat/lng cannot be drawn on the map but is still routable, so a
+    /// resident has to be able to pick it when booking a pickup.
+    /// </remarks>
+    public async Task<List<ZoneOptionDto>> GetSelectableZonesAsync()
+    {
+        return await _context.Zones
+            .AsNoTracking()
+            .Where(z => z.IsActive)
+            .OrderBy(z => z.Name)
+            .Select(z => new ZoneOptionDto { Id = z.Id, Name = z.Name })
+            .ToListAsync();
+    }
+
     public async Task<List<PublicZoneDto>> GetPublicZonesAsync()
     {
         return await _context.Zones

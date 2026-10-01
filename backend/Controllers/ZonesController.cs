@@ -29,6 +29,18 @@ public class ZonesController : ControllerBase
         return Ok(zones);
     }
 
+    // GET /api/zones/selectable - id + name of active zones, for the resident's
+    // pickup form. Any signed-in user, not just admins: a resident has to choose
+    // their zone, and /zones itself leaks collector ids and activity flags.
+    [HttpGet("selectable")]
+    [Authorize]
+    [ProducesResponseType(typeof(List<ZoneOptionDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<ZoneOptionDto>>> GetSelectable()
+    {
+        var zones = await _zoneService.GetSelectableZonesAsync();
+        return Ok(zones);
+    }
+
     [HttpPost]
     [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(ZoneDto), StatusCodes.Status201Created)]

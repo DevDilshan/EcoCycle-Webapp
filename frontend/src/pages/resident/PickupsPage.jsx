@@ -23,17 +23,37 @@ const STATUS_FILTERS = ['', 'Pending', 'Classified', 'Scheduled', 'Completed', '
 const emptyForm = {
   description: '',
   photoUrl: '',
+  zoneId: '',
+  isBulkRequest: false,
   preferredDate: '',
   isRecurring: false,
   recurrenceInterval: '',
+}
+
+// Checked in the browser purely to prompt the resident. The classifier runs
+// after submission, so it can never warn them while they can still change the
+// answer; a plain word list catches the honest cases at the right moment.
+const BULKY_WORDS = [
+  'sofa', 'couch', 'settee', 'mattress', 'bed frame', 'wardrobe', 'dresser',
+  'furniture', 'armchair', 'table', 'fridge', 'freezer', 'washing machine',
+]
+
+function looksBulky(description = '') {
+  const text = description.toLowerCase()
+  return BULKY_WORDS.some((word) => text.includes(word))
 }
 
 const ALLOWED_INTERVALS = ['Weekly', 'Bi-weekly']
 const MAX_FUTURE_DAYS = 365
 const fieldErrorStyle = { color: '#b42318', fontSize: '0.8rem', marginTop: '4px' }
 
-function validatePickupForm(form) {
+function validatePickupForm(form, { requireZone = false } = {}) {
   const errors = {}
+  // Only on create: the update endpoint takes no zone, and the edit form never
+  // carries one, so requiring it there would block every edit.
+  if (requireZone && !form.zoneId) {
+    errors.zoneId = 'Please choose the zone this pickup is in.'
+  }
   const desc = (form.description || '').trim()
   if (desc.length === 0) errors.description = 'Please describe the waste to be collected.'
   else if (desc.length < 5) errors.description = 'Description must be at least 5 characters.'
@@ -101,6 +121,30 @@ export default function ResidentPickupsPage() {
   const [editPhotoPreview, setEditPhotoPreview] = useState('')
   const [statusCheck, setStatusCheck] = useState(null)
   const [createErrors, setCreateErrors] = useState({})
+  const [zones, setZones] = useState([])
+  const [bulkAllowance, setBulkAllowance] = useState(null)
+
+  // Active zones for the dropdown. Its own request so a failure costs the
+  // selector, not the page; the submit button still validates before sending.
+  useEffect(() => {
+    let cancelled = false
+    apiRequest('/zones/selectable')
+      .then((data) => {
+        if (!cancelled) setZones(Array.isArray(data) ? data : data?.items ?? [])
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // The allowance is shown before they book, not enforced after. Re-read after
+  // each submission so the remaining count stays honest.
+  const loadBulkAllowance = useCallback(() => {
+    apiRequest('/pickuprequests/bulk-allowance')
+      .then(setBulkAllowance)
+      .catch(() => setBulkAllowance(null))
+  }, [])
+
+  useEffect(() => { loadBulkAllowance() }, [loadBulkAllowance])
   const [editErrors, setEditErrors] = useState({})
 
   function setCreatePhoto(file) {
@@ -200,7 +244,7 @@ export default function ResidentPickupsPage() {
 
   async function handleCreate(e) {
     e.preventDefault()
-    const errs = validatePickupForm(createForm)
+    const errs = validatePickupForm(createForm, { requireZone: true })
     setCreateErrors(errs)
     if (Object.keys(errs).length > 0) return      // client-side gate
 
@@ -217,12 +261,15 @@ export default function ResidentPickupsPage() {
         body: JSON.stringify({
           description: createForm.description || undefined,
           ...(photoUrl ? { photoUrl } : {}),
+          zoneId: createForm.zoneId,
+          isBulkRequest: createForm.isBulkRequest,
           preferredDate: new Date(createForm.preferredDate).toISOString(),
           isRecurring: createForm.isRecurring,
           recurrenceInterval: createForm.isRecurring ? createForm.recurrenceInterval || undefined : undefined,
         }),
       })
       setSuccess('Pickup request submitted.')
+      loadBulkAllowance()
       setCreateForm(emptyForm)
       setCreateErrors({})
       clearCreatePhoto()
@@ -357,6 +404,20 @@ export default function ResidentPickupsPage() {
             />
             <div className="admin-form-row">
               <div>
+                <label htmlFor="pickup-zone">Zone</label>
+                <select
+                  id="pickup-zone"
+                  value={createForm.zoneId}
+                  onChange={(e) => setCreateForm({ ...createForm, zoneId: e.target.value })}
+                >
+                  <option value="">Select your zone…</option>
+                  {zones.map((zone) => (
+                    <option key={zone.id} value={zone.id}>{zone.name}</option>
+                  ))}
+                </select>
+                {createErrors.zoneId && <p style={fieldErrorStyle}>{createErrors.zoneId}</p>}
+              </div>
+              <div>
                 <label>Preferred date</label>
                 <input type="date" value={createForm.preferredDate} onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })} />
                 {createErrors.preferredDate && <p style={fieldErrorStyle}>{createErrors.preferredDate}</p>}
@@ -367,6 +428,36 @@ export default function ResidentPickupsPage() {
               <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} placeholder="Describe the waste to collect…" />
               {createErrors.description && <p style={fieldErrorStyle}>{createErrors.description}</p>}
             </div>
+
+            <div className="resident-bulk-box">
+              <label className="resident-bulk-check">
+                <input
+                  type="checkbox"
+                  checked={createForm.isBulkRequest}
+                  onChange={(e) => setCreateForm({ ...createForm, isBulkRequest: e.target.checked })}
+                  disabled={bulkAllowance?.remaining === 0 && !createForm.isBulkRequest}
+                />
+                <span>This is a bulky-waste collection (furniture, mattress, large appliance)</span>
+              </label>
+
+              {bulkAllowance && (
+                <p className="resident-bulk-note">
+                  {bulkAllowance.remaining > 0
+                    ? `${bulkAllowance.remaining} of ${bulkAllowance.limit} bulky collections left this month.`
+                    : `You have used all ${bulkAllowance.limit} bulky collections this month. The allowance resets on the 1st.`}
+                </p>
+              )}
+
+              {/* Nudged, never forced: the resident can still say no, and the
+                  classifier remains the backstop after submission. */}
+              {!createForm.isBulkRequest && looksBulky(createForm.description) && (
+                <p className="resident-bulk-nudge">
+                  This looks like a bulky item. Bulky collections are booked separately and use
+                  your monthly allowance — tick the box above if that is what you need.
+                </p>
+              )}
+            </div>
+
             <div className="resident-type-toggle">
               <button type="button" className={`resident-type-btn${!createForm.isRecurring ? ' active' : ''}`} onClick={() => setCreateForm({ ...createForm, isRecurring: false })}>One-off</button>
               <button type="button" className={`resident-type-btn${createForm.isRecurring ? ' active' : ''}`} onClick={() => setCreateForm({ ...createForm, isRecurring: true })}>Recurring</button>

@@ -198,7 +198,7 @@ public class ApprovalService : IApprovalService
                     ["description"] = pickup.Description ?? string.Empty
                 },
                 PipelineResult = storedResult.RootElement.Clone(),
-                CollectorLoads = loads
+                CollectorLoads = await ZoneAwareLoadsAsync(pickup.ZoneId.Value, loads)
             });
         }
         catch (Exception ex)
@@ -249,6 +249,33 @@ public class ApprovalService : IApprovalService
     {
         var report = await _routes.GetLoadReportAsync();
         return report.ToDictionary(c => c.CollectorId.ToString(), c => c.PendingAssignments);
+    }
+
+    /// <summary>
+    /// The collector loads the routing agent is allowed to choose from, narrowed
+    /// to the zone's own collector when it has one.
+    /// </summary>
+    /// <remarks>
+    /// Same reason as the submission path: the agent only ever picks the lowest
+    /// load and is never told which collector serves which zone, so an
+    /// unfiltered list routes work across zone boundaries. Falls back to every
+    /// collector when the zone has nobody assigned.
+    /// </remarks>
+    private async Task<Dictionary<string, int>> ZoneAwareLoadsAsync(
+        Guid zoneId,
+        Dictionary<string, int> allLoads)
+    {
+        var zoneCollectorId = await _db.Zones
+            .Where(z => z.Id == zoneId)
+            .Select(z => z.AssignedCollectorId)
+            .FirstOrDefaultAsync();
+
+        if (zoneCollectorId is null) return allLoads;
+
+        var key = zoneCollectorId.Value.ToString();
+        return allLoads.TryGetValue(key, out var load)
+            ? new Dictionary<string, int> { [key] = load }
+            : allLoads;
     }
 
     public async Task<ApprovalResponseDto?> RejectAsync(Guid id, Guid adminId, RejectApprovalDto dto)
