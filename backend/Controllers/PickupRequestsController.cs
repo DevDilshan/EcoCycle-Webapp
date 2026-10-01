@@ -37,13 +37,30 @@ private Guid CurrentUserId
     private bool IsAdmin => User.IsInRole("admin");
     private bool IsCollector => User.IsInRole("collector");
 
+    // GET /api/pickuprequests/bulk-allowance — what is left of the resident's
+    // bulky-waste allowance this month, so the form can say so before they book.
+    [HttpGet("bulk-allowance")]
+    [Authorize(Roles = "resident")]
+    [ProducesResponseType(typeof(BulkAllowanceDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<BulkAllowanceDto>> GetBulkAllowance()
+        => Ok(await _service.GetBulkAllowanceAsync(CurrentUserId));
+
     // POST /api/pickuprequests  — resident creates a request
     [HttpPost]
     [Authorize(Roles = "resident")]
     public async Task<IActionResult> Create([FromBody] CreatePickupRequestDto dto)
     {
-        var created = await _service.CreateAsync(CurrentUserId, dto);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        try
+        {
+            var created = await _service.CreateAsync(CurrentUserId, dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        }
+        catch (ArgumentException ex)
+        {
+            // An unusable zone is the resident's input being wrong, not a server
+            // fault, so it answers 400 with the reason rather than a bare 500.
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // POST /api/pickuprequests/{id}/classify — stub classifier: sets category + moves Pending -> Classified

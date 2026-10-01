@@ -6,6 +6,7 @@ import {
   Clock,
   MapPin,
   Navigation,
+  Package,
   TriangleAlert,
   X,
 } from 'lucide-react'
@@ -145,6 +146,14 @@ export default function CollectorRoutePage() {
                     )}
                     {pickup?.zoneName && (
                       <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{pickup.zoneName}</span>
+                    )}
+                    {/* The crew needs to know before they arrive: a bulky
+                        collection needs a lift-equipped vehicle, not the bin lorry. */}
+                    {pickup?.isBulkRequest && (
+                      <span className="ac-pill ac-s-info">
+                        <Package size={13} strokeWidth={2.4} aria-hidden="true" />
+                        Bulky collection
+                      </span>
                     )}
                   </div>
 
