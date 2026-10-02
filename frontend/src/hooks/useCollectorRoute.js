@@ -111,10 +111,23 @@ export function useCollectorRoute() {
     return () => { cancelled = true }
   }, [collectorId, day])
 
-  /** Re-read the stops after a write, without disturbing the pickup cache. */
+  /**
+   * Re-read the stops after a write, without disturbing the pickup cache.
+   *
+   * Both lists, not just today's. Reporting a stop as not collected books the
+   * pickup onto a later round, and completing a recurring one creates its next
+   * occurrence -- so a write to today's round routinely adds a stop to the
+   * upcoming list. Refreshing only today left that new booking invisible until
+   * the collector reloaded the whole page.
+   */
   const reload = useCallback(async () => {
     if (!collectorId) return
-    setRoutes(await fetchToday(collectorId))
+    const [today, ahead] = await Promise.all([
+      fetchToday(collectorId),
+      fetchUpcoming(collectorId),
+    ])
+    setRoutes(today)
+    setUpcomingRoutes(ahead)
   }, [collectorId])
 
   /** Stops in timeline order, each with its pickup attached when one matched. */
