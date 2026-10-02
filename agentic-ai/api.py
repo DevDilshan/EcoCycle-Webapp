@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from agents.notifier_agent import explain_missed_collection
 from agents.routing_agent import route_pickup
 from orchestrator import route_approved_pickup, run_pipeline
 
@@ -131,6 +132,31 @@ def post_choose_slot(request: ChooseSlotRequest) -> dict:
     """
     try:
         return route_pickup(request.routing_context)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+class ExplainMissedRequest(BaseModel):
+    """A collection that could not be made, in the collector's own words."""
+
+    reason: str
+    description: str = ""
+    next_visit: str | None = None
+
+
+@app.post("/explain-missed", dependencies=[Depends(require_internal_key)])
+def post_explain_missed(request: ExplainMissedRequest) -> dict:
+    """Turn a collector's shorthand into a message the resident can read.
+
+    "Gate locked" is true and useful to the office, but shown to a household
+    unchanged it reads as an accusation. This writes the version they see.
+    """
+    try:
+        return explain_missed_collection(
+            reason=request.reason,
+            description=request.description,
+            next_visit=request.next_visit,
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

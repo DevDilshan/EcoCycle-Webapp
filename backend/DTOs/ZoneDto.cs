@@ -52,4 +52,11 @@ public class ZoneOptionDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The days this zone is collected, as DayOfWeek numbers. Sent so the
+    /// submission form can say "Nugegoda is collected on Tuesdays and Fridays"
+    /// instead of offering a date that can never be honoured.
+    /// </summary>
+    public List<int> CollectionDays { get; set; } = [];
 }

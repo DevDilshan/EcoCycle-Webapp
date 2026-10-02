@@ -54,6 +54,7 @@ public class PickupRequestService : IPickupRequestService
             PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl),
             Description = dto.Description,
             PreferredDate = NormalizeToUtc(dto.PreferredDate),
+            Address = dto.Address?.Trim(),
             IsBulkRequest = dto.IsBulkRequest,
             IsRecurring = dto.IsRecurring,
             RecurrenceInterval = dto.RecurrenceInterval,
@@ -682,7 +683,34 @@ public class PickupRequestService : IPickupRequestService
             Description = p.Description,
             PreferredDate = p.PreferredDate,
             Status = p.Status.ToString(),
-            IsBulkRequest = p.IsBulkRequest,
+            Address = p.Address,
+            ResidentMessage = p.ResidentMessage,
+
+            // The most recent attempt, so a resident can see what happened
+            // without an inbox. Ordered by scheduled date so a stop booked after
+            // a miss is the one reported.
+            LastAttemptStatus = _db.RouteAssignments
+                .Where(r => r.PickupRequestId == p.Id)
+                .OrderByDescending(r => r.ScheduledDate)
+                .Select(r => r.CompletionStatus.ToString())
+                .FirstOrDefault(),
+            LastAttemptNote = _db.RouteAssignments
+                .Where(r => r.PickupRequestId == p.Id)
+                .OrderByDescending(r => r.ScheduledDate)
+                .Select(r => r.IssueNotes)
+                .FirstOrDefault(),
+            LastAttemptDate = _db.RouteAssignments
+                .Where(r => r.PickupRequestId == p.Id)
+                .OrderByDescending(r => r.ScheduledDate)
+                .Select(r => (DateTime?)r.ScheduledDate)
+                .FirstOrDefault(),
+            NextVisitDate = _db.RouteAssignments
+                .Where(r => r.PickupRequestId == p.Id
+                    && r.CompletionStatus == RouteCompletionStatus.Pending)
+                .OrderBy(r => r.ScheduledDate)
+                .Select(r => (DateTime?)r.ScheduledDate)
+                .FirstOrDefault(),
+        IsBulkRequest = p.IsBulkRequest,
         IsRecurring = p.IsRecurring,
             RecurrenceInterval = p.RecurrenceInterval,
             CreatedAt = p.CreatedAt,
@@ -754,6 +782,7 @@ public class PickupRequestService : IPickupRequestService
         Description = p.Description,
         PreferredDate = p.PreferredDate,
         Status = p.Status.ToString(),
+        Address = p.Address,
         IsBulkRequest = p.IsBulkRequest,
         IsRecurring = p.IsRecurring,
         RecurrenceInterval = p.RecurrenceInterval,
