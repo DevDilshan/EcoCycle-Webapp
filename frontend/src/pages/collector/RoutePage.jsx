@@ -18,7 +18,7 @@ import ReportMissedDrawer from '../../components/collector/ReportMissedDrawer'
 import { useCollectorData } from '../../components/collector/collectorShell'
 import { useAuth } from '../../context/AuthContext'
 import { formatRequestId } from '../../lib/adminUi'
-import { formatShiftDate, formatStopTime } from '../../lib/collectorUi'
+import { formatShiftDate, formatStopDay, formatStopTime, formatStopWhen } from '../../lib/collectorUi'
 
 export default function CollectorRoutePage() {
   const { role } = useAuth()
@@ -159,7 +159,12 @@ export default function CollectorRoutePage() {
                   <div className="c-meta">
                     <span>
                       <Clock size={15} strokeWidth={2} aria-hidden="true" />
-                      {formatStopTime(stop.scheduledDate)}
+                      {/* The day and the service's hours, not a time of
+                          its own. Nothing books a stop for a clock time, so
+                          printing one showed the same invented hour against
+                          every stop on the round. The completion time below is
+                          real. */}
+                      {formatStopWhen(stop.scheduledDate)}
                       {stop.completedAt ? ` · done ${formatStopTime(stop.completedAt)}` : null}
                     </span>
                     {pickup?.category && (
@@ -200,7 +205,7 @@ export default function CollectorRoutePage() {
                           <p className="ac-id">
                             {formatRequestId(stop.id, 'RT')} · {formatRequestId(stop.pickupRequestId)}
                           </p>
-                          <span className="ac-sub">Scheduled {formatStopTime(stop.scheduledDate)}</span>
+                          <span className="ac-sub">Scheduled {formatStopWhen(stop.scheduledDate)}</span>
                         </div>
                       </div>
 
@@ -299,7 +304,7 @@ export default function CollectorRoutePage() {
                         </span>
                       )}
                     </span>
-                    <span className="ac-time">{formatStopTime(stop.scheduledDate)}</span>
+                    <span className="ac-time">{formatStopDay(stop.scheduledDate)}</span>
                   </li>
                 ))}
               </ul>

@@ -20,6 +20,7 @@ import { uploadPickupPhoto } from '../../lib/pickupPhoto'
 import PickupPhotoField from '../../components/resident/PickupPhotoField'
 import ResidentApprovalNotice from '../../components/resident/ResidentApprovalNotice'
 import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
+import { COLLECTION_WINDOW_LABEL } from '../../lib/collectorUi'
 
 /**
  * Whether this request was refused.
@@ -619,6 +620,13 @@ export default function ResidentPickupsPage() {
               {createErrors.preferredDate && (
                 <p className="ac-field-error">{createErrors.preferredDate}</p>
               )}
+              {/* The hours are the same every day and nothing books a stop for
+                  a time of its own, so this is the only promise that can be
+                  made about when the crew arrives. */}
+              <p className="ac-field-hint">
+                Collections run {COLLECTION_WINDOW_LABEL}. Please have it out by
+                the start of that window.
+              </p>
             </div>
           </div>
 
@@ -852,7 +860,9 @@ export default function ResidentPickupsPage() {
                         {item.nextVisitDate && (
                           <>
                             <dt>Next visit</dt>
-                            <dd>{formatCompactDate(item.nextVisitDate)}</dd>
+                            <dd>
+                              {formatCompactDate(item.nextVisitDate)}, {COLLECTION_WINDOW_LABEL}
+                            </dd>
                           </>
                         )}
                         {item.isBulkRequest && (
