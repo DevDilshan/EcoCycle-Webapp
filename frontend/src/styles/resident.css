@@ -333,7 +333,15 @@
   cursor: pointer;
 }
 
-.admin-console .r-bulk-check input { margin-top: 2px; flex: none; accent-color: var(--green); }
+.admin-console .r-bulk-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+  accent-color: var(--green);
+}
+
+.admin-console .r-bulk-check > span { min-width: 0; }
 .admin-console .r-bulk p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 
 /* The nudge is amber, not grey: it is asking the resident to change something
@@ -348,8 +356,17 @@
 
 /* ---------- One-off / recurring toggle ---------- */
 
+/* Two columns rather than inline-flex. `.admin-console .ac-field > div` is the
+   more specific selector and sets display:grid on any div directly inside a
+   field, which turned this into a single column and stacked the two options.
+   Naming the columns here settles it either way. */
+.admin-console .ac-field > .r-toggle,
 .admin-console .r-toggle {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  justify-self: start;
+  min-width: min(260px, 100%);
   padding: 3px;
   border-radius: 999px;
   background: var(--neutral-bg);
