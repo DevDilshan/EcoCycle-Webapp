@@ -10,7 +10,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
-import { AcAlert, AcCard, AcChips, AcDrawer, AcToast } from '../../components/admin/AcUi'
+import { AcAlert, AcCard, AcChips, AcModal, AcToast } from '../../components/admin/AcUi'
 import { AcCategory, AcStatusPill } from '../../components/admin/AcPills'
 import { useAuth } from '../../context/AuthContext'
 import { formatCompactDate, formatRequestId } from '../../lib/adminUi'
@@ -729,8 +729,11 @@ export default function ResidentPickupsPage() {
         )}
       </AcCard>
 
-      {/* ---- New pickup ---- */}
-      <AcDrawer open={showForm} onClose={() => setShowForm(false)} title="New pickup request">
+      {/* ---- New pickup ----
+           Centred rather than in the side drawer: with a photo, zone, address,
+           date, description, the bulky box and the recurrence, it does not read
+           in a 460px column pinned to the edge of the screen. */}
+      <AcModal open={showForm} onClose={() => setShowForm(false)} title="New pickup request">
         <form className="ac-form" onSubmit={handleCreate}>
           <PickupPhotoField
             previewUrl={createPhotoPreview}
@@ -758,54 +761,58 @@ export default function ResidentPickupsPage() {
             {collectionDaysLabel && <p className="ac-field-hint">{collectionDaysLabel}</p>}
           </div>
 
-          <div className="ac-field">
-            <label htmlFor="pickup-address">Address</label>
-            <input
-              id="pickup-address"
-              value={createForm.address}
-              onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
-              placeholder="e.g. 14/2 Temple Road, near the junction"
-            />
-            {createErrors.address && <p className="ac-field-error">{createErrors.address}</p>}
-            <p className="ac-field-hint">
-              <MapPin size={12} strokeWidth={2.2} aria-hidden="true" />
-              {' '}A zone is a whole suburb, so the crew needs the house number and street.
-            </p>
-          </div>
-
-          <div className="ac-field">
-            <label htmlFor="pickup-date">
-              {collectionDates ? 'Choose a collection day' : 'Collect on or after'}
-            </label>
-            {collectionDates ? (
-              <select
-                id="pickup-date"
-                value={createForm.preferredDate}
-                onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
-              >
-                <option value="">Select a day…</option>
-                {collectionDates.map((day) => {
-                  const value = toLocalDateValue(day)
-                  return (
-                    <option key={value} value={value}>
-                      {day.toLocaleDateString(undefined, {
-                        weekday: 'long', day: 'numeric', month: 'long',
-                      })}
-                    </option>
-                  )
-                })}
-              </select>
-            ) : (
+          {/* Side by side on a wide screen, stacked on a phone: together
+              these two decide where and when the crew turns up. */}
+          <div className="ac-two">
+            <div className="ac-field">
+              <label htmlFor="pickup-address">Address</label>
               <input
-                id="pickup-date"
-                type="date"
-                value={createForm.preferredDate}
-                onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
+                id="pickup-address"
+                value={createForm.address}
+                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                placeholder="e.g. 14/2 Temple Road, near the junction"
               />
-            )}
-            {createErrors.preferredDate && (
-              <p className="ac-field-error">{createErrors.preferredDate}</p>
-            )}
+              {createErrors.address && <p className="ac-field-error">{createErrors.address}</p>}
+              <p className="ac-field-hint">
+                <MapPin size={12} strokeWidth={2.2} aria-hidden="true" />
+                {' '}A zone is a whole suburb, so the crew needs the house number and street.
+              </p>
+            </div>
+
+            <div className="ac-field">
+              <label htmlFor="pickup-date">
+                {collectionDates ? 'Choose a collection day' : 'Collect on or after'}
+              </label>
+              {collectionDates ? (
+                <select
+                  id="pickup-date"
+                  value={createForm.preferredDate}
+                  onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
+                >
+                  <option value="">Select a day…</option>
+                  {collectionDates.map((day) => {
+                    const value = toLocalDateValue(day)
+                    return (
+                      <option key={value} value={value}>
+                        {day.toLocaleDateString(undefined, {
+                          weekday: 'long', day: 'numeric', month: 'long',
+                        })}
+                      </option>
+                    )
+                  })}
+                </select>
+              ) : (
+                <input
+                  id="pickup-date"
+                  type="date"
+                  value={createForm.preferredDate}
+                  onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
+                />
+              )}
+              {createErrors.preferredDate && (
+                <p className="ac-field-error">{createErrors.preferredDate}</p>
+              )}
+            </div>
           </div>
 
           <div className="ac-field">
@@ -913,17 +920,17 @@ export default function ResidentPickupsPage() {
             </button>
           </div>
         </form>
-      </AcDrawer>
+      </AcModal>
 
       {/* ---- Edit a pending pickup ---- */}
-      <AcDrawer
+      <AcModal
         open={Boolean(editingId)}
         onClose={() => setEditingId(null)}
         title="Edit your request"
       >
         {editingId && (
           <form className="ac-form" onSubmit={handleUpdate}>
-            <p className="ac-drawer-sub">
+            <p className="ac-sub">
               Only possible while nothing has been decided yet.
             </p>
 
@@ -981,7 +988,7 @@ export default function ResidentPickupsPage() {
             </div>
           </form>
         )}
-      </AcDrawer>
+      </AcModal>
 
       <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>

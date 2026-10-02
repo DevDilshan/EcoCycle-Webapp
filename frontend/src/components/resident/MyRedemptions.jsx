@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Gift, Pencil, Trash2 } from 'lucide-react'
-import { AcCard, AcDrawer } from '../admin/AcUi'
+import { AcCard, AcModal } from '../admin/AcUi'
 import { AcStatusPill } from '../admin/AcPills'
 import { useConfirm } from '../../hooks/useConfirm'
 import { apiRequest, formatDate } from '../../lib/api'
@@ -144,8 +144,8 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
     <>
       {confirmDialog}
 
-      <AcDrawer open={Boolean(showForm)} onClose={closeCreate} title="Request a redemption">
-        <p className="ac-drawer-sub">
+      <AcModal open={Boolean(showForm)} onClose={closeCreate} title="Request a redemption">
+        <p className="ac-sub">
           {available.toLocaleString()} points available
           {reserved > 0 ? ` (${reserved} already requested)` : ''}
         </p>
@@ -170,12 +170,12 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
             </div>
           </form>
         )}
-      </AcDrawer>
+      </AcModal>
 
-      <AcDrawer open={Boolean(editing)} onClose={closeEdit} title="Change your request">
+      <AcModal open={Boolean(editing)} onClose={closeEdit} title="Change your request">
         {editing && (
           <>
-            <p className="ac-drawer-sub">
+            <p className="ac-sub">
               Pick a different reward. Your points stay set aside until an admin decides.
             </p>
             <form className="ac-form" onSubmit={handleSave} noValidate>
@@ -198,7 +198,7 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
             </form>
           </>
         )}
-      </AcDrawer>
+      </AcModal>
 
       <AcCard title="My redemption requests" subtitle="Points leave your balance once an admin approves">
         {loading ? (
