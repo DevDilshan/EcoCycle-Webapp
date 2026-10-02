@@ -5,13 +5,53 @@ using backend.Models;
 
 namespace backend.Services;
 
+/// <summary>The outcome of retiring a zone.</summary>
+/// <param name="Outcome">What happened.</param>
+/// <param name="OpenRequests">
+/// How many uncollected pickups are still sitting in the zone. Only meaningful
+/// with <see cref="ZoneRetirementOutcome.NeedsDestination"/>.
+/// </param>
+/// <param name="Moved">How many pickups were moved to the replacement zone.</param>
+/// <param name="Unscheduled">
+/// Of those moved, how many could not be booked onto a round in the new zone and
+/// need placing by hand.
+/// </param>
+public record ZoneRetirementResult(
+    ZoneRetirementOutcome Outcome,
+    int OpenRequests = 0,
+    int Moved = 0,
+    int Unscheduled = 0);
+
+public enum ZoneRetirementOutcome
+{
+    NotFound,
+
+    /// <summary>
+    /// The zone still has uncollected pickups, and no replacement zone was
+    /// named. Retiring it anyway would leave them unroutable with nobody told.
+    /// </summary>
+    NeedsDestination,
+
+    /// <summary>The named replacement is missing, inactive, or the zone itself.</summary>
+    BadDestination,
+
+    Retired,
+}
+
 public class ZoneService
 {
     private readonly ApplicationDbContext _context;
+    private readonly PickupSchedulingService _scheduling;
+    private readonly ILogger<ZoneService> _logger;
 
-    public ZoneService(ApplicationDbContext context)
+    public ZoneService(
+        ApplicationDbContext context,
+        PickupSchedulingService scheduling,
+        ILogger<ZoneService> logger)
     {
         _context = context;
+        _scheduling = scheduling;
+        _logger = logger;
     }
 
     public async Task<List<ZoneDto>> GetAllZonesAsync()
@@ -132,26 +172,116 @@ public class ZoneService
     /// zones) and drops off the map, while the records that point at it stay
     /// readable.
     /// </remarks>
-    /// <returns>False when no such zone exists; true once it is inactive.</returns>
-    public async Task<bool> DeleteZoneAsync(Guid id)
+    /// <param name="moveOpenRequestsToZoneId">
+    /// Where to send pickups that have not been collected yet. Required when
+    /// there are any: an uncollected pickup in a retired zone can never be
+    /// routed, because routing only ever offers active zones, so it would sit
+    /// there forever with nobody told. Residents themselves are not attached to
+    /// a zone -- they choose one per request -- so their open requests are the
+    /// only thing that needs moving.
+    /// </param>
+    public async Task<ZoneRetirementResult> DeleteZoneAsync(
+        Guid id,
+        Guid? moveOpenRequestsToZoneId = null)
     {
         var zone = await _context.Zones.FirstOrDefaultAsync(z => z.Id == id);
         if (zone is null)
         {
-            return false;
+            return new ZoneRetirementResult(ZoneRetirementOutcome.NotFound);
         }
 
         // Already retired: report success so a repeated click is harmless.
         if (!zone.IsActive)
         {
-            return true;
+            return new ZoneRetirementResult(ZoneRetirementOutcome.Retired);
+        }
+
+        // Rejected and Completed requests are finished with; they keep pointing
+        // at this zone on purpose, because that is where they happened.
+        var openRequests = await _context.PickupRequests
+            .Where(p => p.ZoneId == id
+                && p.Status != PickupStatus.Completed
+                && p.Status != PickupStatus.Rejected)
+            .ToListAsync();
+
+        if (openRequests.Count > 0 && moveOpenRequestsToZoneId is null)
+        {
+            return new ZoneRetirementResult(
+                ZoneRetirementOutcome.NeedsDestination,
+                OpenRequests: openRequests.Count);
+        }
+
+        var unscheduled = 0;
+
+        if (openRequests.Count > 0)
+        {
+            var destinationId = moveOpenRequestsToZoneId!.Value;
+
+            // Moving them into the zone being retired, or into another retired
+            // one, would leave them exactly as stranded as doing nothing.
+            var destinationIsUsable = destinationId != id
+                && await _context.Zones.AnyAsync(z => z.Id == destinationId && z.IsActive);
+            if (!destinationIsUsable)
+            {
+                return new ZoneRetirementResult(ZoneRetirementOutcome.BadDestination);
+            }
+
+            var pickupIds = openRequests.Select(p => p.Id).ToList();
+
+            // The booked stops belong to the old zone's round: a different
+            // collector, on days this zone was collected and the new one may not
+            // be. Keeping them would send someone to a round they are no longer
+            // on, so they are dropped and the pickups booked again below.
+            var stops = await _context.RouteAssignments
+                .Where(r => pickupIds.Contains(r.PickupRequestId)
+                    && r.CompletionStatus == RouteCompletionStatus.Pending)
+                .ToListAsync();
+            _context.RouteAssignments.RemoveRange(stops);
+
+            foreach (var pickup in openRequests)
+            {
+                pickup.ZoneId = destinationId;
+            }
+
+            zone.IsActive = false;
+            zone.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            // Rebooking is deliberately after the save. Each one calls the
+            // routing agent and may legitimately fail -- every round in the new
+            // zone could be full -- and a zone left half-retired because the
+            // eighth pickup could not be placed would be worse than one that is
+            // retired with a few stops for an admin to place by hand.
+            foreach (var pickup in openRequests)
+            {
+                if (pickup.Status is PickupStatus.Pending or PickupStatus.Classified)
+                {
+                    // Never routed yet; it is waiting on approval, not on us.
+                    continue;
+                }
+
+                var failure = await _scheduling.ScheduleAsync(pickup.Id);
+                if (failure is not null)
+                {
+                    unscheduled++;
+                    _logger.LogWarning(
+                        "Pickup {PickupId} moved out of retired zone {ZoneId} but could not be "
+                        + "rebooked: {Reason}", pickup.Id, id, failure);
+                }
+            }
+
+            return new ZoneRetirementResult(
+                ZoneRetirementOutcome.Retired,
+                OpenRequests: openRequests.Count,
+                Moved: openRequests.Count,
+                Unscheduled: unscheduled);
         }
 
         zone.IsActive = false;
         zone.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return true;
+        return new ZoneRetirementResult(ZoneRetirementOutcome.Retired);
     }
 
     /// <summary>
