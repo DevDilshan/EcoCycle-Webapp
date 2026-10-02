@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import AdminCard from '../../components/admin/AdminCard'
+import { Gift, Recycle, Trophy } from 'lucide-react'
+import PageShell from '../../components/admin/AdminPageShell'
+import { AcAlert, AcCard, AcKpi, AcToast } from '../../components/admin/AcUi'
 import MyRedemptions from '../../components/resident/MyRedemptions'
 import { useAuth } from '../../context/AuthContext'
 import { MEDAL_ICONS, profileInitials, shortProfileName } from '../../lib/adminUi'
@@ -40,67 +40,77 @@ export default function ResidentRewardsPage() {
 
   const totalPages = history?.totalPages ?? 1
   const myEntry = leaderboard.find((entry) => entry.residentId === user?.id)
+  const balance = history?.currentBalance ?? 0
 
   return (
     <PageShell
-      title="Rewards & recycling"
-      eyebrow={null}
-      description="View your points balance, request redemptions, and compare on the leaderboard."
+      title="Rewards"
+      description="Your points, redemptions and where you stand this month"
       actions={(
-        <button type="button" className="btn-primary btn-sm" onClick={() => setShowRedeem((v) => !v)}>
+        <button
+          type="button"
+          className="ac-btn ac-btn-primary ac-btn-sm"
+          onClick={() => setShowRedeem((open) => !open)}
+        >
+          <Gift size={15} strokeWidth={2.2} aria-hidden="true" />
           Request redemption
         </button>
       )}
     >
       {role !== 'resident' && (
-        <AdminAlert type="error" message="Requesting a redemption requires the resident role." />
+        <AcAlert message="Requesting a redemption requires the resident role." />
       )}
-      <AdminAlert type="error" message={error} onClose={() => setError(null)} />
-      <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
+      <AcAlert message={error} onClose={() => setError(null)} />
 
-      <div className="resident-rewards-hero">
-        <p className="resident-rewards-label">Your balance</p>
-        <p className="resident-rewards-value">
-          {(history?.currentBalance ?? 0).toLocaleString()} <span>pts</span>
-        </p>
-        <div className="resident-rewards-meta">
-          <div>
-            <span>Transactions</span>
+      <section className="r-hero">
+        <div>
+          <p className="r-hero-label">Your balance</p>
+          <p className="r-hero-value">
+            {balance.toLocaleString()}<small>pts</small>
+          </p>
+        </div>
+        <div className="r-hero-meta">
+          <div className="r-hero-stat">
+            <span>
+              <Recycle size={13} strokeWidth={2.4} aria-hidden="true" />
+              Transactions
+            </span>
             <strong>{history?.totalCount ?? 0}</strong>
           </div>
-          <div>
-            <span>Your rank</span>
+          <div className="r-hero-stat">
+            <span>
+              <Trophy size={13} strokeWidth={2.4} aria-hidden="true" />
+              Your rank
+            </span>
             <strong>{myEntry ? `#${myEntry.rank}` : '—'}</strong>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="admin-grid admin-grid-4">
-        <div className="stat-card">
-          <div className="stat-card-label">Current balance</div>
-          <p className="stat-card-value">{history?.currentBalance ?? 0}</p>
-          <p className="stat-card-hint stat-card-hint-up">Points available</p>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-label">Transactions</div>
-          <p className="stat-card-value">{history?.totalCount ?? 0}</p>
-          <p className="stat-card-hint">Total recorded</p>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-label">Zone rank</div>
-          <p className="stat-card-value stat-card-value-green">{myEntry ? `#${myEntry.rank}` : '—'}</p>
-          <p className="stat-card-hint stat-card-hint-up">This month</p>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-label">Points earned</div>
-          <p className="stat-card-value">{myEntry?.pointsEarned ?? 0}</p>
-          <p className="stat-card-hint">Leaderboard total</p>
-        </div>
+      <div className="ac-grid ac-g3">
+        <AcKpi
+          label="Points available"
+          icon={<Gift size={18} strokeWidth={2} aria-hidden="true" />}
+          value={balance.toLocaleString()}
+          foot="Ready to spend"
+        />
+        <AcKpi
+          label="Earned this month"
+          icon={<Recycle size={18} strokeWidth={2} aria-hidden="true" />}
+          value={(myEntry?.pointsEarned ?? 0).toLocaleString()}
+          foot="Counts towards your rank"
+        />
+        <AcKpi
+          label="Zone rank"
+          icon={<Trophy size={18} strokeWidth={2} aria-hidden="true" />}
+          value={myEntry ? `#${myEntry.rank}` : '—'}
+          foot="Against your neighbours"
+        />
       </div>
 
       <MyRedemptions
         canRequest={role === 'resident'}
-        balance={history?.currentBalance ?? 0}
+        balance={balance}
         showForm={showRedeem}
         onCloseForm={() => setShowRedeem(false)}
         onError={setError}
@@ -108,61 +118,92 @@ export default function ResidentRewardsPage() {
         onChanged={load}
       />
 
-      <div className="admin-split-grid">
-        <AdminCard title="🏆 Leaderboard · this month">
+      <div className="ac-grid ac-g-1-1">
+        <AcCard title="Leaderboard" subtitle="This month, in your zone">
           {leaderboard.length === 0 ? (
-            <p className="admin-empty">No leaderboard data yet.</p>
+            <p className="ac-empty">No leaderboard data yet.</p>
           ) : (
-            <ul className="leaderboard-list">
+            <ul className="ac-list">
               {leaderboard.map((entry, index) => {
                 const isMe = entry.residentId === user?.id
-                const name = isMe ? 'You' : (entry.residentName || shortProfileName({ id: entry.residentId }))
+                const name = isMe
+                  ? 'You'
+                  : (entry.residentName || shortProfileName({ id: entry.residentId }))
                 return (
-                  <li key={entry.residentId} className={`leaderboard-row${index === 0 ? ' leaderboard-row-top' : ''}${isMe ? ' leaderboard-row-me' : ''}`}>
-                    <span className="leaderboard-rank">{MEDAL_ICONS[index] || index + 1}</span>
-                    <span className="leaderboard-avatar">{profileInitials(name)}</span>
-                    <div className="leaderboard-info">
+                  <li className="ac-row" key={entry.residentId}>
+                    <span className={`ac-rank${index === 0 ? ' is-top' : ''}`}>
+                      {MEDAL_ICONS[index] || index + 1}
+                    </span>
+                    <span className="ac-avatar" aria-hidden="true">{profileInitials(name)}</span>
+                    <span className="ac-grow">
                       <strong>{name}</strong>
-                      <small>{isMe ? 'Your rank this month' : 'Active recycler'}</small>
-                    </div>
-                    <span className="leaderboard-points">{entry.pointsEarned.toLocaleString()}</span>
+                      <span className="ac-sub">
+                        {isMe ? 'Your rank this month' : 'Active recycler'}
+                      </span>
+                    </span>
+                    <span className="ac-v">{entry.pointsEarned.toLocaleString()}</span>
                   </li>
                 )
               })}
             </ul>
           )}
-        </AdminCard>
+        </AcCard>
 
-        <AdminCard title="Transaction history">
+        <AcCard title="Points history" subtitle="Every change to your balance">
           {loading ? (
-            <p className="admin-loading">Loading history…</p>
+            <p className="ac-loading">Loading history…</p>
           ) : !history?.items?.length ? (
-            <p className="admin-empty">No reward transactions yet.</p>
+            <p className="ac-empty">No reward transactions yet.</p>
           ) : (
             <>
-              <ul className="resident-activity-list">
+              <ul className="ac-list">
                 {history.items.map((item) => (
-                  <li key={item.id} className="resident-activity-item">
-                    <span className="resident-activity-icon">♻️</span>
-                    <div className="resident-activity-body">
+                  <li className="ac-row" key={item.id}>
+                    <span className="ac-ic">
+                      <Recycle size={18} strokeWidth={2} aria-hidden="true" />
+                    </span>
+                    <span className="ac-grow">
                       <strong>{item.reason}</strong>
-                      <small>{formatDate(item.createdAt)} · {item.pickupRequestId ? shortId(item.pickupRequestId) : 'Manual'}</small>
-                    </div>
-                    <span className={`leaderboard-points${item.pointsEarned < 0 ? ' text-danger' : ''}`}>
+                      <span className="ac-sub">
+                        {formatDate(item.createdAt)} ·{' '}
+                        {item.pickupRequestId ? shortId(item.pickupRequestId) : 'Manual'}
+                      </span>
+                    </span>
+                    {/* Spent points read as a loss, so the sign is kept and the
+                        colour follows it rather than showing every row green. */}
+                    <span className={`ac-pill ${item.pointsEarned < 0 ? 'ac-s-bad' : 'ac-s-ok'}`}>
                       {item.pointsEarned > 0 ? `+${item.pointsEarned}` : item.pointsEarned}
                     </span>
                   </li>
                 ))}
               </ul>
-              <div className="admin-pagination">
-                <button type="button" className="btn-secondary btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-                <span className="admin-pagination-meta">Page {page} of {totalPages}</span>
-                <button type="button" className="btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
-              </div>
+              {totalPages > 1 && (
+                <div className="ac-pagination">
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-ghost ac-btn-sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage(page - 1)}
+                  >
+                    Previous
+                  </button>
+                  <span>Page {page} of {totalPages}</span>
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-ghost ac-btn-sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage(page + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </>
           )}
-        </AdminCard>
+        </AcCard>
       </div>
+
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }
