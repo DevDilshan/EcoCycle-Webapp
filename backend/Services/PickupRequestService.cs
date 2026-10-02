@@ -313,6 +313,52 @@ public class PickupRequestService : IPickupRequestService
     /// decided: the booking is the thing being rationed. Rejected pickups do not
     /// count -- a refused booking should not cost someone their allowance.
     /// </remarks>
+    /// <summary>
+    /// Whether a resident may ask for this pickup to be collected again.
+    /// </summary>
+    /// <remarks>
+    /// Guarded on purpose. Without a check this becomes a button that books a
+    /// second truck for a pickup that is simply not due yet, so it is allowed
+    /// only when the collection genuinely has not happened: the stop was marked
+    /// missed, or its day has passed and nobody closed it off.
+    /// </remarks>
+    public async Task<(bool NotFound, string? Reason)> CanRequestAgainAsync(
+        Guid residentId,
+        Guid pickupRequestId)
+    {
+        var pickup = await _db.PickupRequests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == pickupRequestId && p.ResidentId == residentId);
+
+        if (pickup is null) return (true, null);
+
+        if (pickup.Status == PickupStatus.Completed)
+            return (false, "This pickup has already been collected.");
+
+        var stops = await _db.RouteAssignments
+            .AsNoTracking()
+            .Where(r => r.PickupRequestId == pickupRequestId)
+            .OrderByDescending(r => r.ScheduledDate)
+            .Select(r => new { r.CompletionStatus, r.ScheduledDate })
+            .ToListAsync();
+
+        if (stops.Count == 0)
+            return (false, "This pickup has not been scheduled yet, so there is nothing to repeat.");
+
+        var latest = stops[0];
+
+        if (latest.CompletionStatus == RouteCompletionStatus.Missed) return (false, null);
+
+        if (latest.CompletionStatus == RouteCompletionStatus.Pending
+            && latest.ScheduledDate.Date < DateTime.UtcNow.Date)
+        {
+            return (false, null);
+        }
+
+        return (false, "This pickup is still booked in. You can ask again if the day passes " +
+                       "and it has not been collected.");
+    }
+
     public async Task<BulkAllowanceDto> GetBulkAllowanceAsync(Guid residentId)
     {
         var now = DateTime.UtcNow;

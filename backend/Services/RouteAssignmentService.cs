@@ -118,14 +118,18 @@ public class RouteAssignmentService
         // Collected: close the pickup and pay the resident in the same save,
         // so a completed pickup can never be left without its points.
         var pickup = await _context.PickupRequests.FirstOrDefaultAsync(p => p.Id == route.PickupRequestId);
+        PickupRequest? nextOccurrence = null;
         if (pickup is not null)
         {
             pickup.Status = PickupStatus.Completed;
             await _rewards.StageCompletionAwardAsync(pickup.Id);
+            nextOccurrence = BuildNextOccurrence(pickup);
+            if (nextOccurrence is not null) _context.PickupRequests.Add(nextOccurrence);
         }
 
         await _context.SaveChangesAsync();
 
+        NextRecurringPickupId = nextOccurrence?.Id;
         return MapToDto(route);
     }
 
@@ -168,6 +172,57 @@ public class RouteAssignmentService
     /// silently erase its CompletedAt, so that is refused rather than accepted.
     /// </remarks>
     /// <returns>Null when no such stop exists; the updated stop once missed.</returns>
+    /// <summary>
+    /// The id of the pickup created by the last MarkCompleteAsync call, when
+    /// that pickup was recurring. Null otherwise.
+    /// </summary>
+    /// <remarks>
+    /// The caller needs it to book the new occurrence onto a round, which takes
+    /// an agent call and so must not happen inside the collector's save.
+    /// </remarks>
+    public Guid? NextRecurringPickupId { get; private set; }
+
+    /// <summary>
+    /// The next occurrence of a recurring collection, or null if there is none.
+    /// </summary>
+    /// <remarks>
+    /// Created when a collection actually happens rather than by a nightly job.
+    /// That needs no scheduler, and it has a property worth keeping: the chain
+    /// continues only while collections are really being made, so a resident who
+    /// stops putting bins out does not accumulate a queue of phantom pickups.
+    ///
+    /// The photo is deliberately not copied -- it showed last fortnight's
+    /// rubbish, and the classifier would be reading a stale picture.
+    /// </remarks>
+    private static PickupRequest? BuildNextOccurrence(PickupRequest pickup)
+    {
+        if (!pickup.IsRecurring) return null;
+
+        var interval = (pickup.RecurrenceInterval ?? string.Empty).Trim().ToLowerInvariant();
+        var days = interval switch
+        {
+            "weekly" => 7,
+            "bi-weekly" or "biweekly" or "fortnightly" => 14,
+            _ => 0
+        };
+
+        if (days == 0) return null;
+
+        return new PickupRequest
+        {
+            ResidentId = pickup.ResidentId,
+            ZoneId = pickup.ZoneId,
+            Description = pickup.Description,
+            PreferredDate = DateTime.SpecifyKind(
+                DateTime.UtcNow.Date.AddDays(days), DateTimeKind.Utc),
+            IsRecurring = true,
+            RecurrenceInterval = pickup.RecurrenceInterval,
+            IsBulkRequest = false,
+            Status = PickupStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
+
     public async Task<RouteAssignmentDto?> MarkMissedAsync(Guid id, string? issueNotes = null)
     {
         var route = await _context.RouteAssignments.FirstOrDefaultAsync(r => r.Id == id);

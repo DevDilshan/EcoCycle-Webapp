@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from agents.routing_agent import route_pickup
 from orchestrator import route_approved_pickup, run_pipeline
 
 load_dotenv()
@@ -108,6 +109,28 @@ def post_run_pipeline(request: RunPipelineRequest) -> dict:
     """
     try:
         return run_pipeline(request.model_dump())
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+class ChooseSlotRequest(BaseModel):
+    """Slots to choose between, for a pickup that is already classified."""
+
+    routing_context: dict
+
+
+@app.post("/choose-slot", dependencies=[Depends(require_internal_key)])
+def post_choose_slot(request: ChooseSlotRequest) -> dict:
+    """Pick a collector and day for a pickup that already has a category.
+
+    Used when a pickup needs scheduling again rather than classifying again: a
+    stop the collector missed, a resident asking for a second attempt, or the
+    next occurrence of a recurring collection. Re-running the whole pipeline for
+    those would re-classify a photo that has not changed, and cost a vision call
+    to learn what is already known.
+    """
+    try:
+        return route_pickup(request.routing_context)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

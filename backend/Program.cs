@@ -87,6 +87,7 @@ builder.Services.AddHttpClient<backend.Services.IAgentPipelineClient, backend.Se
 builder.Services.AddScoped<backend.Services.IComplianceService, backend.Services.ComplianceService>();
 builder.Services.AddScoped<backend.Services.CollectorSettingService>();
 builder.Services.AddScoped<backend.Services.RoutingOptionBuilder>();
+builder.Services.AddScoped<backend.Services.PickupSchedulingService>();
 
 var corsOriginsEnv = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
 var corsOrigins = string.IsNullOrWhiteSpace(corsOriginsEnv)
