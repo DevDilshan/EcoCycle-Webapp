@@ -33,7 +33,7 @@ public class RoutingOptionBuilder
         WasteCategory category,
         DateTime? preferredDate)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = ServiceClock.Today;
 
         var zone = await _db.Zones.AsNoTracking().FirstOrDefaultAsync(z => z.Id == zoneId);
         if (zone is null)

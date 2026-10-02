@@ -3,7 +3,7 @@ import { Camera, Check } from 'lucide-react'
 import { AcDrawer } from '../admin/AcUi'
 import { AcCategory } from '../admin/AcPills'
 import { formatRequestId } from '../../lib/adminUi'
-import { formatStopTime } from '../../lib/collectorUi'
+import { formatStopWhen } from '../../lib/collectorUi'
 
 // The notes a collector actually writes at a stop, offered as one tap each.
 const QUICK_NOTES = [
@@ -57,7 +57,7 @@ function CompleteForm({ stop, busy, onClose, onComplete }) {
           <div className="c-meta">
             {pickup?.category && <AcCategory category={pickup.category} confidence={pickup.confidence} />}
             {pickup?.zoneName && <span>{pickup.zoneName}</span>}
-            <span>{formatStopTime(stop.scheduledDate)}</span>
+            <span>{formatStopWhen(stop.scheduledDate)}</span>
           </div>
         </div>
       </div>
