@@ -48,6 +48,7 @@ export default function RoutesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
+  const [retiring, setRetiring] = useState(null)
   const [form, setForm] = useState(EMPTY_ZONE)
   const [editingId, setEditingId] = useState(null)
   const [routeForm, setRouteForm] = useState({
@@ -181,21 +182,37 @@ export default function RoutesPage() {
   // "Deactivate" rather than delete: the endpoint keeps the row and clears the
   // active flag, so the zone stops taking new pickups without breaking the
   // history that points at it.
-  async function handleDeactivateZone(zone) {
-    const ok = window.confirm(
-      `Deactivate ${zone.name}? It will stop taking new pickups. Existing records keep it.`,
-    )
-    if (!ok) return
+  //
+  // A zone with uncollected pickups still in it cannot just be switched off.
+  // Routing only ever offers active zones, so those pickups would become
+  // unroutable and sit there with nobody told. The backend refuses in that case
+  // and says how many there are; the drawer below asks where they should go.
+  async function handleDeactivateZone(zone, moveTo = null) {
+    if (!moveTo) {
+      const ok = window.confirm(
+        `Deactivate ${zone.name}? It will stop taking new pickups. Existing records keep it.`,
+      )
+      if (!ok) return
+    }
+
     setBusy(true)
     setError(null)
     setSuccess(null)
     try {
-      await apiRequest(`/zones/${zone.id}`, { method: 'DELETE' })
-      setSuccess(`${zone.name} deactivated.`)
+      const query = moveTo ? `?moveTo=${moveTo}` : ''
+      const result = await apiRequest(`/zones/${zone.id}${query}`, { method: 'DELETE' })
+      setSuccess(result?.message || `${zone.name} deactivated.`)
+      setRetiring(null)
       catalog.refresh()
       loadReportData()
     } catch (err) {
-      setError(err.message)
+      if (err.status === 409 && !moveTo) {
+        // Not an error the admin caused -- it is a question, so it opens the
+        // drawer rather than showing a red banner they cannot act on.
+        setRetiring({ zone, message: err.message })
+      } else {
+        setError(err.message)
+      }
     } finally {
       setBusy(false)
     }
@@ -599,7 +616,95 @@ export default function RoutesPage() {
         </form>
       </AcDrawer>
 
+      {/* Keyed on the zone so opening it for a different one starts with no
+          destination chosen, rather than carrying over a choice made for the
+          zone before it. */}
+      <RetireZoneDrawer
+        key={retiring?.zone?.id ?? 'none'}
+        retiring={retiring}
+        zones={catalog.zones}
+        busy={busy}
+        onClose={() => setRetiring(null)}
+        onConfirm={(destinationId) => handleDeactivateZone(retiring.zone, destinationId)}
+      />
+
       <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
+  )
+}
+
+/**
+ * Asks where a retiring zone's uncollected pickups should go.
+ *
+ * Opened only when the backend refuses the deactivation, which it does whenever
+ * any are left: switching the zone off without moving them would make them
+ * permanently unroutable, since routing only ever offers active zones.
+ *
+ * Residents are not attached to a zone -- they pick one per request -- so their
+ * open requests are the only thing there is to move.
+ */
+function RetireZoneDrawer({ retiring, zones, busy, onClose, onConfirm }) {
+  const [destinationId, setDestinationId] = useState('')
+
+  const zoneId = retiring?.zone?.id
+
+  // Only somewhere the pickups can actually be collected from: the zone being
+  // retired and any already-retired zone would leave them just as stuck.
+  const choices = useMemo(
+    () => zones.filter((zone) => zone.id !== zoneId && zone.isActive !== false),
+    [zones, zoneId],
+  )
+
+  if (!retiring) return null
+
+  return (
+    <AcDrawer open onClose={onClose} title={`Deactivate ${retiring.zone.name}`}>
+      <p className="ac-drawer-text">{retiring.message}</p>
+
+      {choices.length === 0 ? (
+        <p className="ac-empty">
+          There is no other active zone to move them to. Create or reactivate one first.
+        </p>
+      ) : (
+        <>
+          <div className="ac-field">
+            <label htmlFor="retire-destination">Move the open requests to</label>
+            <select
+              id="retire-destination"
+              value={destinationId}
+              onChange={(event) => setDestinationId(event.target.value)}
+            >
+              <option value="">Choose a zone…</option>
+              {choices.map((zone) => (
+                <option key={zone.id} value={zone.id}>{zone.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <p className="ac-foot-note">
+            <span>
+              Their booked stops are released and each one is routed again in the new
+              zone, because the collector and the collection days there are different.
+              Anything that cannot be fitted in is reported back for you to place by hand.
+            </span>
+          </p>
+
+          <div className="ac-actions">
+            <button
+              type="button"
+              className="ac-btn ac-btn-danger"
+              disabled={busy || !destinationId}
+              onClick={() => onConfirm(destinationId)}
+            >
+              <CircleX size={16} strokeWidth={2.4} aria-hidden="true" />
+              Move and deactivate
+            </button>
+            <button type="button" className="ac-btn ac-btn-ghost" onClick={onClose} disabled={busy}>
+              Keep the zone
+            </button>
+          </div>
+        </>
+      )}
+    </AcDrawer>
   )
 }
