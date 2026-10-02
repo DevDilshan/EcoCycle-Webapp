@@ -103,6 +103,15 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div style={{ textAlign: 'right', marginTop: '-0.35rem' }}>
+              <Link
+                to="/forgot-password"
+                style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--eco-green, #1b7a4b)' }}
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             {error && (
               <p className="eco-alert" role="alert">{error}</p>
             )}

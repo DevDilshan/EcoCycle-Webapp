@@ -469,6 +469,17 @@ export default function ResidentPickupsPage() {
                           <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
                           {editErrors.description && <p style={fieldErrorStyle}>{editErrors.description}</p>}
                         </div>
+                        <div className="resident-type-toggle">
+                          <button type="button" className={`resident-type-btn${!editForm.isRecurring ? ' active' : ''}`} onClick={() => setEditForm({ ...editForm, isRecurring: false })}>One-off</button>
+                          <button type="button" className={`resident-type-btn${editForm.isRecurring ? ' active' : ''}`} onClick={() => setEditForm({ ...editForm, isRecurring: true })}>Recurring</button>
+                        </div>
+                        {editForm.isRecurring && (
+                          <div>
+                            <label>Recurrence interval</label>
+                            <input value={editForm.recurrenceInterval} onChange={(e) => setEditForm({ ...editForm, recurrenceInterval: e.target.value })} placeholder="e.g. weekly" />
+                            {editErrors.recurrenceInterval && <p style={fieldErrorStyle}>{editErrors.recurrenceInterval}</p>}
+                          </div>
+                        )}
                         <div className="admin-actions">
                           <button type="button" className="btn-secondary btn-sm" onClick={() => startEdit(item)}>Reset</button>
                           <button type="submit" className="btn-primary btn-sm" disabled={busyId === item.id}>Save</button>
