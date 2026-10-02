@@ -19,6 +19,7 @@ import { useAuth } from '../../context/AuthContext'
 import { formatCompactDate, formatRequestId, shortProfileName } from '../../lib/adminUi'
 import { apiRequest } from '../../lib/api'
 import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
+import { COLLECTION_WINDOW_LABEL } from '../../lib/collectorUi'
 
 function greetingForHour() {
   const hour = new Date().getHours()
@@ -184,7 +185,10 @@ export default function ResidentDashboardPage() {
         />
       </div>
 
-      <AcCard title="Next pickup" subtitle="The soonest one still to happen">
+      <AcCard
+        title="Next pickup"
+        subtitle={`The soonest one still to happen · collections run ${COLLECTION_WINDOW_LABEL}`}
+      >
         {!nextPickup ? (
           <p className="ac-empty">No upcoming pickups. Request one to get started.</p>
         ) : (

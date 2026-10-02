@@ -21,7 +21,7 @@ public class RouteAssignmentService
 
     public async Task<List<RouteAssignmentDto>> GetTodayRouteForCollectorAsync(Guid collectorId)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = ServiceClock.Today;
         var tomorrow = today.AddDays(1);
 
         return await _context.RouteAssignments
@@ -45,7 +45,7 @@ public class RouteAssignmentService
     /// </param>
     public async Task<List<RouteAssignmentDto>> GetUpcomingRouteForCollectorAsync(Guid collectorId, int days = 7)
     {
-        var from = DateTime.UtcNow.Date.AddDays(1);
+        var from = ServiceClock.TodayPlus(1);
         var to = from.AddDays(Math.Clamp(days, 1, 30));
 
         return await _context.RouteAssignments
@@ -149,7 +149,8 @@ public class RouteAssignmentService
         // exactly what model binding produces from ?date=2026-10-02. Without
         // this the query throws the moment a date is supplied, and the caller
         // sees an empty table rather than an error.
-        var from = DateTime.SpecifyKind((date ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
+        // No date means today, read the same way everything else reads it.
+        var from = date is null ? ServiceClock.Today : ServiceClock.AsServiceDay(date.Value);
         var to = from.AddDays(1);
 
         return await _context.RouteAssignments
@@ -213,8 +214,7 @@ public class RouteAssignmentService
             ResidentId = pickup.ResidentId,
             ZoneId = pickup.ZoneId,
             Description = pickup.Description,
-            PreferredDate = DateTime.SpecifyKind(
-                DateTime.UtcNow.Date.AddDays(days), DateTimeKind.Utc),
+            PreferredDate = ServiceClock.TodayPlus(days),
             IsRecurring = true,
             RecurrenceInterval = pickup.RecurrenceInterval,
             IsBulkRequest = false,
@@ -310,7 +310,7 @@ public class RouteAssignmentService
     /// </remarks>
     public async Task<List<ZoneLoadDto>> GetZoneLoadReportAsync()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = ServiceClock.Today;
         var tomorrow = today.AddDays(1);
 
         return await _context.Zones
@@ -378,10 +378,10 @@ public class RouteAssignmentService
             PickupRequestId = pickupRequestId,
             ZoneId = zone.Id,
             CollectorId = collectorId.Value,
-            // Today, not tomorrow: an admin assigning a pickup expects it on the
-            // collector's screen now, and GetTodayRouteForCollectorAsync only
-            // returns the current UTC day.
-            ScheduledDate = DateTime.UtcNow.Date,
+            // Today, not tomorrow: an admin assigning a pickup expects it on
+            // the collector's screen now, and GetTodayRouteForCollectorAsync
+            // only returns the current service day.
+            ScheduledDate = ServiceClock.Today,
             CompletionStatus = RouteCompletionStatus.Pending,
             CreatedAt = DateTime.UtcNow
         };

@@ -10,7 +10,7 @@ import ZoneMap from '../../components/admin/ZoneMap'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
 import { formatRequestId, shortProfileName } from '../../lib/adminUi'
 import { formatCompletionStatus } from '../../lib/collector'
-import { formatStopTime } from '../../lib/collectorUi'
+import { formatStopDay } from '../../lib/collectorUi'
 import { apiRequest } from '../../lib/api'
 
 const EMPTY_ZONE = {
@@ -442,7 +442,7 @@ export default function RoutesPage() {
                       </td>
                       <td>{shortProfileName(catalog.profileMap.get(stop.collectorId))}</td>
                       <td>{catalog.zoneMap.get(stop.zoneId)?.name || '—'}</td>
-                      <td>{formatStopTime(stop.scheduledDate)}</td>
+                      <td>{formatStopDay(stop.scheduledDate)}</td>
                       <td><AcStatusPill status={status} /></td>
                       <td>
                         {/* Only a stop still pending can be missed: a completed

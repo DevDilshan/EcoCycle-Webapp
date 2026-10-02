@@ -351,7 +351,7 @@ public class PickupRequestService : IPickupRequestService
         if (latest.CompletionStatus == RouteCompletionStatus.Missed) return (false, null);
 
         if (latest.CompletionStatus == RouteCompletionStatus.Pending
-            && latest.ScheduledDate.Date < DateTime.UtcNow.Date)
+            && latest.ScheduledDate.Date < ServiceClock.Today)
         {
             return (false, null);
         }
