@@ -80,8 +80,8 @@ export default function CollectorSettingsCard({ onSaved }) {
               <tr>
                 <th>Collector</th>
                 <th>Stops per day</th>
-                <th>Bulky</th>
-                <th>Hazardous</th>
+                <th>Can take bulky?<span className="ac-th-hint">sofas, mattresses &mdash; needs a lift</span></th>
+                <th>Can take hazardous?<span className="ac-th-hint">paint, batteries &mdash; needs a licence</span></th>
                 <th><span className="ac-sr-only">Save</span></th>
               </tr>
             </thead>
@@ -115,7 +115,7 @@ export default function CollectorSettingsCard({ onSaved }) {
                           onChange={(e) => edit(row, 'handlesBulky', e.target.checked)}
                         />
                         <Package size={14} strokeWidth={2} aria-hidden="true" />
-                        <span className="ac-sr-only">Has a lift for bulky items</span>
+                        <span>{valueOf(row, 'handlesBulky') ? 'Yes' : 'No'}</span>
                       </label>
                     </td>
                     <td>
@@ -126,7 +126,7 @@ export default function CollectorSettingsCard({ onSaved }) {
                           onChange={(e) => edit(row, 'handlesHazardous', e.target.checked)}
                         />
                         <FlaskConical size={14} strokeWidth={2} aria-hidden="true" />
-                        <span className="ac-sr-only">Licensed for hazardous waste</span>
+                        <span>{valueOf(row, 'handlesHazardous') ? 'Yes' : 'No'}</span>
                       </label>
                     </td>
                     <td>
@@ -148,10 +148,13 @@ export default function CollectorSettingsCard({ onSaved }) {
         </div>
       )}
 
-      <p className="ac-note">
-        <Truck size={14} strokeWidth={2} aria-hidden="true" />{' '}
-        A pickup is only offered to a collector whose vehicle can carry it and who has room
-        left that day.
+      <p className="ac-foot-note">
+        <Truck size={16} strokeWidth={2} aria-hidden="true" />
+        <span>
+          A pickup is only ever offered to a collector whose vehicle can carry it and who
+          still has room that day. Untick a box and that collector stops being chosen for
+          that kind of waste.
+        </span>
       </p>
     </AcCard>
   )

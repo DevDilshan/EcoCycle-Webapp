@@ -204,6 +204,25 @@ export default function CollectorRoutePage() {
                         </div>
                       </div>
 
+                      {/* The resident's own words in full. The list above cuts
+                          them short, and the detail that matters -- "round the
+                          back", "two bags not one" -- is usually at the end. */}
+                      {pickup?.description && (
+                        <p className="c-stop-full">{pickup.description}</p>
+                      )}
+
+                      {pickup?.address && (
+                        <a
+                          className="ac-btn ac-btn-ghost ac-btn-sm c-navigate"
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickup.address)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Navigation size={14} strokeWidth={2} aria-hidden="true" />
+                          Navigate to {pickup.address}
+                        </a>
+                      )}
+
                       {stop.status === 'Pending' && (
                         <div className="ac-actions">
                           <button
@@ -264,12 +283,21 @@ export default function CollectorRoutePage() {
                     </span>
                     <span className="ac-grow">
                       <strong>{stop.pickup?.description || formatRequestId(stop.pickupRequestId)}</strong>
+                      {/* The address belongs here too: a round cannot be planned
+                          from a category and a suburb. */}
                       <span className="ac-sub">
                         {[
+                          stop.pickup?.address,
                           stop.pickup?.category ? CATEGORY_LABELS[stop.pickup.category] || stop.pickup.category : null,
                           stop.pickup?.zoneName,
                         ].filter(Boolean).join(' · ') || 'No details available'}
                       </span>
+                      {stop.pickup?.isBulkRequest && (
+                        <span className="ac-pill ac-s-info">
+                          <Package size={13} strokeWidth={2.4} aria-hidden="true" />
+                          Bulky
+                        </span>
+                      )}
                     </span>
                     <span className="ac-time">{formatStopTime(stop.scheduledDate)}</span>
                   </li>
