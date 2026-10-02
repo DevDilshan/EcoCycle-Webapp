@@ -120,6 +120,28 @@ function toDateInputValue(value) {
   return String(value).slice(0, 10)
 }
 
+
+/**
+ * Whether to offer "ask again" on a pickup.
+ *
+ * Mirrors the backend's own rule, which allows it only when the collection
+ * genuinely did not happen: the crew reported the stop missed, or the stop's day
+ * has passed and it was never closed off. Anything still booked for a future day
+ * is simply not due yet.
+ */
+function canAskAgain(item) {
+  if (item.status === 'Completed' || item.status === 'Rejected') return false
+  if (item.lastAttemptStatus === 'Missed') return true
+  if (item.lastAttemptStatus !== 'Pending' || !item.lastAttemptDate) return false
+
+  const attempt = new Date(item.lastAttemptDate)
+  if (Number.isNaN(attempt.getTime())) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  attempt.setHours(0, 0, 0, 0)
+  return attempt < today
+}
+
 export default function ResidentPickupsPage() {
   const { role } = useAuth()
   const [items, setItems] = useState([])
@@ -408,7 +430,7 @@ export default function ResidentPickupsPage() {
   }
 
   async function handleCancel(id) {
-    if (!window.confirm('Cancel this pickup request?')) return
+    if (!window.confirm('Cancel this pickup request? The booked visit is released.')) return
     setBusyId(id)
     setError(null)
     setSuccess(null)
@@ -686,10 +708,13 @@ export default function ResidentPickupsPage() {
                       <p><strong>Address:</strong> {item.address}</p>
                     )}
 
-                    {/* Offered on anything not yet collected. The backend decides
-                        whether it is actually allowed, and says why not -- the
-                        page has no way to know whether the collector turned up. */}
-                    {item.status !== 'Completed' && item.status !== 'Rejected' && (
+                    {/* Only when the collection has genuinely not happened:
+                        the crew reported it, or its day went by and nobody closed
+                        it off. This used to show on anything not yet collected,
+                        so a pickup booked for next Friday offered a button the
+                        backend could only refuse -- the resident had to click it
+                        to be told it was not due yet. */}
+                    {canAskAgain(item) && (
                       <div className="resident-again">
                         <button
                           type="button"
@@ -699,6 +724,29 @@ export default function ResidentPickupsPage() {
                         >
                           It wasn&rsquo;t collected — ask again
                         </button>
+                      </div>
+                    )}
+
+                    {/* Cancelling is kept out of the edit form below, which only
+                        appears while a request is Pending -- a state that lasts
+                        seconds, because the agents classify it on submission.
+                        Plans change after that, and a cancelled pickup is far
+                        better than a crew driving out to an empty kerb. */}
+                    {item.status !== 'Completed' && item.lastAttemptStatus !== 'Completed' && (
+                      <div className="resident-again">
+                        <button
+                          type="button"
+                          className="btn-danger btn-sm"
+                          disabled={busyId === item.id}
+                          onClick={() => handleCancel(item.id)}
+                        >
+                          Cancel this request
+                        </button>
+                        <p className="pickup-grid-muted">
+                          {item.isBulkRequest
+                            ? 'The booked visit is released and your bulky allowance is given back.'
+                            : 'The booked visit is released so the crew is not sent out for nothing.'}
+                        </p>
                       </div>
                     )}
                     {item.photoUrl && item.status !== 'Pending' && (
@@ -740,7 +788,6 @@ export default function ResidentPickupsPage() {
                         <div className="admin-actions">
                           <button type="button" className="btn-secondary btn-sm" onClick={() => startEdit(item)}>Reset</button>
                           <button type="submit" className="btn-primary btn-sm" disabled={busyId === item.id}>Save</button>
-                          <button type="button" className="btn-danger btn-sm" onClick={() => handleCancel(item.id)} disabled={busyId === item.id}>Cancel request</button>
                         </div>
                       </form>
                     )}

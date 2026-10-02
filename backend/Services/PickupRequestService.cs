@@ -612,12 +612,42 @@ public class PickupRequestService : IPickupRequestService
         return ToDto(entity);
     }
 
+    /// <summary>
+    /// Cancels a pickup the resident no longer needs.
+    /// </summary>
+    /// <remarks>
+    /// This used to allow cancelling only while the request was Pending, which
+    /// in practice meant never: the agent pipeline runs during submission, so a
+    /// request is Classified or Scheduled within seconds. By the time anyone
+    /// realised the neighbour had taken the sofa, cancelling was refused and the
+    /// crew drove out for nothing.
+    ///
+    /// It is allowed up until the waste has actually been collected. Anything
+    /// already booked is released with it, so the slot goes back to the round
+    /// instead of being held for a stop nobody will make.
+    /// </remarks>
     public async Task<PickupOperationResult> DeleteAsync(Guid id, Guid residentId, bool isAdmin)
     {
         var entity = await _db.PickupRequests.FirstOrDefaultAsync(p => p.Id == id);
         if (entity is null) return PickupOperationResult.NotFound;
         if (!isAdmin && entity.ResidentId != residentId) return PickupOperationResult.Forbidden;
-        if (entity.Status != PickupStatus.Pending) return PickupOperationResult.NotEditable;
+
+        // Once it has been collected there is nothing to cancel, and removing it
+        // would erase the record of work that was actually done -- including the
+        // points the resident was paid for it.
+        if (entity.Status == PickupStatus.Completed) return PickupOperationResult.NotEditable;
+
+        var collected = await _db.RouteAssignments
+            .AnyAsync(r => r.PickupRequestId == id
+                && r.CompletionStatus == RouteCompletionStatus.Completed);
+        if (collected) return PickupOperationResult.NotEditable;
+
+        // Free the booked stop so the day reads honestly: a cancelled pickup
+        // must not keep occupying capacity the router counts against.
+        var stops = await _db.RouteAssignments
+            .Where(r => r.PickupRequestId == id)
+            .ToListAsync();
+        _db.RouteAssignments.RemoveRange(stops);
 
         _db.PickupRequests.Remove(entity);
         await _db.SaveChangesAsync();
