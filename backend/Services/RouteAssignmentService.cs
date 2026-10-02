@@ -19,16 +19,35 @@ public class RouteAssignmentService
         _rewards = rewards;
     }
 
+    /// <summary>
+    /// The round in front of the collector now.
+    /// </summary>
+    /// <remarks>
+    /// Today's stops, plus anything older that is still pending.
+    ///
+    /// The carry-forward matters. This used to return the current day and
+    /// nothing else, so a stop the crew never got to yesterday appeared on no
+    /// screen at all the next morning: it was behind today, and
+    /// GetUpcomingRouteForCollectorAsync starts at tomorrow. Nobody could
+    /// complete it or report it, and the only way it surfaced again was the
+    /// resident noticing and asking for another visit.
+    ///
+    /// Completed and missed stops are not carried, only pending ones. Those two
+    /// are finished with; repeating them would grow the round a little longer
+    /// every day.
+    /// </remarks>
     public async Task<List<RouteAssignmentDto>> GetTodayRouteForCollectorAsync(Guid collectorId)
     {
-        var today = ServiceClock.Today;
-        var tomorrow = today.AddDays(1);
+        var tomorrow = ServiceClock.TodayPlus(1);
 
         return await _context.RouteAssignments
             .AsNoTracking()
             .Where(r => r.CollectorId == collectorId
-                && r.ScheduledDate >= today
-                && r.ScheduledDate < tomorrow)
+                && r.ScheduledDate < tomorrow
+                && (r.ScheduledDate >= ServiceClock.Today
+                    || r.CompletionStatus == RouteCompletionStatus.Pending))
+            // Oldest first, so anything carried over sits at the top of the
+            // round rather than being buried among today's stops.
             .OrderBy(r => r.ScheduledDate)
             .Select(r => MapToDto(r))
             .ToListAsync();
