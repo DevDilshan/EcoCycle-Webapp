@@ -154,6 +154,9 @@ public class ApprovalService : IApprovalService
 
         var routingWarning = await TryRouteApprovedPickupAsync(entity);
 
+        await WriteDecisionMessageAsync(
+            entity, approved: true, reason: dto.Notes ?? entity.FlagReason);
+
         var response = ToDto(entity);
         response.RoutingWarning = routingWarning;
         return response;
@@ -313,6 +316,81 @@ public class ApprovalService : IApprovalService
     /// Whether this pickup is bulky -- either the resident said so, or the
     /// classifier decided it was.
     /// </summary>
+    /// <summary>
+    /// Stores the resident-facing wording of an admin's decision.
+    /// </summary>
+    /// <remarks>
+    /// The Notifier already drafts a resident message when a pickup is flagged,
+    /// and nothing has ever delivered it -- it was written, stored, shown to the
+    /// admin and dropped. Where that draft exists it is used as-is, because it
+    /// was written for exactly this moment and costs nothing to reuse. A
+    /// rejection has no draft, since the flag assumed the pickup would go ahead,
+    /// so that one is written now.
+    ///
+    /// Best-effort: the decision itself is already saved, and losing the
+    /// friendly wording must not lose the decision.
+    /// </remarks>
+    private async Task WriteDecisionMessageAsync(ApprovalRequest entity, bool approved, string? reason)
+    {
+        var pickup = entity.PickupRequest;
+        if (pickup is null || string.IsNullOrWhiteSpace(reason)) return;
+
+        try
+        {
+            string? message = null;
+
+            if (approved)
+            {
+                message = ReadStoredResidentNotification(entity.PipelineResultJson);
+            }
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                var written = await _agents.ExplainDecisionAsync(new DTOs.ExplainDecisionRequestDto
+                {
+                    Approved = approved,
+                    Reason = reason,
+                    Description = pickup.Description ?? string.Empty
+                });
+                message = written?.ResidentMessage;
+            }
+
+            if (string.IsNullOrWhiteSpace(message)) return;
+
+            pickup.ResidentMessage = message.Length > 1000 ? message[..1000] : message;
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not write the resident message for approval {ApprovalId}; the decision " +
+                "itself still stands.", entity.Id);
+        }
+    }
+
+    /// <summary>The resident message the Notifier wrote when the pickup was flagged.</summary>
+    private static string? ReadStoredResidentNotification(string? pipelineResultJson)
+    {
+        if (string.IsNullOrWhiteSpace(pipelineResultJson)) return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(pipelineResultJson);
+            if (document.RootElement.TryGetProperty("approval", out var approval)
+                && approval.ValueKind == JsonValueKind.Object
+                && approval.TryGetProperty("resident_notification", out var note))
+            {
+                return note.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+            // Unreadable stored JSON is not worth failing a decision over.
+        }
+
+        return null;
+    }
+
     private async Task<bool> IsBulkAsync(Guid pickupRequestId)
     {
         var declared = await _db.PickupRequests
@@ -363,7 +441,17 @@ public class ApprovalService : IApprovalService
         entity.ReviewedAt = DateTime.UtcNow;
         entity.ReviewNotes = dto.Reason.Trim();
 
+        // The pickup itself was left as Classified before this: not scheduled,
+        // not refused, invisible to everyone including the resident who asked.
+        if (entity.PickupRequest is not null)
+        {
+            entity.PickupRequest.Status = PickupStatus.Rejected;
+        }
+
         await _db.SaveChangesAsync();
+
+        await WriteDecisionMessageAsync(entity, approved: false, reason: dto.Reason);
+
         return ToDto(entity);
     }
 

@@ -123,10 +123,14 @@ def _build_prompt(context: dict, options: list) -> str:
         for i, o in enumerate(options)
     )
 
+    # The form asks residents to "collect on or after" a date, so the date is
+    # the earliest they will have the waste out -- not a loose preference.
+    # Collecting before it means a crew arrives to find nothing there.
     preferred_line = (
-        f"The resident asked for {preferred}."
+        f"The resident will not have it out before {preferred}. Do not choose a "
+        f"slot earlier than that date unless this waste needs special handling."
         if preferred
-        else "The resident did not ask for a particular day."
+        else "The resident did not give an earliest date."
     )
 
     urgency_line = (
@@ -151,9 +155,10 @@ collected on):
 How to choose, in this order:
 1. If this waste needs special handling, take the SOONEST slot. Hazardous and
    bulky waste sitting outside a house is a problem in itself, and that outweighs
-   the resident's preferred day.
-2. Otherwise, prefer the resident's requested day if a slot falls on it.
-3. Otherwise prefer the soonest slot.
+   the resident's earliest date.
+2. Otherwise, never choose a slot before the resident's earliest date -- the
+   waste will not be out yet and the crew would arrive to nothing.
+3. Of the slots on or after that date, take the soonest.
 4. Between two slots that are equally good on the above, prefer the one with more
    room left, so one day does not fill while others sit empty.
 

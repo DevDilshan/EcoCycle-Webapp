@@ -31,4 +31,8 @@ public interface IAgentPipelineClient
     /// </summary>
     Task<MissedExplanationDto?> ExplainMissedAsync(
         ExplainMissedRequestDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>Words an admin's approve or reject decision for the resident.</summary>
+    Task<DecisionExplanationDto?> ExplainDecisionAsync(
+        ExplainDecisionRequestDto request, CancellationToken cancellationToken = default);
 }
