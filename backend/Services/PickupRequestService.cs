@@ -637,6 +637,12 @@ public class PickupRequestService : IPickupRequestService
         // points the resident was paid for it.
         if (entity.Status == PickupStatus.Completed) return PickupOperationResult.NotEditable;
 
+        // A refused request is finished too. Nothing is booked against it, so
+        // there is no trip to call off, and deleting it would take the reason
+        // for the refusal with it -- which is the one thing the resident still
+        // needs from that row.
+        if (entity.Status == PickupStatus.Rejected) return PickupOperationResult.NotEditable;
+
         var collected = await _db.RouteAssignments
             .AnyAsync(r => r.PickupRequestId == id
                 && r.CompletionStatus == RouteCompletionStatus.Completed);
