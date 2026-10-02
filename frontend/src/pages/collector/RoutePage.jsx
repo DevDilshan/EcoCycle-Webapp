@@ -14,6 +14,7 @@ import PageShell from '../../components/admin/AdminPageShell'
 import { AcAlert, AcCard, AcChips, AcToast } from '../../components/admin/AcUi'
 import { AcCategory, AcCategoryIcon, AcStatusPill, CATEGORY_LABELS } from '../../components/admin/AcPills'
 import MarkCompleteDrawer from '../../components/collector/MarkCompleteDrawer'
+import ReportMissedDrawer from '../../components/collector/ReportMissedDrawer'
 import { useCollectorData } from '../../components/collector/collectorShell'
 import { useAuth } from '../../context/AuthContext'
 import { formatRequestId } from '../../lib/adminUi'
@@ -30,6 +31,7 @@ export default function CollectorRoutePage() {
   const [search, setSearch] = useState('')
   const [openId, setOpenId] = useState(null)
   const [completing, setCompleting] = useState(null)
+  const [reporting, setReporting] = useState(null)
   const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState(null)
 
@@ -57,27 +59,17 @@ export default function CollectorRoutePage() {
     [stops],
   )
 
-  async function handleMissed(stop) {
-    // A reason is required, so prompt for one rather than letting a stop be
-    // closed with nothing an admin or resident can be told.
-    const reason = window.prompt(
-      'Why could this not be collected? (e.g. bin not out, gate locked, blocked access)',
-    )
-    if (reason === null) return
-    if (!reason.trim()) {
-      setError('Please give a reason so the admin knows what happened.')
-      return
-    }
-
+  async function handleMissed(stop, reason) {
     setBusy(true)
     setError(null)
     try {
       const result = await reportMissed(stop.id, reason)
       setSuccess(
         result?.rescheduled
-          ? 'Reported. The office has booked it onto a later round.'
+          ? 'Reported. It has been booked onto a later round.'
           : 'Reported. The office will arrange another visit.',
       )
+      setReporting(null)
       setOpenId(null)
     } catch (err) {
       setError(err.message)
@@ -173,9 +165,12 @@ export default function CollectorRoutePage() {
                     {pickup?.category && (
                       <AcCategory category={pickup.category} confidence={pickup.confidence} />
                     )}
-                    {pickup?.zoneName && (
-                      <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{pickup.zoneName}</span>
+                    {/* The address is what a driver actually navigates by; the
+                        zone only says which round this belongs to. */}
+                    {pickup?.address && (
+                      <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{pickup.address}</span>
                     )}
+                    {pickup?.zoneName && <span>{pickup.zoneName}</span>}
                     {/* The crew needs to know before they arrive: a bulky
                         collection needs a lift-equipped vehicle, not the bin lorry. */}
                     {pickup?.isBulkRequest && (
@@ -225,7 +220,7 @@ export default function CollectorRoutePage() {
                             type="button"
                             className="ac-btn ac-btn-danger"
                             disabled={busy}
-                            onClick={() => handleMissed(stop)}
+                            onClick={() => setReporting(stop)}
                           >
                             <X size={16} strokeWidth={2.4} aria-hidden="true" />
                             Couldn&rsquo;t collect
@@ -284,6 +279,13 @@ export default function CollectorRoutePage() {
           ))}
         </AcCard>
       )}
+
+      <ReportMissedDrawer
+        stop={reporting}
+        busy={busy}
+        onClose={() => setReporting(null)}
+        onReport={handleMissed}
+      />
 
       <MarkCompleteDrawer
         stop={completing}

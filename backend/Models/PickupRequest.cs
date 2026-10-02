@@ -47,6 +47,33 @@ public class PickupRequest
     public Zone? Zone { get; set; }
 
     /// <summary>
+    /// Where the collector actually goes: house number and street.
+    /// </summary>
+    /// <remarks>
+    /// The zone says which round collects this and on which days; it is a whole
+    /// suburb and cannot tell a driver which house. Without this the system
+    /// schedules perfectly and the truck has nowhere to stop.
+    ///
+    /// Free text on purpose. A driver can read "14/2 Temple Road, near the
+    /// junction"; they cannot read a pair of coordinates. A map pin can be added
+    /// later for ordering the round, but it does not replace this.
+    /// </remarks>
+    [MaxLength(300)]
+    public string? Address { get; set; }
+
+    /// <summary>
+    /// The message shown to the resident after a failed attempt, written by the
+    /// Notifier agent from the collector's shorthand.
+    /// </summary>
+    /// <remarks>
+    /// Stored on the pickup rather than in an inbox: there is no notification
+    /// system here, and the latest outcome is what a resident actually wants to
+    /// see when they open their collection.
+    /// </remarks>
+    [MaxLength(1000)]
+    public string? ResidentMessage { get; set; }
+
+    /// <summary>
     /// The resident declared this a bulky-waste collection.
     /// </summary>
     /// <remarks>

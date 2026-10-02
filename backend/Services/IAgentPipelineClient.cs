@@ -25,4 +25,10 @@ public interface IAgentPipelineClient
     /// </summary>
     Task<RoutingDto?> ChooseSlotAsync(
         RoutingContextDto context, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rewrites a collector's shorthand as a message a resident can read.
+    /// </summary>
+    Task<MissedExplanationDto?> ExplainMissedAsync(
+        ExplainMissedRequestDto request, CancellationToken cancellationToken = default);
 }

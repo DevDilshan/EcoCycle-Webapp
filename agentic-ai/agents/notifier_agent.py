@@ -122,3 +122,91 @@ def _ask_llm_for_decision(prompt: str) -> dict:
         f"LLM did not return valid approval JSON after {MAX_ATTEMPTS} attempts. "
         f"Last error: {last_error}"
     )
+
+
+def _ask_llm_for_json(prompt: str) -> dict:
+    """Call the LLM until it returns parsable JSON, with no field validation.
+
+    Separate from _ask_llm_for_decision, which also enforces the approval
+    recommendation enum. Reusing that one here made every call fail: this prompt
+    has no recommendation to return.
+    """
+    last_error = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return parse_json_response(call_llm(prompt))
+        except ValueError as error:
+            last_error = error
+            if attempt < MAX_ATTEMPTS:
+                time.sleep(RETRY_DELAY_SECONDS)
+
+    raise ValueError(
+        f"LLM did not return valid JSON after {MAX_ATTEMPTS} attempts. "
+        f"Last error: {last_error}"
+    )
+
+
+def explain_missed_collection(
+    reason: str,
+    description: str,
+    next_visit: str | None = None,
+) -> dict:
+    """Turn a collector's shorthand into something a resident can read.
+
+    A crew types "gate locked" or "bin not out" -- true, but curt, and written
+    for the office rather than the household. Shown to a resident unchanged it
+    reads as a complaint about them.
+
+    Args:
+        reason: What the collector wrote at the stop.
+        description: What the pickup was, so the message can name it.
+        next_visit: The rebooked date as "YYYY-MM-DD", or None if there is none.
+
+    Returns:
+        A dict with:
+            resident_message: a short, plain message for the household
+            admin_summary:    one line for the office
+
+    Raises:
+        ValueError: if the LLM never returns valid JSON.
+    """
+    if not reason or not reason.strip():
+        raise ValueError("reason must not be empty")
+
+    next_line = (
+        f"The collection has been rebooked for {next_visit}."
+        if next_visit
+        else "No new date has been arranged yet."
+    )
+
+    prompt = f"""You are the Notifier Agent for a council waste collection service.
+
+A collection could not be made. Write the message the resident will see.
+
+What was being collected: {description or "a waste pickup"}
+What the crew reported: {reason}
+{next_line}
+
+Rules for the resident message:
+- Two sentences at most.
+- Say plainly why it could not be collected.
+- If there is a new date, say it.
+- If the resident needs to do something differently, say it once, politely.
+- Do not blame, lecture, or apologise at length. No greeting, no sign-off.
+
+Respond ONLY with a JSON object, no extra text, using exactly these keys:
+{{
+  "resident_message": "<what the household sees>",
+  "admin_summary": "<one line for the office>"
+}}"""
+
+    result = _ask_llm_for_json(prompt)
+
+    message = (result.get("resident_message") or "").strip()
+    if not message:
+        raise ValueError("LLM returned no resident_message")
+
+    return {
+        "resident_message": message,
+        "admin_summary": (result.get("admin_summary") or "").strip(),
+    }

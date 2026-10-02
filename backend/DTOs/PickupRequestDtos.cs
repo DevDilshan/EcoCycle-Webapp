@@ -13,6 +13,14 @@ public class CreatePickupRequestDto : IValidatableObject
 
     public string? Description { get; set; }
 
+    /// <summary>
+    /// House number and street. Required: the zone is a whole suburb, so
+    /// without this a collector has nowhere to go.
+    /// </summary>
+    [Required(ErrorMessage = "Address is required so the collector can find you.")]
+    [StringLength(300, MinimumLength = 5, ErrorMessage = "Please give a full address.")]
+    public string Address { get; set; } = string.Empty;
+
     public DateTime PreferredDate { get; set; }
 
     /// <summary>
@@ -47,6 +55,9 @@ public class UpdatePickupRequestDto : IValidatableObject
 
     public string? Description { get; set; }
 
+    [StringLength(300, MinimumLength = 5, ErrorMessage = "Please give a full address.")]
+    public string? Address { get; set; }
+
     public DateTime PreferredDate { get; set; }
 
     public bool IsRecurring { get; set; } = false;
@@ -63,8 +74,37 @@ public class PickupRequestResponseDto
     public Guid ResidentId { get; set; }
     public string? PhotoUrl { get; set; }
     public string? Description { get; set; }
+    public string? Address { get; set; }
+
     public DateTime PreferredDate { get; set; }
     public string Status { get; set; } = string.Empty;   // enum as string
+    /// <summary>
+    /// What happened at the most recent attempt: "Pending", "Completed" or
+    /// "Missed". Null when nothing has been scheduled yet.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the pickup rather than sent as a notification. There is no
+    /// inbox in this app, and a status cannot go stale the way a stored message
+    /// can -- "we missed you on the 2nd" would still be sitting there after it
+    /// had been collected.
+    /// </remarks>
+    public string? LastAttemptStatus { get; set; }
+
+    /// <summary>The collector's own words about why it could not be collected.</summary>
+    public string? LastAttemptNote { get; set; }
+
+    /// <summary>When that attempt was.</summary>
+    public DateTime? LastAttemptDate { get; set; }
+
+    /// <summary>The next booked visit, when one exists.</summary>
+    public DateTime? NextVisitDate { get; set; }
+
+    /// <summary>
+    /// The message written for the resident after a failed attempt, in plain
+    /// language rather than the collector's shorthand.
+    /// </summary>
+    public string? ResidentMessage { get; set; }
+
     public bool IsBulkRequest { get; set; }
 
     public bool IsRecurring { get; set; }
