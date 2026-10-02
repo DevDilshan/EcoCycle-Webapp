@@ -167,6 +167,17 @@ export function useCollectorRoute() {
 
   const zoneNames = useMemo(() => zones.map((zone) => zone.name), [zones])
 
+  /// Report a stop as not collected. A reason is required: "missed" with no
+  /// explanation tells the admin nothing and cannot be answered to a resident.
+  const reportMissed = useCallback(async (routeId, issueNotes) => {
+    const result = await apiRequest(`/routes/${routeId}/missed`, {
+      method: 'PATCH',
+      body: JSON.stringify({ issueNotes: issueNotes?.trim() || undefined }),
+    })
+    await reload()
+    return result
+  }, [reload])
+
   const completeStop = useCallback(async (routeId, issueNotes) => {
     await apiRequest(`/routes/${routeId}/complete`, {
       method: 'PATCH',
@@ -190,5 +201,6 @@ export function useCollectorRoute() {
     setError,
     reload,
     completeStop,
+    reportMissed,
   }
 }

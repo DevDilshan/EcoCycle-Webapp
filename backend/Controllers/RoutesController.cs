@@ -1,3 +1,4 @@
+using System.Security.Claims;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +12,13 @@ namespace backend.Controllers;
 [Authorize]
 public class RoutesController : ControllerBase
 {
+    private Guid CurrentUserId =>
+        Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"), out var id)
+            ? id
+            : Guid.Empty;
+
+    private bool IsAdmin => User.IsInRole("admin");
+
     private readonly RouteAssignmentService _routeService;
     private readonly PickupSchedulingService _scheduling;
 
@@ -81,16 +89,30 @@ public class RoutesController : ControllerBase
         return Ok(routes);
     }
 
-    // PATCH /api/routes/{id}/missed — admin-only. A collector marks work done;
-    // an admin accounts for work that was not, which is the only way a Missed
-    // row can come into existence.
+    // PATCH /api/routes/{id}/missed — the collector reports it, the admin can
+    // too.
+    //
+    // The collector is the one standing at the kerb: they are the only person
+    // who knows the bin was not out or the gate was locked. Leaving this to an
+    // admin meant nobody could record it until someone noticed days later. The
+    // admin keeps the ability for the case the collector never reports it --
+    // which is the same case a resident complains about.
     [HttpPatch("{id:guid}/missed")]
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,collector")]
     [ProducesResponseType(typeof(RouteAssignmentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<RouteAssignmentDto>> MarkMissed(Guid id, [FromBody] CompleteRouteDto? dto)
     {
+        // A collector may only report their own stop. Without this one collector
+        // could close off another's round, and the reason recorded against it
+        // would be from someone who was never there.
+        if (!IsAdmin)
+        {
+            var isTheirs = await _routeService.IsAssignedToAsync(id, CurrentUserId);
+            if (!isTheirs) return Forbid();
+        }
+
         try
         {
             var route = await _routeService.MarkMissedAsync(id, dto?.IssueNotes);

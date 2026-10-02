@@ -210,11 +210,24 @@ export default function RoutesPage() {
     setError(null)
     setSuccess(null)
     try {
-      await apiRequest(`/routes/${stop.id}/missed`, {
+      const result = await apiRequest(`/routes/${stop.id}/missed`, {
         method: 'PATCH',
         body: JSON.stringify({}),
       })
-      setSuccess('Stop marked missed.')
+
+      // Marking missed also tries to book the pickup again. Saying only "marked
+      // missed" hid whether that worked, so a rebooking that failed looked
+      // exactly like one that succeeded.
+      if (result?.rescheduled) {
+        setSuccess('Stop marked missed, and the pickup was booked onto a later round.')
+      } else {
+        setSuccess('Stop marked missed.')
+        setError(
+          result?.rescheduleMessage
+            ? `It could not be booked again: ${result.rescheduleMessage}`
+            : 'It could not be booked again. Place it by hand.',
+        )
+      }
       loadDayStops()
       loadReportData()
     } catch (err) {
