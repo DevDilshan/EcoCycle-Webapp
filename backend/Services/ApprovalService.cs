@@ -11,17 +11,20 @@ public class ApprovalService : IApprovalService
     private readonly ApplicationDbContext _db;
     private readonly IAgentPipelineClient _agents;
     private readonly RouteAssignmentService _routes;
+    private readonly RoutingOptionBuilder _routingOptions;
     private readonly ILogger<ApprovalService> _logger;
 
     public ApprovalService(
         ApplicationDbContext db,
         IAgentPipelineClient agents,
         RouteAssignmentService routes,
+        RoutingOptionBuilder routingOptions,
         ILogger<ApprovalService> logger)
     {
         _db = db;
         _agents = agents;
         _routes = routes;
+        _routingOptions = routingOptions;
         _logger = logger;
     }
 
@@ -183,12 +186,19 @@ public class ApprovalService : IApprovalService
         RoutingDto? routing;
         try
         {
-            // Deliberately re-read the loads now rather than reusing the snapshot
-            // taken at submission: a flagged pickup can sit in review for days,
-            // and the collector who was quietest then may be the busiest today.
-            var loads = await GetCollectorLoadsAsync();
-            if (loads.Count == 0)
-                return "No collectors are available to take this pickup.";
+            // Deliberately rebuilt now rather than reusing the snapshot taken at
+            // submission: a flagged pickup can sit in review for days, and the
+            // day that was empty then may be full today.
+            //
+            // Here the category IS known -- an admin has just approved it -- so
+            // the slots are filtered by vehicle properly, unlike the submission
+            // path where classification has not happened yet.
+            var category = ParseCategory(storedResult);
+            var context = await _routingOptions.BuildAsync(
+                pickup.ZoneId.Value, category, pickup.PreferredDate);
+
+            if (context.Options.Count == 0)
+                return "No collector equipped for this pickup has a free slot in the next two weeks.";
 
             routing = await _agents.RouteApprovedPickupAsync(new RouteApprovedPickupRequestDto
             {
@@ -198,7 +208,7 @@ public class ApprovalService : IApprovalService
                     ["description"] = pickup.Description ?? string.Empty
                 },
                 PipelineResult = storedResult.RootElement.Clone(),
-                CollectorLoads = await ZoneAwareLoadsAsync(pickup.ZoneId.Value, loads)
+                RoutingContext = context
             });
         }
         catch (Exception ex)
@@ -261,6 +271,33 @@ public class ApprovalService : IApprovalService
     /// unfiltered list routes work across zone boundaries. Falls back to every
     /// collector when the zone has nobody assigned.
     /// </remarks>
+    /// <summary>
+    /// The category the pipeline settled on, read back from the stored result.
+    /// </summary>
+    /// <remarks>
+    /// Falls back to General when the stored JSON predates the field or cannot
+    /// be read: that only widens the slots offered, and the vehicle rules are
+    /// enforced again when the assignment is built.
+    /// </remarks>
+    private static WasteCategory ParseCategory(JsonDocument storedResult)
+    {
+        try
+        {
+            if (storedResult.RootElement.TryGetProperty("classification", out var classification)
+                && classification.TryGetProperty("category", out var category)
+                && Enum.TryParse<WasteCategory>(category.GetString(), ignoreCase: true, out var parsed))
+            {
+                return parsed;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Stored JSON of an unexpected shape; the fallback is safe.
+        }
+
+        return WasteCategory.General;
+    }
+
     private async Task<Dictionary<string, int>> ZoneAwareLoadsAsync(
         Guid zoneId,
         Dictionary<string, int> allLoads)

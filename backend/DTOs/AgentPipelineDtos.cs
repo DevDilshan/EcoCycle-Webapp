@@ -12,8 +12,12 @@ public class RunPipelineRequestDto
     public string Description { get; set; } = string.Empty;
     public string ResidentZoneId { get; set; } = string.Empty;
 
-    // collector id -> pickups currently assigned to them.
-    public Dictionary<string, int> CollectorLoads { get; set; } = new();
+    /// <summary>
+    /// The slots the router may choose from. Built here, not by the agent, so
+    /// the hard constraints -- vehicle, capacity, collection day -- cannot be
+    /// got wrong by a model.
+    /// </summary>
+    public RoutingContextDto RoutingContext { get; set; } = new();
 
     public string? PhotoUrl { get; set; }
     public List<ResidentHistoryEntryDto>? ResidentHistory { get; set; }
@@ -35,6 +39,13 @@ public class PipelineResultDto
     /// assign a collector to a pickup that cannot go ahead. Assigned later by
     /// /route-approved-pickup once an admin approves.
     public RoutingDto? Routing { get; set; }
+
+    /// <summary>
+    /// Why routing was skipped, when it was skipped because no slot was free
+    /// rather than because a rule was broken. Worth showing an admin: "every
+    /// collector is full for the next two weeks" is actionable, silence is not.
+    /// </summary>
+    public string? RoutingError { get; set; }
 
     public ApprovalDto? Approval { get; set; }
     public string? FlagReason { get; set; }
@@ -84,6 +95,6 @@ public class RouteApprovedPickupRequestDto
     /// The stored PipelineResultJson, passed back verbatim as parsed JSON.
     public object PipelineResult { get; set; } = new();
 
-    /// Loads as they are NOW, not the snapshot taken at submission.
-    public Dictionary<string, int> CollectorLoads { get; set; } = new();
+    /// Slots as they are NOW, not the snapshot taken at submission.
+    public RoutingContextDto RoutingContext { get; set; } = new();
 }

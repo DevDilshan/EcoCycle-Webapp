@@ -71,21 +71,21 @@ class RunPipelineRequest(BaseModel):
 
     description: str
     resident_zone_id: str
-    collector_loads: dict[str, int]
+    routing_context: dict
     photo_url: str | None = None
     resident_history: list[dict] | None = None
     complaint_description: str | None = None
 
 
 class RouteApprovedRequest(BaseModel):
-    """A flagged pickup an admin has approved, plus the loads as they are now."""
+    """A flagged pickup an admin has approved, plus the slots as they are now."""
 
     pickup_request: dict
     pipeline_result: dict
-    collector_loads: dict[str, int] = Field(
+    routing_context: dict = Field(
         ...,
         description=(
-            "CURRENT collector loads, not the snapshot taken at submission. "
+            "CURRENT routing slots, not the snapshot taken at submission. "
             "Routing was deferred precisely so this could be fresh."
         ),
     )
@@ -116,13 +116,13 @@ def post_run_pipeline(request: RunPipelineRequest) -> dict:
 def post_route_approved_pickup(request: RouteApprovedRequest) -> dict:
     """Assign a collector to a flagged pickup that an admin has approved.
 
-    The supplied collector_loads overwrite whatever the stored pickup_request
+    The supplied routing_context overwrites whatever the stored pickup_request
     carried, so a stale snapshot replayed from the database cannot quietly win
-    over the fresh loads the caller just fetched.
+    over the fresh slots the caller just fetched.
     """
     pickup_request = {
         **request.pickup_request,
-        "collector_loads": request.collector_loads,
+        "routing_context": request.routing_context,
     }
     try:
         return route_approved_pickup(pickup_request, request.pipeline_result)

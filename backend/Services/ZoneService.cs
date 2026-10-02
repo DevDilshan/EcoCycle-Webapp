@@ -83,6 +83,7 @@ public class ZoneService
             AssignedCollectorId = dto.AssignedCollectorId,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
+            CollectionDays = NormaliseCollectionDays(dto.CollectionDays),
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow
         };
@@ -106,6 +107,7 @@ public class ZoneService
         zone.AssignedCollectorId = dto.AssignedCollectorId;
         zone.Latitude = dto.Latitude;
         zone.Longitude = dto.Longitude;
+        zone.CollectionDays = NormaliseCollectionDays(dto.CollectionDays);
         zone.IsActive = dto.IsActive;
         zone.UpdatedAt = DateTime.UtcNow;
 
@@ -152,6 +154,21 @@ public class ZoneService
         return true;
     }
 
+    /// <summary>
+    /// Keeps only real weekday numbers, de-duplicated and in week order.
+    /// </summary>
+    /// <remarks>
+    /// The value comes straight from an admin form, so 8s and repeats are
+    /// possible; the routing agent is given this list verbatim and would have no
+    /// way to tell a typo from a real day.
+    /// </remarks>
+    private static List<int> NormaliseCollectionDays(IEnumerable<int>? days)
+        => (days ?? [])
+            .Where(d => d is >= 0 and <= 6)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+
     private static ZoneDto MapToDto(Zone zone) => new()
     {
         Id = zone.Id,
@@ -160,6 +177,7 @@ public class ZoneService
         AssignedCollectorId = zone.AssignedCollectorId,
         Latitude = zone.Latitude,
         Longitude = zone.Longitude,
+        CollectionDays = zone.CollectionDays,
         IsActive = zone.IsActive,
         UpdatedAt = zone.UpdatedAt,
         CreatedAt = zone.CreatedAt

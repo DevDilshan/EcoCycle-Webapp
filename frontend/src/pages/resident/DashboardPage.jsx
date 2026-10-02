@@ -8,7 +8,6 @@ import { useAuth } from '../../context/AuthContext'
 import {
   formatCompactDate,
   formatRequestId,
-  inferCategory,
   shortProfileName,
 } from '../../lib/adminUi'
 import CategoryPill from '../../components/admin/CategoryPill'
@@ -188,9 +187,11 @@ export default function ResidentDashboardPage() {
         ) : (
           <ul className="resident-activity-list">
             {recentActivity.map((item) => {
-              // The AI classification when there is one; the keyword guess is only a
-              // placeholder for pickups the pipeline has not classified yet.
-              const category = item.category || inferCategory(item.description)
+              // Only the real classification is shown. The keyword guess that used to stand
+              // in here looked exactly like a decided category, which is misleading now that
+              // Bulk draws down a monthly allowance -- a resident could see "Bulk" and
+              // reasonably believe a slot had been used when nothing had been decided.
+              const category = item.category
               const isPending = ['Pending', 'Approved'].includes(item.status)
               return (
                 <li key={item.id} className="resident-activity-item">
@@ -205,8 +206,10 @@ export default function ResidentDashboardPage() {
                   </div>
                   {isPending ? (
                     <span className="design-pill pill-status-pending">Pending</span>
-                  ) : (
+                  ) : category ? (
                     <CategoryPill category={category} />
+                  ) : (
+                    <span className="resident-awaiting">Being sorted…</span>
                   )}
                 </li>
               )

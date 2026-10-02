@@ -14,6 +14,9 @@ public class ZoneDto
 
     public double? Longitude { get; set; }
 
+    /// <summary>Collection days as DayOfWeek numbers; empty means no fixed days.</summary>
+    public List<int> CollectionDays { get; set; } = [];
+
     public bool IsActive { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
