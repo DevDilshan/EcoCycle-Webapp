@@ -84,20 +84,26 @@ def route_pickup(context: dict) -> dict:
 
     decision = _ask_llm_for_decision(_build_prompt(context, shown))
 
-    # The model must choose a slot it was actually offered. Without this check a
-    # plausible-looking but invented pairing would flow into the database and
-    # put a collector somewhere they cannot go.
-    chosen_id = decision.get("collector_id")
-    chosen_date = decision.get("scheduled_date")
-    if not any(o["collector_id"] == chosen_id and o["date"] == chosen_date for o in shown):
+    # The model picks a slot NUMBER rather than copying an id. Asking a small
+    # model to reproduce an id exactly is asking for trouble -- it returned
+    # "collector-B (Ruwan Dias)" when the id and the name sat next to each other
+    # in the prompt. A number it cannot mangle, and the id is looked up here.
+    try:
+        slot_number = int(decision.get("slot"))
+    except (TypeError, ValueError):
         raise ValueError(
-            f"LLM chose collector {chosen_id!r} on {chosen_date!r}, which is not one of "
-            f"the slots offered."
+            f"LLM returned slot {decision.get('slot')!r}, which is not a slot number."
+        ) from None
+
+    if not 1 <= slot_number <= len(shown):
+        raise ValueError(
+            f"LLM chose slot {slot_number}, but only 1 to {len(shown)} were offered."
         )
 
+    chosen = shown[slot_number - 1]
     return {
-        "collector_id": chosen_id,
-        "scheduled_date": chosen_date,
+        "collector_id": chosen["collector_id"],
+        "scheduled_date": chosen["date"],
         "reasoning": decision.get("reasoning", ""),
     }
 
@@ -108,10 +114,11 @@ def _build_prompt(context: dict, options: list) -> str:
     preferred = context.get("preferred_date")
     restricted = context.get("is_restricted", False)
 
+    # The collector id is deliberately absent: the model never needs it, and
+    # showing it only invites it to be copied back slightly wrong.
     rows = "\n".join(
-        f"- slot {i + 1}: collector_id={o['collector_id']} ({o['collector_name']}), "
-        f"date={o['date']}, {o['days_away']} day(s) away, "
-        f"{o['remaining_capacity']} stop(s) still free"
+        f"- slot {i + 1}: {o['date']}, {o['days_away']} day(s) away, "
+        f"collector {o['collector_name']}, {o['remaining_capacity']} stop(s) still free"
         + (", on the zone's scheduled round" if o.get("is_collection_day") else "")
         for i, o in enumerate(options)
     )
@@ -155,8 +162,7 @@ one has almost no room left.
 
 Respond ONLY with a JSON object, no extra text, using exactly these keys:
 {{
-  "collector_id": "<copied exactly from one slot above>",
-  "scheduled_date": "<that same slot's date, YYYY-MM-DD>",
+  "slot": <the number of the slot you chose, e.g. 2>,
   "reasoning": "<one sentence saying why this slot beat the others>"
 }}"""
 
