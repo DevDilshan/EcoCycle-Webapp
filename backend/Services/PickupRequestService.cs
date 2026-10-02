@@ -20,17 +20,20 @@ public class PickupRequestService : IPickupRequestService
     private readonly ApplicationDbContext _db;
     private readonly IAgentPipelineClient _agents;
     private readonly RouteAssignmentService _routes;
+    private readonly RoutingOptionBuilder _routingOptions;
     private readonly ILogger<PickupRequestService> _logger;
 
     public PickupRequestService(
         ApplicationDbContext db,
         IAgentPipelineClient agents,
         RouteAssignmentService routes,
+        RoutingOptionBuilder routingOptions,
         ILogger<PickupRequestService> logger)
     {
         _db = db;
         _agents = agents;
         _routes = routes;
+        _routingOptions = routingOptions;
         _logger = logger;
     }
 
@@ -119,15 +122,6 @@ public class PickupRequestService : IPickupRequestService
         PipelineResultDto? result;
         try
         {
-            var loads = await GetCollectorLoadsAsync();
-            if (loads.Count == 0)
-            {
-                _logger.LogWarning(
-                    "No collector has any route assignments, so the routing agent would have " +
-                    "nothing to choose from; leaving pickup {PickupId} Pending.", entity.Id);
-                return;
-            }
-
             _logger.LogInformation(
                 "Running agent pipeline for pickup {PickupId} (photo supplied: {HasPhoto})",
                 entity.Id,
@@ -137,7 +131,13 @@ public class PickupRequestService : IPickupRequestService
             {
                 Description = entity.Description,
                 ResidentZoneId = entity.ZoneId.Value.ToString(),
-                CollectorLoads = await ZoneAwareLoadsAsync(entity.ZoneId.Value, loads),
+                // Slots have to be built before the pipeline runs, and the
+                // category only exists afterwards -- classification and routing
+                // are one call. They are therefore built without a vehicle
+                // restriction, and the real category is checked against the
+                // chosen collector once it is known (see VehicleCanCarry).
+                RoutingContext = await _routingOptions.BuildAsync(
+                    entity.ZoneId.Value, WasteCategory.General, entity.PreferredDate),
                 PhotoUrl = entity.PhotoUrl,
                 ResidentHistory = await ResidentHistoryThisMonthAsync(entity.ResidentId, entity.Id)
             });
@@ -258,7 +258,8 @@ public class PickupRequestService : IPickupRequestService
                 entity.Id, string.Join("; ", flagReasons));
         }
         else if (AgentRoutingMapper.TryBuild(
-                     entity.Id, entity.ZoneId!.Value, result.Routing, out var assignment, out var routingError))
+                     entity.Id, entity.ZoneId!.Value, result.Routing, out var assignment, out var routingError)
+                 && await VehicleCanCarryAsync(assignment!.CollectorId, category))
         {
             _db.RouteAssignments.Add(assignment!);
             entity.Status = PickupStatus.Scheduled;
@@ -363,6 +364,40 @@ public class PickupRequestService : IPickupRequestService
                 CreatedAt = r.CreatedAt
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// Whether the chosen collector's vehicle may carry this category.
+    /// </summary>
+    /// <remarks>
+    /// The slots offered to the router are built before the pickup is
+    /// classified, so they carry no vehicle restriction. This is the check that
+    /// closes that gap: a sofa must not be left with a collector who has no
+    /// lift, and hazardous waste must not be left with an unlicensed one, no
+    /// matter how sensible the agent's choice looked.
+    ///
+    /// Failing here simply leaves the pickup unrouted for an admin to place,
+    /// which is the safe outcome.
+    /// </remarks>
+    private async Task<bool> VehicleCanCarryAsync(Guid collectorId, WasteCategory category)
+    {
+        if (category is not (WasteCategory.Bulk or WasteCategory.Hazardous)) return true;
+
+        var setting = await _db.CollectorSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CollectorId == collectorId);
+
+        var handlesBulky = setting?.HandlesBulky ?? CollectorSettingService.DefaultSetting.HandlesBulky;
+        var handlesHazardous = setting?.HandlesHazardous ?? CollectorSettingService.DefaultSetting.HandlesHazardous;
+
+        var allowed = category == WasteCategory.Bulk ? handlesBulky : handlesHazardous;
+        if (!allowed)
+        {
+            _logger.LogWarning(
+                "Routing agent chose collector {CollectorId} for a {Category} pickup, but their " +
+                "vehicle is not equipped for it; leaving it unrouted.", collectorId, category);
+        }
+        return allowed;
     }
 
     private async Task<Dictionary<string, int>> ZoneAwareLoadsAsync(

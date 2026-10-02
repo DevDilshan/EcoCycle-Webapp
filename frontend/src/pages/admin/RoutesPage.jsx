@@ -5,6 +5,7 @@ import { AcAlert, AcCard, AcDrawer, AcKpi, AcToast } from '../../components/admi
 import { AcStatusPill } from '../../components/admin/AcPills'
 import EntitySelect from '../../components/admin/EntitySelect'
 import ZoneCard from '../../components/admin/ZoneCard'
+import CollectorSettingsCard from '../../components/admin/CollectorSettingsCard'
 import ZoneMap from '../../components/admin/ZoneMap'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
 import { formatRequestId, shortProfileName } from '../../lib/adminUi'
@@ -18,8 +19,20 @@ const EMPTY_ZONE = {
   assignedCollectorId: '',
   latitude: '',
   longitude: '',
+  collectionDays: [],
   isActive: true,
 }
+
+// Sunday-first, matching System.DayOfWeek on the backend (0 = Sunday).
+const WEEKDAYS = [
+  { value: 0, label: 'Sun' },
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+]
 
 export default function RoutesPage() {
   const catalog = useAdminCatalog(['Approved'])
@@ -113,6 +126,7 @@ export default function RoutesPage() {
       assignedCollectorId: zone.assignedCollectorId || '',
       latitude: zone.latitude ?? '',
       longitude: zone.longitude ?? '',
+      collectionDays: zone.collectionDays ?? [],
       isActive: zone.isActive,
     })
   }
@@ -144,6 +158,7 @@ export default function RoutesPage() {
         assignedCollectorId: form.assignedCollectorId || null,
         latitude: form.latitude === '' ? null : Number(form.latitude),
         longitude: form.longitude === '' ? null : Number(form.longitude),
+        collectionDays: form.collectionDays,
         isActive: form.isActive,
       }
       if (editingId) {
@@ -419,6 +434,8 @@ export default function RoutesPage() {
         )}
       </AcCard>
 
+      <CollectorSettingsCard onSaved={loadReportData} />
+
       <div className="ac-section-head">
         <h2>Zones &amp; collectors</h2>
         <button
@@ -516,6 +533,38 @@ export default function RoutesPage() {
               />
             </div>
           </div>
+          <div className="ac-field">
+            <label>Collection days</label>
+            {/* The days this zone's round actually runs. Leaving them all off
+                means "no fixed round", and the router may then pick any day. */}
+            <div className="ac-days">
+              {WEEKDAYS.map((day) => {
+                const on = form.collectionDays.includes(day.value)
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    className={`ac-day${on ? ' is-on' : ''}`}
+                    aria-pressed={on}
+                    onClick={() => setForm({
+                      ...form,
+                      collectionDays: on
+                        ? form.collectionDays.filter((d) => d !== day.value)
+                        : [...form.collectionDays, day.value].sort((a, b) => a - b),
+                    })}
+                  >
+                    {day.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="ac-hint">
+              {form.collectionDays.length === 0
+                ? 'No fixed days — pickups can be scheduled on any day.'
+                : `Pickups are only scheduled on these ${form.collectionDays.length} day(s).`}
+            </p>
+          </div>
+
           <label className="ac-check">
             <input
               type="checkbox"
