@@ -49,11 +49,38 @@ public class PickupSchedulingService
         if (pickup is null) return "That pickup no longer exists.";
         if (pickup.ZoneId is null) return "This pickup has no zone, so a collector cannot be chosen.";
 
-        // Never book the same pickup twice onto an open stop.
-        var alreadyWaiting = await _db.RouteAssignments
-            .AnyAsync(r => r.PickupRequestId == pickup.Id
-                && r.CompletionStatus == RouteCompletionStatus.Pending);
-        if (alreadyWaiting) return "This pickup is already booked onto a collector's round.";
+        // Never book the same pickup twice onto an open stop -- but only a stop
+        // that is still ahead counts as booked.
+        //
+        // This used to refuse on any pending stop at all, which made the
+        // resident's "it wasn't collected" button refuse the one case it exists
+        // for: a stop whose day went by with nobody marking it either way is
+        // pending and overdue, so the button was offered and then answered with
+        // "this pickup is already booked onto a collector's round".
+        var tomorrow = ServiceClock.TodayPlus(1);
+
+        var openStops = await _db.RouteAssignments
+            .Where(r => r.PickupRequestId == pickup.Id
+                && r.CompletionStatus == RouteCompletionStatus.Pending)
+            .ToListAsync();
+
+        if (openStops.Any(r => r.ScheduledDate >= ServiceClock.Today))
+        {
+            return "This pickup is already booked onto a collector's round.";
+        }
+
+        // Anything left is a stop whose day has passed and which nobody closed
+        // off. Releasing it keeps the pickup on exactly one round: without this
+        // the stale stop would stay on the collector's screen alongside the new
+        // booking, and the same waste would be waiting for two different crews.
+        var stale = openStops.Where(r => r.ScheduledDate < tomorrow).ToList();
+        if (stale.Count > 0)
+        {
+            _db.RouteAssignments.RemoveRange(stale);
+            _logger.LogInformation(
+                "Releasing {Count} overdue stop(s) for pickup {PickupId} before rebooking it.",
+                stale.Count, pickup.Id);
+        }
 
         var category = await LatestCategoryAsync(pickup.Id);
         var context = await _routingOptions.BuildAsync(pickup.ZoneId.Value, category, pickup.PreferredDate);
