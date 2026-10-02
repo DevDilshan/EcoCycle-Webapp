@@ -1029,7 +1029,16 @@
   box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
 }
 
-.admin-console .ac-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* align-items:start matters here. Each .ac-field is itself a grid, and a
+   stretched one shares the extra height out among its rows -- so pairing a
+   field that carries a hint or an error with one that does not pushed the
+   shorter one's control down and left the two boxes off the same line. */
+.admin-console .ac-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 12px;
+}
 
 /* EntitySelect renders its own wrapper div, so the field grid has to reach one
    level further down to keep its label and control spaced the same way. */
