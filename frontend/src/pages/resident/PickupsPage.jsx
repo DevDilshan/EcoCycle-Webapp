@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Send,
   Trash2,
+  X,
 } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
 import { AcAlert, AcCard, AcChips, AcModal, AcToast } from '../../components/admin/AcUi'
@@ -470,11 +471,12 @@ export default function ResidentPickupsPage() {
         <button
           type="button"
           className="ac-btn ac-btn-primary ac-btn-sm"
-          onClick={() => setShowForm(true)}
+          onClick={() => setShowForm((open) => !open)}
           disabled={role !== 'resident'}
+          aria-expanded={showForm}
         >
           <Plus size={15} strokeWidth={2.4} aria-hidden="true" />
-          New pickup
+          {showForm ? 'Hide form' : 'New pickup'}
         </button>
       )}
       filterBar={(
@@ -496,6 +498,216 @@ export default function ResidentPickupsPage() {
       )}
       <AcAlert message={error} onClose={() => setError(null)} />
 
+      {/* ---- New pickup ----
+           Inline above the list rather than in a drawer or a centred panel.
+           With a photo, the zone, the address, the date, a description, the
+           bulky box and the recurrence, this form needs the full width of the
+           page; in a 460px drawer and even in a 620px panel it could not be
+           read without scrolling past most of it. */}
+      {showForm && (
+        <AcCard
+          title="New pickup request"
+          subtitle="Add a photo and the details, and we sort the rest"
+          action={(
+            <button
+              type="button"
+              className="ac-icon-btn"
+              onClick={() => setShowForm(false)}
+              aria-label="Close the new pickup form"
+            >
+              <X size={18} strokeWidth={2} aria-hidden="true" />
+            </button>
+          )}
+        >
+        <form className="ac-form" onSubmit={handleCreate}>
+          <PickupPhotoField
+            previewUrl={createPhotoPreview}
+            onFileChange={setCreatePhoto}
+            onClear={clearCreatePhoto}
+            disabled={busyId === 'create' || role !== 'resident'}
+          />
+
+          <div className="ac-field">
+            <label htmlFor="pickup-zone">Your zone</label>
+            <select
+              id="pickup-zone"
+              value={createForm.zoneId}
+              onChange={(e) => setCreateForm({ ...createForm, zoneId: e.target.value })}
+            >
+              <option value="">Select your zone…</option>
+              {zones.map((zone) => (
+                <option key={zone.id} value={zone.id}>{zone.name}</option>
+              ))}
+            </select>
+            {createErrors.zoneId && <p className="ac-field-error">{createErrors.zoneId}</p>}
+            {/* Which days that zone is actually collected. Shown as soon as a
+                zone is chosen, because the date below cannot be honoured on any
+                other day and the form should not pretend otherwise. */}
+            {collectionDaysLabel && <p className="ac-field-hint">{collectionDaysLabel}</p>}
+          </div>
+
+          {/* Side by side on a wide screen, stacked on a phone: together
+              these two decide where and when the crew turns up. */}
+          <div className="ac-two">
+            <div className="ac-field">
+              <label htmlFor="pickup-address">Address</label>
+              <input
+                id="pickup-address"
+                value={createForm.address}
+                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                placeholder="e.g. 14/2 Temple Road, near the junction"
+              />
+              {createErrors.address && <p className="ac-field-error">{createErrors.address}</p>}
+              <p className="ac-field-hint">
+                <MapPin size={12} strokeWidth={2.2} aria-hidden="true" />
+                {' '}A zone is a whole suburb, so the crew needs the house number and street.
+              </p>
+            </div>
+
+            <div className="ac-field">
+              <label htmlFor="pickup-date">
+                {collectionDates ? 'Choose a collection day' : 'Collect on or after'}
+              </label>
+              {collectionDates ? (
+                <select
+                  id="pickup-date"
+                  value={createForm.preferredDate}
+                  onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
+                >
+                  <option value="">Select a day…</option>
+                  {collectionDates.map((day) => {
+                    const value = toLocalDateValue(day)
+                    return (
+                      <option key={value} value={value}>
+                        {day.toLocaleDateString(undefined, {
+                          weekday: 'long', day: 'numeric', month: 'long',
+                        })}
+                      </option>
+                    )
+                  })}
+                </select>
+              ) : (
+                <input
+                  id="pickup-date"
+                  type="date"
+                  value={createForm.preferredDate}
+                  onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
+                />
+              )}
+              {createErrors.preferredDate && (
+                <p className="ac-field-error">{createErrors.preferredDate}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="ac-field">
+            <label htmlFor="pickup-description">What needs collecting?</label>
+            <textarea
+              id="pickup-description"
+              rows={3}
+              value={createForm.description}
+              onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+              placeholder="Describe the waste to collect…"
+            />
+            {createErrors.description && (
+              <p className="ac-field-error">{createErrors.description}</p>
+            )}
+          </div>
+
+          <div className="r-bulk">
+            <label className="r-bulk-check">
+              <input
+                type="checkbox"
+                checked={createForm.isBulkRequest}
+                onChange={(e) => setCreateForm({ ...createForm, isBulkRequest: e.target.checked })}
+                disabled={bulkAllowance?.remaining === 0 && !createForm.isBulkRequest}
+              />
+              <span>This is a bulky-waste collection (furniture, mattress, large appliance)</span>
+            </label>
+
+            {bulkAllowance && (
+              <p>
+                {bulkAllowance.remaining > 0
+                  ? `${bulkAllowance.remaining} of ${bulkAllowance.limit} bulky collections left this month.`
+                  : `You have used all ${bulkAllowance.limit} bulky collections this month. The allowance resets on the 1st.`}
+              </p>
+            )}
+
+            {/* Nudged, never forced: the resident can still say no, and the
+                classifier remains the backstop after submission. */}
+            {!createForm.isBulkRequest && looksBulky(createForm.description) && (
+              <p className="r-bulk-nudge">
+                This looks like a bulky item. Bulky collections are booked separately and use
+                your monthly allowance &mdash; tick the box above if that is what you need.
+              </p>
+            )}
+          </div>
+
+          <div className="ac-field">
+            <label>How often?</label>
+            <div className="r-toggle" role="group" aria-label="How often the pickup repeats">
+              <button
+                type="button"
+                className={!createForm.isRecurring ? 'is-on' : undefined}
+                aria-pressed={!createForm.isRecurring}
+                onClick={() => setCreateForm({ ...createForm, isRecurring: false })}
+              >
+                One-off
+              </button>
+              <button
+                type="button"
+                className={createForm.isRecurring ? 'is-on' : undefined}
+                aria-pressed={createForm.isRecurring}
+                onClick={() => setCreateForm({ ...createForm, isRecurring: true })}
+              >
+                Recurring
+              </button>
+            </div>
+          </div>
+
+          {createForm.isRecurring && (
+            <div className="ac-field">
+              <label htmlFor="pickup-interval">How often does it repeat?</label>
+              <select
+                id="pickup-interval"
+                value={createForm.recurrenceInterval}
+                onChange={(e) => setCreateForm({ ...createForm, recurrenceInterval: e.target.value })}
+              >
+                <option value="">Select…</option>
+                {/* A free text box here accepted anything and the server then
+                    refused everything but these two. */}
+                {ALLOWED_INTERVALS.map((interval) => (
+                  <option key={interval} value={interval}>{interval}</option>
+                ))}
+              </select>
+              {createErrors.recurrenceInterval && (
+                <p className="ac-field-error">{createErrors.recurrenceInterval}</p>
+              )}
+            </div>
+          )}
+
+          <div className="ac-actions">
+            <button
+              type="submit"
+              className="ac-btn ac-btn-primary"
+              disabled={busyId === 'create' || role !== 'resident'}
+            >
+              <Send size={16} strokeWidth={2.2} aria-hidden="true" />
+              Submit request
+            </button>
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost"
+              onClick={() => setShowForm(false)}
+              disabled={busyId === 'create'}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+        </AcCard>
+      )}
+
       <AcCard>
         {loading ? (
           <p className="ac-loading">Loading your pickups…</p>
@@ -509,7 +721,14 @@ export default function ResidentPickupsPage() {
           <div className="r-items">
             {filteredItems.map((item) => {
               const expanded = expandedId === item.id
-              const canCancel = item.status !== 'Completed' && item.lastAttemptStatus !== 'Completed'
+              // Cancelling calls off a trip that is still going to happen.
+              // A collected pickup has already had its trip, and a refused one
+              // never got booked at all -- offering it there asked the resident
+              // to cancel something that was not going ahead anyway, and the
+              // backend refuses both.
+              const canCancel = item.status !== 'Completed'
+                && item.status !== 'Rejected'
+                && item.lastAttemptStatus !== 'Completed'
 
               return (
                 <div className={`r-item${expanded ? ' is-open' : ''}`} key={item.id}>
@@ -728,200 +947,6 @@ export default function ResidentPickupsPage() {
           </div>
         )}
       </AcCard>
-
-      {/* ---- New pickup ----
-           Centred rather than in the side drawer: with a photo, zone, address,
-           date, description, the bulky box and the recurrence, it does not read
-           in a 460px column pinned to the edge of the screen. */}
-      <AcModal open={showForm} onClose={() => setShowForm(false)} title="New pickup request">
-        <form className="ac-form" onSubmit={handleCreate}>
-          <PickupPhotoField
-            previewUrl={createPhotoPreview}
-            onFileChange={setCreatePhoto}
-            onClear={clearCreatePhoto}
-            disabled={busyId === 'create' || role !== 'resident'}
-          />
-
-          <div className="ac-field">
-            <label htmlFor="pickup-zone">Your zone</label>
-            <select
-              id="pickup-zone"
-              value={createForm.zoneId}
-              onChange={(e) => setCreateForm({ ...createForm, zoneId: e.target.value })}
-            >
-              <option value="">Select your zone…</option>
-              {zones.map((zone) => (
-                <option key={zone.id} value={zone.id}>{zone.name}</option>
-              ))}
-            </select>
-            {createErrors.zoneId && <p className="ac-field-error">{createErrors.zoneId}</p>}
-            {/* Which days that zone is actually collected. Shown as soon as a
-                zone is chosen, because the date below cannot be honoured on any
-                other day and the form should not pretend otherwise. */}
-            {collectionDaysLabel && <p className="ac-field-hint">{collectionDaysLabel}</p>}
-          </div>
-
-          {/* Side by side on a wide screen, stacked on a phone: together
-              these two decide where and when the crew turns up. */}
-          <div className="ac-two">
-            <div className="ac-field">
-              <label htmlFor="pickup-address">Address</label>
-              <input
-                id="pickup-address"
-                value={createForm.address}
-                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
-                placeholder="e.g. 14/2 Temple Road, near the junction"
-              />
-              {createErrors.address && <p className="ac-field-error">{createErrors.address}</p>}
-              <p className="ac-field-hint">
-                <MapPin size={12} strokeWidth={2.2} aria-hidden="true" />
-                {' '}A zone is a whole suburb, so the crew needs the house number and street.
-              </p>
-            </div>
-
-            <div className="ac-field">
-              <label htmlFor="pickup-date">
-                {collectionDates ? 'Choose a collection day' : 'Collect on or after'}
-              </label>
-              {collectionDates ? (
-                <select
-                  id="pickup-date"
-                  value={createForm.preferredDate}
-                  onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
-                >
-                  <option value="">Select a day…</option>
-                  {collectionDates.map((day) => {
-                    const value = toLocalDateValue(day)
-                    return (
-                      <option key={value} value={value}>
-                        {day.toLocaleDateString(undefined, {
-                          weekday: 'long', day: 'numeric', month: 'long',
-                        })}
-                      </option>
-                    )
-                  })}
-                </select>
-              ) : (
-                <input
-                  id="pickup-date"
-                  type="date"
-                  value={createForm.preferredDate}
-                  onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
-                />
-              )}
-              {createErrors.preferredDate && (
-                <p className="ac-field-error">{createErrors.preferredDate}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="ac-field">
-            <label htmlFor="pickup-description">What needs collecting?</label>
-            <textarea
-              id="pickup-description"
-              rows={3}
-              value={createForm.description}
-              onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-              placeholder="Describe the waste to collect…"
-            />
-            {createErrors.description && (
-              <p className="ac-field-error">{createErrors.description}</p>
-            )}
-          </div>
-
-          <div className="r-bulk">
-            <label className="r-bulk-check">
-              <input
-                type="checkbox"
-                checked={createForm.isBulkRequest}
-                onChange={(e) => setCreateForm({ ...createForm, isBulkRequest: e.target.checked })}
-                disabled={bulkAllowance?.remaining === 0 && !createForm.isBulkRequest}
-              />
-              <span>This is a bulky-waste collection (furniture, mattress, large appliance)</span>
-            </label>
-
-            {bulkAllowance && (
-              <p>
-                {bulkAllowance.remaining > 0
-                  ? `${bulkAllowance.remaining} of ${bulkAllowance.limit} bulky collections left this month.`
-                  : `You have used all ${bulkAllowance.limit} bulky collections this month. The allowance resets on the 1st.`}
-              </p>
-            )}
-
-            {/* Nudged, never forced: the resident can still say no, and the
-                classifier remains the backstop after submission. */}
-            {!createForm.isBulkRequest && looksBulky(createForm.description) && (
-              <p className="r-bulk-nudge">
-                This looks like a bulky item. Bulky collections are booked separately and use
-                your monthly allowance &mdash; tick the box above if that is what you need.
-              </p>
-            )}
-          </div>
-
-          <div className="ac-field">
-            <label>How often?</label>
-            <div className="r-toggle" role="group" aria-label="How often the pickup repeats">
-              <button
-                type="button"
-                className={!createForm.isRecurring ? 'is-on' : undefined}
-                aria-pressed={!createForm.isRecurring}
-                onClick={() => setCreateForm({ ...createForm, isRecurring: false })}
-              >
-                One-off
-              </button>
-              <button
-                type="button"
-                className={createForm.isRecurring ? 'is-on' : undefined}
-                aria-pressed={createForm.isRecurring}
-                onClick={() => setCreateForm({ ...createForm, isRecurring: true })}
-              >
-                Recurring
-              </button>
-            </div>
-          </div>
-
-          {createForm.isRecurring && (
-            <div className="ac-field">
-              <label htmlFor="pickup-interval">How often does it repeat?</label>
-              <select
-                id="pickup-interval"
-                value={createForm.recurrenceInterval}
-                onChange={(e) => setCreateForm({ ...createForm, recurrenceInterval: e.target.value })}
-              >
-                <option value="">Select…</option>
-                {/* A free text box here accepted anything and the server then
-                    refused everything but these two. */}
-                {ALLOWED_INTERVALS.map((interval) => (
-                  <option key={interval} value={interval}>{interval}</option>
-                ))}
-              </select>
-              {createErrors.recurrenceInterval && (
-                <p className="ac-field-error">{createErrors.recurrenceInterval}</p>
-              )}
-            </div>
-          )}
-
-          <div className="ac-actions">
-            <button
-              type="submit"
-              className="ac-btn ac-btn-primary"
-              disabled={busyId === 'create' || role !== 'resident'}
-            >
-              <Send size={16} strokeWidth={2.2} aria-hidden="true" />
-              Submit request
-            </button>
-            <button
-              type="button"
-              className="ac-btn ac-btn-ghost"
-              onClick={() => setShowForm(false)}
-              disabled={busyId === 'create'}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </AcModal>
-
       {/* ---- Edit a pending pickup ---- */}
       <AcModal
         open={Boolean(editingId)}
