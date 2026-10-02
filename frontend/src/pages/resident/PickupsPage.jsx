@@ -21,6 +21,20 @@ import PickupPhotoField from '../../components/resident/PickupPhotoField'
 import ResidentApprovalNotice from '../../components/resident/ResidentApprovalNotice'
 import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
 
+/**
+ * Whether this request was refused.
+ *
+ * Not `status === 'Rejected'`. Rejecting only started setting the pickup's own
+ * status recently; before that it set the approval record and left the pickup
+ * Classified. Those older rows still read "Not approved" on screen, so checking
+ * the raw status alone kept offering actions on them that make no sense. The
+ * pill key is the same thing the row already displays, so the buttons and the
+ * label can no longer disagree.
+ */
+function isRefused(item) {
+  return residentPickupStatusPillKey(item) === 'Rejected'
+}
+
 const STATUS_FILTERS = ['', 'Pending', 'Classified', 'Scheduled', 'Completed', 'Rejected']
 
 const STATUS_LABELS = {
@@ -141,7 +155,7 @@ function toDateInputValue(value) {
  * is simply not due yet.
  */
 function canAskAgain(item) {
-  if (item.status === 'Completed' || item.status === 'Rejected') return false
+  if (item.status === 'Completed' || isRefused(item)) return false
   if (item.lastAttemptStatus === 'Missed') return true
   if (item.lastAttemptStatus !== 'Pending' || !item.lastAttemptDate) return false
 
@@ -727,7 +741,7 @@ export default function ResidentPickupsPage() {
               // to cancel something that was not going ahead anyway, and the
               // backend refuses both.
               const canCancel = item.status !== 'Completed'
-                && item.status !== 'Rejected'
+                && !isRefused(item)
                 && item.lastAttemptStatus !== 'Completed'
 
               return (
@@ -788,7 +802,7 @@ export default function ResidentPickupsPage() {
                       {/* A refused pickup. Separate from a missed one because
                           nothing is coming: there is no new date to offer, and
                           showing it as "not collected yet" would be a lie. */}
-                      {item.status === 'Rejected' && (
+                      {isRefused(item) && (
                         <div className="r-notice is-bad">
                           <strong>This request was not approved</strong>
                           <p>
@@ -802,7 +816,7 @@ export default function ResidentPickupsPage() {
                           wrote when it was flagged, which until now was shown
                           only to the admin and never to the person it was
                           written for. */}
-                      {item.status !== 'Rejected'
+                      {!isRefused(item)
                         && item.lastAttemptStatus !== 'Missed'
                         && item.residentMessage && (
                         <div className="r-notice is-info">
