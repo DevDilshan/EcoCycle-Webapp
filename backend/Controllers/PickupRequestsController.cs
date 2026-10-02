@@ -162,7 +162,7 @@ private Guid CurrentUserId
             PickupOperationResult.Success     => NoContent(),
             PickupOperationResult.NotFound    => NotFound(),
             PickupOperationResult.Forbidden   => Forbid(),
-            PickupOperationResult.NotEditable => Conflict(new { message = "Only pending requests can be cancelled." }),
+            PickupOperationResult.NotEditable => Conflict(new { message = "This pickup has already been collected, so it cannot be cancelled." }),
             _ => StatusCode(500)
         };
     }
