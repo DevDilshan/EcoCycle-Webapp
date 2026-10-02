@@ -163,16 +163,16 @@ function canAskAgain(item) {
   const attempt = new Date(item.lastAttemptDate)
   if (Number.isNaN(attempt.getTime())) return false
 
-  // Compared as UTC days, because the backend compares them against
-  // DateTime.UtcNow.Date. Using the browser's local day instead meant that
-  // between midnight and 05:30 in UTC+5:30 the two disagreed about whether
-  // yesterday had been and gone, so the button appeared and the server then
-  // refused it.
-  const now = new Date()
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  const attemptDay = Date.UTC(
+  // Counted in the viewer's own day, which is the service's: ServiceClock on
+  // the backend turns the day over at midnight in Asia/Colombo. This was
+  // briefly compared in UTC to match an earlier backend that used UtcNow, and
+  // that backend has since been fixed -- counting in UTC here now would be the
+  // thing putting the two 5.5 hours apart.
+  const attemptDay = new Date(
     attempt.getUTCFullYear(), attempt.getUTCMonth(), attempt.getUTCDate(),
   )
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
   return attemptDay < today
 }
 

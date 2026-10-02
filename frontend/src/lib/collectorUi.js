@@ -23,25 +23,38 @@ export function formatStopTime(value) {
 }
 
 /**
- * "Today", "Tomorrow", or "Tue 7 Oct" — which day a stop is booked for.
+ * "Today, 3 Oct", "Yesterday, 2 Oct", "Tomorrow, 4 Oct", or "Tue 7 Oct".
  *
  * The honest reading of a scheduledDate, which carries a day and nothing more.
+ *
+ * The real date is always shown next to the word. "Yesterday" alone is a
+ * relative label on a screen that may have been open for hours, and on a round
+ * that carries unfinished stops forward there is no way to tell which day a
+ * bare "Yesterday" was counted from.
+ *
+ * Days are counted in the browser's own timezone, which is the service's:
+ * ServiceClock on the backend turns the day over at midnight in Asia/Colombo,
+ * and a crew reads this screen in that same local day. Counting in UTC here
+ * would put the two 5.5 hours apart and label the early morning as yesterday.
  */
 export function formatStopDay(value) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
 
-  // Compared as UTC days, because that is how the backend books and filters
-  // them; the local day can be one ahead and would label today as tomorrow.
-  const now = new Date()
-  const asDay = (d) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
-  const diff = (asDay(date) - asDay(now)) / 86400000
+  // A stored day is midnight UTC, so read the date parts in UTC; compare them
+  // against today as the person in front of the screen counts it.
+  const day = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
-  if (diff === 0) return 'Today'
-  if (diff === 1) return 'Tomorrow'
-  if (diff === -1) return 'Yesterday'
-  return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+  const short = day.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  const diff = Math.round((day - today) / 86400000)
+
+  if (diff === 0) return `Today, ${short}`
+  if (diff === 1) return `Tomorrow, ${short}`
+  if (diff === -1) return `Yesterday, ${short}`
+  return day.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 /**
@@ -60,7 +73,7 @@ export const COLLECTION_WINDOW_LABEL =
 
 /** "Today, 8:30 am – 4:00 pm" — the day a stop is booked, plus the hours. */
 export function formatStopWhen(value) {
-  return `${formatStopDay(value)}, ${COLLECTION_WINDOW_LABEL}`
+  return `${formatStopDay(value)} · ${COLLECTION_WINDOW_LABEL}`
 }
 
 /** "Tuesday 29 September", for the top bar. */
