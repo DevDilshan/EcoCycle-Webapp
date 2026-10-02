@@ -42,3 +42,9 @@ public class RoutingContextDto
 
     public List<RoutingOptionDto> Options { get; set; } = [];
 }
+
+/// <summary>Body for POST /choose-slot on the agent service.</summary>
+public class ChooseSlotRequestDto
+{
+    public RoutingContextDto RoutingContext { get; set; } = new();
+}

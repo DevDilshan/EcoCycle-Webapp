@@ -18,4 +18,11 @@ public interface IAgentPipelineClient
 
     Task<RoutingDto?> RouteApprovedPickupAsync(
         RouteApprovedPickupRequestDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Picks a collector and day for a pickup that is already classified -- a
+    /// missed stop, a second attempt, or the next recurring collection.
+    /// </summary>
+    Task<RoutingDto?> ChooseSlotAsync(
+        RoutingContextDto context, CancellationToken cancellationToken = default);
 }

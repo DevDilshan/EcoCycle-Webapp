@@ -241,6 +241,21 @@ export default function ResidentPickupsPage() {
     })
   }, [items, search])
 
+  async function handleRequestAgain(item) {
+    setBusyId(item.id)
+    setError(null)
+    setSuccess(null)
+    try {
+      const result = await apiRequest(`/pickuprequests/${item.id}/request-again`, { method: 'POST' })
+      setSuccess(result?.message || 'Booked onto a collector’s round again.')
+      load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   async function handleCreate(e) {
     e.preventDefault()
     const errs = validatePickupForm(createForm, { requireZone: true })
@@ -529,6 +544,22 @@ export default function ResidentPickupsPage() {
                 {expanded && (
                   <div className="pickup-grid-detail">
                     <ResidentApprovalNotice pickup={item} />
+
+                    {/* Offered on anything not yet collected. The backend decides
+                        whether it is actually allowed, and says why not -- the
+                        page has no way to know whether the collector turned up. */}
+                    {item.status !== 'Completed' && (
+                      <div className="resident-again">
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          disabled={busyId === item.id}
+                          onClick={() => handleRequestAgain(item)}
+                        >
+                          It wasn&rsquo;t collected — ask again
+                        </button>
+                      </div>
+                    )}
                     {item.photoUrl && item.status !== 'Pending' && (
                       <div className="resident-pickup-photo-detail">
                         <strong>Waste photo</strong>

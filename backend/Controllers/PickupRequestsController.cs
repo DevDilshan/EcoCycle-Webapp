@@ -12,14 +12,17 @@ namespace backend.Controllers;
 public class PickupRequestsController : ControllerBase
 {
     private readonly IPickupRequestService _service;
+    private readonly PickupSchedulingService _scheduling;
     private readonly IComplianceService _complianceService;
 
     public PickupRequestsController(
         IPickupRequestService service,
-        IComplianceService complianceService)
+        IComplianceService complianceService,
+        PickupSchedulingService scheduling)
     {
         _service = service;
         _complianceService = complianceService;
+        _scheduling = scheduling;
     }
 
    // "sub" gets remapped to NameIdentifier by default; check both to be safe
@@ -36,6 +39,25 @@ private Guid CurrentUserId
 }
     private bool IsAdmin => User.IsInRole("admin");
     private bool IsCollector => User.IsInRole("collector");
+
+    // POST /api/pickuprequests/{id}/request-again — the resident says the
+    // collection did not happen, so book it onto a round again.
+    [HttpPost("{id:guid}/request-again")]
+    [Authorize(Roles = "resident")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RequestAgain(Guid id)
+    {
+        var eligibility = await _service.CanRequestAgainAsync(CurrentUserId, id);
+        if (eligibility.NotFound) return NotFound();
+        if (eligibility.Reason is not null) return BadRequest(new { message = eligibility.Reason });
+
+        var error = await _scheduling.ScheduleAsync(id);
+        return error is null
+            ? Ok(new { message = "Booked onto a collector's round again." })
+            : BadRequest(new { message = error });
+    }
 
     // GET /api/pickuprequests/bulk-allowance — what is left of the resident's
     // bulky-waste allowance this month, so the form can say so before they book.
