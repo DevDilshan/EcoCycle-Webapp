@@ -106,6 +106,15 @@ function revokeBlobPreview(url) {
   if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
 }
 
+// yyyy-mm-dd from a Date, built from local parts. toISOString() would convert
+// to UTC first, which in UTC+5:30 turns an early-morning date into the day
+// before and offers a day the zone is not collected on.
+function toLocalDateValue(date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 function toDateInputValue(value) {
   if (!value) return ''
   return String(value).slice(0, 10)
@@ -139,6 +148,25 @@ export default function ResidentPickupsPage() {
   // What the chosen zone's round actually is. The date below is a preference,
   // not a promise -- collection only happens on these days -- so saying so
   // stops the form asking a question it cannot honour.
+  // The actual dates the chosen zone is collected on, for the next few weeks.
+  // A free date box let a resident pick a Wednesday in a Tue/Fri zone and then
+  // quietly ignored it; offering only real days means the answer can be kept.
+  const collectionDates = useMemo(() => {
+    const zone = zones.find((z) => z.id === createForm.zoneId)
+    const days = zone?.collectionDays ?? []
+    if (days.length === 0) return null
+
+    const out = []
+    const cursor = new Date()
+    cursor.setHours(0, 0, 0, 0)
+    for (let i = 1; i <= 28 && out.length < 8; i += 1) {
+      const day = new Date(cursor)
+      day.setDate(cursor.getDate() + i)
+      if (days.includes(day.getDay())) out.push(day)
+    }
+    return out
+  }, [zones, createForm.zoneId])
+
   const collectionDaysLabel = useMemo(() => {
     const zone = zones.find((z) => z.id === createForm.zoneId)
     if (!zone) return null
@@ -478,8 +506,35 @@ export default function ResidentPickupsPage() {
                 {createErrors.address && <p style={fieldErrorStyle}>{createErrors.address}</p>}
               </div>
               <div>
-                <label>Collect on or after</label>
-                <input type="date" value={createForm.preferredDate} onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })} />
+                <label htmlFor="pickup-date">
+                  {collectionDates ? 'Choose a collection day' : 'Collect on or after'}
+                </label>
+                {collectionDates ? (
+                  <select
+                    id="pickup-date"
+                    value={createForm.preferredDate}
+                    onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
+                  >
+                    <option value="">Select a day…</option>
+                    {collectionDates.map((day) => {
+                      const value = toLocalDateValue(day)
+                      return (
+                        <option key={value} value={value}>
+                          {day.toLocaleDateString(undefined, {
+                            weekday: 'long', day: 'numeric', month: 'long',
+                          })}
+                        </option>
+                      )
+                    })}
+                  </select>
+                ) : (
+                  <input
+                    id="pickup-date"
+                    type="date"
+                    value={createForm.preferredDate}
+                    onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
+                  />
+                )}
                 {createErrors.preferredDate && <p style={fieldErrorStyle}>{createErrors.preferredDate}</p>}
               </div>
             </div>
