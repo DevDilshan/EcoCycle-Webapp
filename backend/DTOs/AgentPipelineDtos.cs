@@ -98,3 +98,18 @@ public class RouteApprovedPickupRequestDto
     /// Slots as they are NOW, not the snapshot taken at submission.
     public RoutingContextDto RoutingContext { get; set; } = new();
 }
+
+/// <summary>A collection that could not be made, in the collector's own words.</summary>
+public class ExplainMissedRequestDto
+{
+    public string Reason { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string? NextVisit { get; set; }
+}
+
+/// <summary>The same event, written once for the resident and once for the office.</summary>
+public class MissedExplanationDto
+{
+    public string ResidentMessage { get; set; } = string.Empty;
+    public string AdminSummary { get; set; } = string.Empty;
+}

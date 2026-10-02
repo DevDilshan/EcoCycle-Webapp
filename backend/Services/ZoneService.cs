@@ -45,7 +45,7 @@ public class ZoneService
             .AsNoTracking()
             .Where(z => z.IsActive)
             .OrderBy(z => z.Name)
-            .Select(z => new ZoneOptionDto { Id = z.Id, Name = z.Name })
+            .Select(z => new ZoneOptionDto { Id = z.Id, Name = z.Name, CollectionDays = z.CollectionDays })
             .ToListAsync();
     }
 

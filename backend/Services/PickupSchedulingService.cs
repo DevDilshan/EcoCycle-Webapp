@@ -102,6 +102,55 @@ public class PickupSchedulingService
         return null;
     }
 
+    /// <summary>
+    /// Stores the resident-facing explanation of a failed collection.
+    /// </summary>
+    /// <remarks>
+    /// Best-effort on purpose. The collector's report and the rebooking are the
+    /// things that matter; if the agent is down, the resident still sees the
+    /// status and the new date, just in the crew's own words rather than in a
+    /// sentence written for them.
+    /// </remarks>
+    public async Task WriteResidentMessageAsync(Guid pickupRequestId, string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) return;
+
+        var pickup = await _db.PickupRequests.FirstOrDefaultAsync(p => p.Id == pickupRequestId);
+        if (pickup is null) return;
+
+        var nextVisit = await _db.RouteAssignments
+            .AsNoTracking()
+            .Where(r => r.PickupRequestId == pickupRequestId
+                && r.CompletionStatus == RouteCompletionStatus.Pending)
+            .OrderBy(r => r.ScheduledDate)
+            .Select(r => (DateTime?)r.ScheduledDate)
+            .FirstOrDefaultAsync();
+
+        try
+        {
+            var written = await _agents.ExplainMissedAsync(new DTOs.ExplainMissedRequestDto
+            {
+                Reason = reason,
+                Description = pickup.Description ?? string.Empty,
+                NextVisit = nextVisit?.ToString("yyyy-MM-dd")
+            });
+
+            if (written is null || string.IsNullOrWhiteSpace(written.ResidentMessage)) return;
+
+            pickup.ResidentMessage = written.ResidentMessage.Length > 1000
+                ? written.ResidentMessage[..1000]
+                : written.ResidentMessage;
+
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not write the resident message for pickup {PickupId}; the status and " +
+                "the collector's own note still stand.", pickupRequestId);
+        }
+    }
+
     private async Task<WasteCategory> LatestCategoryAsync(Guid pickupRequestId)
     {
         var category = await _db.WasteClassifications

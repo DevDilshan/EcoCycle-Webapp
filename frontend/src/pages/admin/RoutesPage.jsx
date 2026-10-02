@@ -202,8 +202,12 @@ export default function RoutesPage() {
   }
 
   async function handleMarkMissed(stop) {
+    // Deliberately worded as recording someone else's report. The admin was not
+    // at the kerb; the collector reports it normally, and this covers the case
+    // they never did -- which is the case a resident rings up about.
     const ok = window.confirm(
-      'Mark this stop as missed? Use this when a collector did not complete it.',
+      'Record this stop as not collected? Use this when the collector did not '
+      + 'report it themselves, for example after a resident got in touch.',
     )
     if (!ok) return
     setBusy(true)
@@ -434,7 +438,7 @@ export default function RoutesPage() {
                             onClick={() => handleMarkMissed(stop)}
                           >
                             <CircleX size={14} strokeWidth={2} aria-hidden="true" />
-                            Mark missed
+                            Record not collected
                           </button>
                         )}
                       </td>

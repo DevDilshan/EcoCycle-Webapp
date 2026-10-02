@@ -123,6 +123,12 @@ public class RoutesController : ControllerBase
             // it for someone to notice, which is what used to happen.
             var rescheduleError = await _scheduling.ScheduleAsync(route.PickupRequestId);
 
+            // Rewrite the crew's shorthand for the household, once the new date
+            // is known so the message can name it. Best-effort: losing the
+            // friendly wording must not lose the report itself.
+            await _scheduling.WriteResidentMessageAsync(
+                route.PickupRequestId, dto?.IssueNotes);
+
             return Ok(new
             {
                 route,

@@ -23,6 +23,7 @@ const emptyForm = {
   description: '',
   photoUrl: '',
   zoneId: '',
+  address: '',
   isBulkRequest: false,
   preferredDate: '',
   isRecurring: false,
@@ -42,6 +43,8 @@ function looksBulky(description = '') {
   return BULKY_WORDS.some((word) => text.includes(word))
 }
 
+const DAY_NAMES = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays']
+
 const ALLOWED_INTERVALS = ['Weekly', 'Bi-weekly']
 const MAX_FUTURE_DAYS = 365
 const fieldErrorStyle = { color: '#b42318', fontSize: '0.8rem', marginTop: '4px' }
@@ -52,6 +55,16 @@ function validatePickupForm(form, { requireZone = false } = {}) {
   // carries one, so requiring it there would block every edit.
   if (requireZone && !form.zoneId) {
     errors.zoneId = 'Please choose the zone this pickup is in.'
+  }
+  // A zone is a whole suburb. Without the address the collector has nowhere
+  // to stop, so this is required rather than optional.
+  if (requireZone) {
+    const addr = (form.address || '').trim()
+    if (addr.length < 5) {
+      errors.address = 'Please give your house number and street.'
+    } else if (addr.length > 300) {
+      errors.address = 'Address must be 300 characters or fewer.'
+    }
   }
   const desc = (form.description || '').trim()
   if (desc.length === 0) errors.description = 'Please describe the waste to be collected.'
@@ -122,6 +135,21 @@ export default function ResidentPickupsPage() {
   const [createErrors, setCreateErrors] = useState({})
   const [zones, setZones] = useState([])
   const [bulkAllowance, setBulkAllowance] = useState(null)
+
+  // What the chosen zone's round actually is. The date below is a preference,
+  // not a promise -- collection only happens on these days -- so saying so
+  // stops the form asking a question it cannot honour.
+  const collectionDaysLabel = useMemo(() => {
+    const zone = zones.find((z) => z.id === createForm.zoneId)
+    if (!zone) return null
+    const days = zone.collectionDays ?? []
+    if (days.length === 0) return `${zone.name} has no fixed collection days.`
+    const names = days.map((d) => DAY_NAMES[d]).filter(Boolean)
+    const joined = names.length > 1
+      ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+      : names[0]
+    return `${zone.name} is collected on ${joined}.`
+  }, [zones, createForm.zoneId])
 
   // Active zones for the dropdown. Its own request so a failure costs the
   // selector, not the page; the submit button still validates before sending.
@@ -276,6 +304,7 @@ export default function ResidentPickupsPage() {
           description: createForm.description || undefined,
           ...(photoUrl ? { photoUrl } : {}),
           zoneId: createForm.zoneId,
+          address: createForm.address.trim(),
           isBulkRequest: createForm.isBulkRequest,
           preferredDate: new Date(createForm.preferredDate).toISOString(),
           isRecurring: createForm.isRecurring,
@@ -430,9 +459,26 @@ export default function ResidentPickupsPage() {
                   ))}
                 </select>
                 {createErrors.zoneId && <p style={fieldErrorStyle}>{createErrors.zoneId}</p>}
+
+                {/* Which days that zone is actually collected. Shown as soon as
+                    a zone is chosen, because the date below cannot be honoured
+                    on any other day and the form should not pretend otherwise. */}
+                {collectionDaysLabel && (
+                  <p className="resident-zone-days">{collectionDaysLabel}</p>
+                )}
               </div>
               <div>
-                <label>Preferred date</label>
+                <label htmlFor="pickup-address">Address</label>
+                <input
+                  id="pickup-address"
+                  value={createForm.address}
+                  onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                  placeholder="e.g. 14/2 Temple Road, near the junction"
+                />
+                {createErrors.address && <p style={fieldErrorStyle}>{createErrors.address}</p>}
+              </div>
+              <div>
+                <label>Collect on or after</label>
                 <input type="date" value={createForm.preferredDate} onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })} />
                 {createErrors.preferredDate && <p style={fieldErrorStyle}>{createErrors.preferredDate}</p>}
               </div>
@@ -544,6 +590,25 @@ export default function ResidentPickupsPage() {
                 {expanded && (
                   <div className="pickup-grid-detail">
                     <ResidentApprovalNotice pickup={item} />
+
+                    {/* What happened last time, in place of a notification. The
+                        agent's wording when there is one, the crew's own note
+                        when the agent could not be reached. */}
+                    {item.lastAttemptStatus === 'Missed' && (
+                      <div className="resident-missed">
+                        <strong>Not collected on {formatCompactDate(item.lastAttemptDate)}</strong>
+                        <p>{item.residentMessage || item.lastAttemptNote || 'The collection could not be made.'}</p>
+                        {item.nextVisitDate && (
+                          <p className="resident-missed-next">
+                            Booked again for {formatCompactDate(item.nextVisitDate)}.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {item.address && (
+                      <p><strong>Address:</strong> {item.address}</p>
+                    )}
 
                     {/* Offered on anything not yet collected. The backend decides
                         whether it is actually allowed, and says why not -- the
