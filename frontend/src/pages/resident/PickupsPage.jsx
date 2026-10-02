@@ -161,10 +161,18 @@ function canAskAgain(item) {
 
   const attempt = new Date(item.lastAttemptDate)
   if (Number.isNaN(attempt.getTime())) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  attempt.setHours(0, 0, 0, 0)
-  return attempt < today
+
+  // Compared as UTC days, because the backend compares them against
+  // DateTime.UtcNow.Date. Using the browser's local day instead meant that
+  // between midnight and 05:30 in UTC+5:30 the two disagreed about whether
+  // yesterday had been and gone, so the button appeared and the server then
+  // refused it.
+  const now = new Date()
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const attemptDay = Date.UTC(
+    attempt.getUTCFullYear(), attempt.getUTCMonth(), attempt.getUTCDate(),
+  )
+  return attemptDay < today
 }
 
 export default function ResidentPickupsPage() {
