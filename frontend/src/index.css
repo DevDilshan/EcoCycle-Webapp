@@ -3437,3 +3437,11 @@ a:hover {
   font-size: 13px;
   font-style: italic;
 }
+
+/* "It wasn't collected" sits apart from the pickup's details: it is an action,
+   not information, and should not read as part of the status text. */
+.resident-again {
+  margin: 10px 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 86, 59, 0.1);
+}

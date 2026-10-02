@@ -12,10 +12,13 @@ namespace backend.Controllers;
 public class RoutesController : ControllerBase
 {
     private readonly RouteAssignmentService _routeService;
+    private readonly PickupSchedulingService _scheduling;
 
-    public RoutesController(RouteAssignmentService routeService)
+    public RoutesController(RouteAssignmentService routeService,
+        PickupSchedulingService scheduling)
     {
         _routeService = routeService;
+        _scheduling = scheduling;
     }
 
     [HttpPost]
@@ -53,7 +56,18 @@ public class RoutesController : ControllerBase
     public async Task<ActionResult<RouteAssignmentDto>> Complete(Guid id, [FromBody] CompleteRouteDto? dto)
     {
         var route = await _routeService.MarkCompleteAsync(id, dto?.IssueNotes);
-        return route is null ? NotFound() : Ok(route);
+        if (route is null) return NotFound();
+
+        // A recurring collection creates its next occurrence when this one is
+        // actually made. Booking it onto a round takes an agent call, so it
+        // happens after the collector's save and never blocks or fails their
+        // action -- an unbooked occurrence is still visible to an admin.
+        if (_routeService.NextRecurringPickupId is Guid nextId)
+        {
+            await _scheduling.ScheduleAsync(nextId);
+        }
+
+        return Ok(route);
     }
 
     // GET /api/routes/day?date=2026-09-29 — every stop on one day, across all
@@ -80,7 +94,19 @@ public class RoutesController : ControllerBase
         try
         {
             var route = await _routeService.MarkMissedAsync(id, dto?.IssueNotes);
-            return route is null ? NotFound() : Ok(route);
+            if (route is null) return NotFound();
+
+            // A missed stop is not the end of the pickup -- the rubbish is still
+            // outside the house. Book it again straight away rather than leaving
+            // it for someone to notice, which is what used to happen.
+            var rescheduleError = await _scheduling.ScheduleAsync(route.PickupRequestId);
+
+            return Ok(new
+            {
+                route,
+                rescheduled = rescheduleError is null,
+                rescheduleMessage = rescheduleError
+            });
         }
         catch (InvalidOperationException ex)
         {
