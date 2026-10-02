@@ -85,6 +85,8 @@ builder.Services.AddHttpClient<backend.Services.IAgentPipelineClient, backend.Se
 
 // Compliance & classification (Student 3 rules → auto-create approval tasks)
 builder.Services.AddScoped<backend.Services.IComplianceService, backend.Services.ComplianceService>();
+builder.Services.AddScoped<backend.Services.CollectorSettingService>();
+builder.Services.AddScoped<backend.Services.RoutingOptionBuilder>();
 
 var corsOriginsEnv = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
 var corsOrigins = string.IsNullOrWhiteSpace(corsOriginsEnv)

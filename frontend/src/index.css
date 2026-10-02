@@ -3429,3 +3429,11 @@ a:hover {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* Shown in place of a category while the classifier has not decided yet.
+   Deliberately plain, so it never reads as a decided category. */
+.resident-awaiting {
+  color: #7a8c82;
+  font-size: 13px;
+  font-style: italic;
+}
