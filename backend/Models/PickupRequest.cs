@@ -9,7 +9,22 @@ public enum PickupStatus
     Classified,
     Approved,
     Scheduled,
-    Completed
+    Completed,
+
+    /// <summary>
+    /// An admin refused this pickup; it will not be collected.
+    /// </summary>
+    /// <remarks>
+    /// Added last on purpose. The column stores the enum as an integer, so
+    /// inserting a value anywhere but the end would silently change what every
+    /// existing row means -- Completed would become Scheduled across the table,
+    /// with no error and no way to notice.
+    ///
+    /// Until this existed, rejecting an approval changed the approval and left
+    /// the pickup sitting as Classified for ever: not scheduled, not refused,
+    /// and never explained to the resident.
+    /// </remarks>
+    Rejected
 }
 
 [Table("PickupRequests")]
