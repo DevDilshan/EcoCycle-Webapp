@@ -3,11 +3,13 @@ import { ArrowLeft, Bell, Menu, Search } from 'lucide-react'
 import { useAdminShell } from './adminShell'
 
 /**
- * The admin console's sticky top bar and scrolling view.
+ * The console's sticky top bar and scrolling view, used by the admin, collector
+ * and resident pages alike.
  *
- * Separate from components/PageShell, which the resident and collector pages
- * still use: this markup only has styles inside `.admin-console`, so sharing
- * one component between the two would have left those pages unstyled.
+ * Its markup is only styled inside `.admin-console`, so every layout that
+ * mounts it wears that class. It replaced the separate components/PageShell the
+ * resident pages used to run on, which is why all three sides now share one top
+ * bar, search box and view container.
  */
 export default function AdminPageShell({
   title,
