@@ -133,7 +133,18 @@ public class ApprovalService : IApprovalService
         entity.ReviewNotes = dto.Notes?.Trim();
 
         if (entity.PickupRequest is not null)
+        {
             entity.PickupRequest.Status = PickupStatus.Approved;
+
+            // Approving a bulky pickup spends a bulky slot. Without this the
+            // admin's decision is forgotten: the collection happens, the
+            // allowance still reads untouched, and the same resident is flagged
+            // again next week for the same reason.
+            if (await IsBulkAsync(entity.PickupRequestId))
+            {
+                entity.PickupRequest.IsBulkRequest = true;
+            }
+        }
 
         // The approval is committed before routing is attempted. An admin's
         // decision must not be lost because the agent service is having a bad
@@ -296,6 +307,28 @@ public class ApprovalService : IApprovalService
         }
 
         return WasteCategory.General;
+    }
+
+    /// <summary>
+    /// Whether this pickup is bulky -- either the resident said so, or the
+    /// classifier decided it was.
+    /// </summary>
+    private async Task<bool> IsBulkAsync(Guid pickupRequestId)
+    {
+        var declared = await _db.PickupRequests
+            .AsNoTracking()
+            .Where(p => p.Id == pickupRequestId)
+            .Select(p => p.IsBulkRequest)
+            .FirstOrDefaultAsync();
+
+        if (declared) return true;
+
+        return await _db.WasteClassifications
+            .AsNoTracking()
+            .Where(w => w.PickupRequestId == pickupRequestId)
+            .OrderByDescending(w => w.CreatedAt)
+            .Select(w => w.Category)
+            .FirstOrDefaultAsync() == WasteCategory.Bulk;
     }
 
     private async Task<Dictionary<string, int>> ZoneAwareLoadsAsync(

@@ -1308,6 +1308,32 @@
 
 .admin-console .ac-table .ac-check { gap: 6px; }
 
+/* Column headers that need a line of explanation under them. */
+.admin-console .ac-th-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--faint);
+}
+
+/* A note under a card. The icon was previously jammed inline with the text and
+   sat on the first line's baseline; this keeps it beside the paragraph. */
+.admin-console .ac-foot-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-console .ac-foot-note svg { flex: none; color: var(--green); margin-top: 1px; }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1180px) {
