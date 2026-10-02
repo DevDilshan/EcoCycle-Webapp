@@ -6,12 +6,9 @@ import { useAuth } from '../../context/AuthContext'
 import { profileInitials, shortProfileName } from '../../lib/adminUi'
 
 /**
- * The console's account screen, used by both /admin/account and
- * /collector/account. It reads the role from the session rather than assuming
- * one, so the two sides share it instead of keeping duplicate forms.
- *
- * pages/admin/AccountPage is the older, unstyled version still used by the
- * resident route, and is deliberately left alone.
+ * The console's account screen, shared by /admin/account, /collector/account
+ * and /dashboard/account. It reads the role from the session rather than
+ * assuming one, so all three sides use it instead of keeping duplicate forms.
  */
 function formatDate(value) {
   if (!value) return '—'

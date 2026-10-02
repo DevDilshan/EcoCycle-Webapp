@@ -19,7 +19,6 @@ import RewardCheckPage from './pages/admin/rewards/RewardCheckPage'
 import ApprovalsPage from './pages/admin/ApprovalsPage'
 import ComplaintsPage from './pages/admin/ComplaintsPage'
 import CompliancePage from './pages/admin/CompliancePage'
-import AccountPage from './pages/admin/AccountPage'
 import AdminAccountPage from './pages/admin/AdminAccountPage'
 import ResidentDashboardPage from './pages/resident/DashboardPage'
 import ResidentPickupsPage from './pages/resident/PickupsPage'
@@ -70,7 +69,10 @@ export default function App() {
             <Route path="pickups" element={<ResidentPickupsPage />} />
             <Route path="rewards" element={<ResidentRewardsPage />} />
             <Route path="complaints" element={<ResidentComplaintsPage />} />
-            <Route path="account" element={<AccountPage />} />
+            {/* The same console account screen the admin and collector sides
+                use. It reads the role from the session, so the resident side no
+                longer needs its own unstyled copy of these forms. */}
+            <Route path="account" element={<AdminAccountPage />} />
           </Route>
           <Route
             path="/collector"
