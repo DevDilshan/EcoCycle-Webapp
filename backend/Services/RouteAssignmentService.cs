@@ -223,6 +223,12 @@ public class RouteAssignmentService
         };
     }
 
+    /// <summary>Whether this stop belongs to the given collector's round.</summary>
+    public Task<bool> IsAssignedToAsync(Guid routeId, Guid collectorId)
+        => _context.RouteAssignments
+            .AsNoTracking()
+            .AnyAsync(r => r.Id == routeId && r.CollectorId == collectorId);
+
     public async Task<RouteAssignmentDto?> MarkMissedAsync(Guid id, string? issueNotes = null)
     {
         var route = await _context.RouteAssignments.FirstOrDefaultAsync(r => r.Id == id);

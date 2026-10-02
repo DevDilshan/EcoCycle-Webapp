@@ -23,7 +23,7 @@ export default function CollectorRoutePage() {
   const { role } = useAuth()
   const {
     stops, upcoming, upcomingCount, counts, nextStop,
-    loading, error, setError, completeStop,
+    loading, error, setError, completeStop, reportMissed,
   } = useCollectorData()
 
   const [filter, setFilter] = useState('')
@@ -56,6 +56,35 @@ export default function CollectorRoutePage() {
     () => new Map(stops.map((stop, index) => [stop.id, index + 1])),
     [stops],
   )
+
+  async function handleMissed(stop) {
+    // A reason is required, so prompt for one rather than letting a stop be
+    // closed with nothing an admin or resident can be told.
+    const reason = window.prompt(
+      'Why could this not be collected? (e.g. bin not out, gate locked, blocked access)',
+    )
+    if (reason === null) return
+    if (!reason.trim()) {
+      setError('Please give a reason so the admin knows what happened.')
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await reportMissed(stop.id, reason)
+      setSuccess(
+        result?.rescheduled
+          ? 'Reported. The office has booked it onto a later round.'
+          : 'Reported. The office will arrange another visit.',
+      )
+      setOpenId(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function handleComplete(stop, notes) {
     setBusy(true)
@@ -189,6 +218,17 @@ export default function CollectorRoutePage() {
                           >
                             <Check size={16} strokeWidth={2.4} aria-hidden="true" />
                             Mark complete
+                          </button>
+                          {/* The collector is the one at the kerb, so they are
+                              the one who can say it could not be collected. */}
+                          <button
+                            type="button"
+                            className="ac-btn ac-btn-danger"
+                            disabled={busy}
+                            onClick={() => handleMissed(stop)}
+                          >
+                            <X size={16} strokeWidth={2.4} aria-hidden="true" />
+                            Couldn&rsquo;t collect
                           </button>
                         </div>
                       )}
