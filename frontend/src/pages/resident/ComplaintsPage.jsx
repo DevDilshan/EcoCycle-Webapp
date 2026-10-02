@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MessageSquare, Plus, Search } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
-import { AcAlert, AcCard, AcChips, AcDrawer, AcToast } from '../../components/admin/AcUi'
+import { AcAlert, AcCard, AcChips, AcModal, AcToast } from '../../components/admin/AcUi'
 import ResidentComplaintList from '../../components/resident/ResidentComplaintList'
 import { useAuth } from '../../context/AuthContext'
 import { resolveComplaintLookupId } from '../../lib/complaintLookup'
@@ -215,8 +215,8 @@ export default function ResidentComplaintsPage() {
         </>
       )}
 
-      <AcDrawer open={showForm} onClose={() => setShowForm(false)} title="File a complaint">
-        <p className="ac-drawer-sub">
+      <AcModal open={showForm} onClose={() => setShowForm(false)} title="File a complaint">
+        <p className="ac-sub">
           Report a missed pickup, damage, or anything else that went wrong.
         </p>
         <form className="ac-form" onSubmit={handleSubmit}>
@@ -264,7 +264,7 @@ export default function ResidentComplaintsPage() {
             </button>
           </div>
         </form>
-      </AcDrawer>
+      </AcModal>
 
       <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
