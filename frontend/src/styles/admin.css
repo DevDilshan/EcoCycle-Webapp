@@ -1006,8 +1006,11 @@
   color: var(--ac-muted, #6b7280);
 }
 
+/* Checkboxes and radios are excluded. These rules are written for a text box --
+   full width, 10px padding, an inset border -- and applying them to a tick box
+   stretches it across the row and shoves its label out of the way. */
 .admin-console .ac-field select,
-.admin-console .ac-field input,
+.admin-console .ac-field input:not([type="checkbox"]):not([type="radio"]),
 .admin-console .ac-field textarea {
   width: 100%;
   padding: 10px 12px;
@@ -1020,7 +1023,7 @@
 }
 
 .admin-console .ac-field select:focus,
-.admin-console .ac-field input:focus,
+.admin-console .ac-field input:not([type="checkbox"]):not([type="radio"]):focus,
 .admin-console .ac-field textarea:focus {
   outline: none;
   box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
@@ -1034,7 +1037,7 @@
 .admin-console .ac-field > div > label { font-size: 13px; font-weight: 700; }
 
 .admin-console .ac-form select,
-.admin-console .ac-form input,
+.admin-console .ac-form input:not([type="checkbox"]):not([type="radio"]),
 .admin-console .ac-form textarea {
   width: 100%;
   padding: 10px 12px;
@@ -1047,7 +1050,7 @@
 }
 
 .admin-console .ac-form select:focus,
-.admin-console .ac-form input:focus,
+.admin-console .ac-form input:not([type="checkbox"]):not([type="radio"]):focus,
 .admin-console .ac-form textarea:focus {
   outline: none;
   box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
