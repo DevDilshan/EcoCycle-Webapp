@@ -113,3 +113,17 @@ public class MissedExplanationDto
     public string ResidentMessage { get; set; } = string.Empty;
     public string AdminSummary { get; set; } = string.Empty;
 }
+
+/// <summary>An admin's decision on a flagged pickup, for the Notifier to word.</summary>
+public class ExplainDecisionRequestDto
+{
+    public bool Approved { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+}
+
+/// <summary>The decision as the resident will read it.</summary>
+public class DecisionExplanationDto
+{
+    public string ResidentMessage { get; set; } = string.Empty;
+}

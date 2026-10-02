@@ -210,3 +210,56 @@ Respond ONLY with a JSON object, no extra text, using exactly these keys:
         "resident_message": message,
         "admin_summary": (result.get("admin_summary") or "").strip(),
     }
+
+
+def explain_decision(approved: bool, reason: str, description: str) -> dict:
+    """Write the message a resident sees after an admin decides on their pickup.
+
+    A rejection reason is written for the office -- "exceeds bulky limit",
+    "hazardous, unlicensed vehicle". Shown to a household unchanged it reads as
+    a refusal with no explanation and nothing they can do next.
+
+    Args:
+        approved: True if the pickup was approved, False if refused.
+        reason: The admin's note or the flag reason, in their words.
+        description: What the pickup was, so the message can name it.
+
+    Returns:
+        A dict with resident_message.
+
+    Raises:
+        ValueError: if the LLM never returns valid JSON.
+    """
+    if not reason or not reason.strip():
+        raise ValueError("reason must not be empty")
+
+    outcome = "approved and will be collected" if approved else "cannot be collected"
+
+    prompt = f"""You are the Notifier Agent for a council waste collection service.
+
+An admin has reviewed a pickup request. Write the message the resident sees.
+
+What they asked to have collected: {description or "a waste pickup"}
+The decision: the request {outcome}.
+The reason given: {reason}
+
+Rules:
+- Two sentences at most.
+- Say the outcome first, plainly.
+- Give the reason in everyday words, not council shorthand.
+- If it cannot be collected, say what they can do instead, if anything obvious
+  follows from the reason. Do not invent a service that was not mentioned.
+- No greeting, no sign-off, no apologising at length.
+
+Respond ONLY with a JSON object, no extra text, using exactly these keys:
+{{
+  "resident_message": "<what the household sees>"
+}}"""
+
+    result = _ask_llm_for_json(prompt)
+
+    message = (result.get("resident_message") or "").strip()
+    if not message:
+        raise ValueError("LLM returned no resident_message")
+
+    return {"resident_message": message}

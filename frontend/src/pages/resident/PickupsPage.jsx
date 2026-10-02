@@ -661,6 +661,27 @@ export default function ResidentPickupsPage() {
                       </div>
                     )}
 
+                    {/* A refused pickup. Separate from a missed one because
+                        nothing is coming: there is no new date to offer, and
+                        showing it as "not collected yet" would be a lie. */}
+                    {item.status === 'Rejected' && (
+                      <div className="resident-rejected">
+                        <strong>This request was not approved</strong>
+                        <p>{item.residentMessage || 'An admin reviewed this request and could not approve it.'}</p>
+                      </div>
+                    )}
+
+                    {/* An approved pickup carries the explanation the Notifier
+                        wrote when it was flagged, which until now was shown only
+                        to the admin and never to the person it was written for. */}
+                    {item.status !== 'Rejected'
+                      && item.lastAttemptStatus !== 'Missed'
+                      && item.residentMessage && (
+                      <div className="resident-note">
+                        <p>{item.residentMessage}</p>
+                      </div>
+                    )}
+
                     {item.address && (
                       <p><strong>Address:</strong> {item.address}</p>
                     )}
@@ -668,7 +689,7 @@ export default function ResidentPickupsPage() {
                     {/* Offered on anything not yet collected. The backend decides
                         whether it is actually allowed, and says why not -- the
                         page has no way to know whether the collector turned up. */}
-                    {item.status !== 'Completed' && (
+                    {item.status !== 'Completed' && item.status !== 'Rejected' && (
                       <div className="resident-again">
                         <button
                           type="button"

@@ -3468,3 +3468,28 @@ a:hover {
 .resident-missed strong { display: block; margin-bottom: 4px; }
 .resident-missed p { margin: 0; font-size: 13px; }
 .resident-missed-next { margin-top: 6px; font-weight: 700; }
+
+/* A refused request. Red rather than amber: unlike a missed collection, nothing
+   further is coming and no new date will appear. */
+.resident-rejected {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #8a1c12;
+}
+
+.resident-rejected strong { display: block; margin-bottom: 4px; }
+.resident-rejected p { margin: 0; font-size: 13px; }
+
+/* The explanation that came with an approval. Nothing is wrong, so it is a
+   plain note rather than a warning colour. */
+.resident-note {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0fff0;
+  color: #16241d;
+}
+
+.resident-note p { margin: 0; font-size: 13px; }

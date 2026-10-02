@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from agents.notifier_agent import explain_missed_collection
+from agents.notifier_agent import explain_decision, explain_missed_collection
 from agents.routing_agent import route_pickup
 from orchestrator import route_approved_pickup, run_pipeline
 
@@ -156,6 +156,31 @@ def post_explain_missed(request: ExplainMissedRequest) -> dict:
             reason=request.reason,
             description=request.description,
             next_visit=request.next_visit,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+class ExplainDecisionRequest(BaseModel):
+    """An admin's decision on a flagged pickup, in their own words."""
+
+    approved: bool
+    reason: str
+    description: str = ""
+
+
+@app.post("/explain-decision", dependencies=[Depends(require_internal_key)])
+def post_explain_decision(request: ExplainDecisionRequest) -> dict:
+    """Write the message a resident sees after their pickup is decided.
+
+    "Exceeds bulky limit" is written for the office. A household needs to be
+    told the outcome, the reason in ordinary words, and what to do next.
+    """
+    try:
+        return explain_decision(
+            approved=request.approved,
+            reason=request.reason,
+            description=request.description,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
