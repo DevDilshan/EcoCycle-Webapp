@@ -641,7 +641,17 @@ public class PickupRequestService : IPickupRequestService
         // there is no trip to call off, and deleting it would take the reason
         // for the refusal with it -- which is the one thing the resident still
         // needs from that row.
+        //
+        // The approval record is checked as well as the status. Rejecting only
+        // began setting PickupRequest.Status recently; before that it set the
+        // approval and left the pickup Classified, so the older refusals are
+        // invisible to a status check even though the resident is shown "Not
+        // approved" for them.
         if (entity.Status == PickupStatus.Rejected) return PickupOperationResult.NotEditable;
+
+        var wasRefused = await _db.ApprovalRequests
+            .AnyAsync(a => a.PickupRequestId == id && a.Status == ApprovalStatus.Rejected);
+        if (wasRefused) return PickupOperationResult.NotEditable;
 
         var collected = await _db.RouteAssignments
             .AnyAsync(r => r.PickupRequestId == id
