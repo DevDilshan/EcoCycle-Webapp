@@ -6,7 +6,7 @@ public interface IComplaintService
 {
     Task<ComplaintResponseDto> CreateAsync(Guid residentId, CreateComplaintDto dto);
 
-    Task<PagedResult<ComplaintResponseDto>> GetListAsync(ComplaintQueryParams query);
+    Task<PagedResult<ComplaintResponseDto>> GetListAsync(Guid userId, bool isAdmin, ComplaintQueryParams query);
 
     Task<ComplaintResponseDto?> GetByIdAsync(Guid id, Guid userId, bool isAdmin);
 

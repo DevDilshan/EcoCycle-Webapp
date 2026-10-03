@@ -50,7 +50,10 @@ public class ZonesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = zone.Id }, zone);
     }
 
+    // Admin only: ZoneDto carries the assigned collector's id. Residents pick
+    // from /zones/selectable and the public map reads /zones/public.
     [HttpGet]
+    [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(List<ZoneDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<ZoneDto>>> GetAll()
     {
@@ -59,6 +62,7 @@ public class ZonesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(ZoneDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ZoneDto>> GetById(Guid id)

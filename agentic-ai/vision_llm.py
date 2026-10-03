@@ -14,9 +14,12 @@ misconfigured key or an unavailable model is visible instead of mysterious.
 """
 
 import base64
+import ipaddress
 import logging
 import os
+import socket
 from typing import Optional, Tuple
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -111,10 +114,13 @@ def describe_image(photo_url: str) -> Optional[str]:
 
 def _fetch_image(photo_url: str) -> Tuple[bytes, str]:
     """Download the image bytes and detect a usable MIME type."""
+    _require_public_https_url(photo_url)
     response = requests.get(
         photo_url,
         timeout=IMAGE_FETCH_TIMEOUT_SECONDS,
         headers=IMAGE_FETCH_HEADERS,
+        # A redirect could point back inside the network after the check above.
+        allow_redirects=False,
     )
     response.raise_for_status()
 
@@ -123,3 +129,20 @@ def _fetch_image(photo_url: str) -> Tuple[bytes, str]:
     if not mime_type.startswith("image/"):
         mime_type = "image/jpeg"  # sensible default when the server is vague
     return response.content, mime_type
+
+
+def _require_public_https_url(photo_url: str) -> None:
+    """Refuse a photo URL that does not point at a public https address.
+
+    The URL is supplied by the resident, and this service fetches it from inside
+    the deployment. Without this check it could be pointed at localhost, a
+    private address or a cloud metadata endpoint.
+    """
+    parsed = urlparse(photo_url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError("Photo URL must be an https address.")
+
+    port = parsed.port or 443
+    for info in socket.getaddrinfo(parsed.hostname, port, type=socket.SOCK_STREAM):
+        if not ipaddress.ip_address(info[4][0]).is_global:
+            raise ValueError("Photo URL does not point at a public address.")

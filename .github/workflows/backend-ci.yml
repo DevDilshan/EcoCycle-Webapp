@@ -26,3 +26,7 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --configuration Release
         working-directory: ./backend
+
+      - name: Test
+        run: dotnet test --configuration Release
+        working-directory: ./backend.Tests

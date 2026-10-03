@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using backend.Data;
@@ -55,6 +56,7 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
 
 // Pickup requests
 builder.Services.AddScoped<backend.Services.IPickupRequestService, backend.Services.PickupRequestService>();
@@ -159,20 +161,35 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.Events = new JwtBearerEvents
         {
-            OnTokenValidated = context =>
+            OnTokenValidated = async context =>
             {
-                if (context.Principal is null) return Task.CompletedTask;
+                if (context.Principal?.Identity is not ClaimsIdentity identity) return;
 
-                var identity = context.Principal.Identity as ClaimsIdentity;
-                if (identity is null) return Task.CompletedTask;
-
-                var role = ExtractRole(context.Principal);
-                if (!string.IsNullOrEmpty(role))
+                // The role comes from the profiles table, not from the token.
+                // A token's user_metadata is written by the user -- at sign-up
+                // or later through updateUser -- so trusting its "role" let any
+                // account call itself an admin. A profile's role can only be
+                // changed by an admin (row-level security on profiles).
+                var role = "resident";
+                if (Guid.TryParse(context.Principal.FindFirst("sub")?.Value, out var userId))
                 {
-                    identity.AddClaim(new Claim(ClaimTypes.Role, role.ToLowerInvariant()));
+                    var services = context.HttpContext.RequestServices;
+                    var cache = services.GetRequiredService<IMemoryCache>();
+                    role = await cache.GetOrCreateAsync($"role:{userId}", async entry =>
+                    {
+                        // Short-lived: saves a database round trip on every
+                        // request, and a role change still lands within a minute.
+                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60);
+
+                        var db = services.GetRequiredService<NpgsqlDataSource>();
+                        await using var command = db.CreateCommand(
+                            "SELECT role::text FROM public.profiles WHERE id = $1");
+                        command.Parameters.AddWithValue(userId);
+                        return NormalizeRole(await command.ExecuteScalarAsync() as string);
+                    }) ?? "resident";
                 }
 
-                return Task.CompletedTask;
+                identity.AddClaim(new Claim(ClaimTypes.Role, role));
             },
         };
     });
@@ -244,28 +261,6 @@ static void LoadEnvFile(string path)
     }
 }
 
-static string ExtractRole(ClaimsPrincipal principal)
-{
-    var roleClaim = principal.FindFirst("role")?.Value;
-    if (IsAppRole(roleClaim)) return NormalizeRole(roleClaim);
-
-    var appMetadata = principal.FindFirst("app_metadata")?.Value;
-    if (!string.IsNullOrEmpty(appMetadata))
-    {
-        var role = ParseRoleFromJson(appMetadata);
-        if (IsAppRole(role)) return NormalizeRole(role);
-    }
-
-    var userMetadata = principal.FindFirst("user_metadata")?.Value;
-    if (!string.IsNullOrEmpty(userMetadata))
-    {
-        var role = ParseRoleFromJson(userMetadata);
-        if (IsAppRole(role)) return NormalizeRole(role);
-    }
-
-    return "resident";
-}
-
 static string NormalizeRole(string? role) =>
     role?.ToLowerInvariant() switch
     {
@@ -275,19 +270,3 @@ static string NormalizeRole(string? role) =>
         "user" => "resident",
         _ => "resident",
     };
-
-static string? ParseRoleFromJson(string json)
-{
-    try
-    {
-        using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.TryGetProperty("role", out var role))
-            return role.GetString();
-    }
-    catch (JsonException) { }
-
-    return null;
-}
-
-static bool IsAppRole(string? role) =>
-    role?.ToLowerInvariant() is "admin" or "resident" or "collector" or "user";
