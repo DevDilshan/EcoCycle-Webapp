@@ -13,9 +13,13 @@ import '../widgets/eco_components.dart';
 import 'pickup_submitted_screen.dart';
 
 class NewPickupScreen extends StatefulWidget {
-  const NewPickupScreen({super.key, this.onSubmitted});
+  const NewPickupScreen({super.key, this.onSubmitted, this.existing});
 
   final VoidCallback? onSubmitted;
+
+  /// When non-null, the screen edits this existing pickup (PUT) instead of
+  /// creating a new one (POST). Pops `true` on a successful save.
+  final Map<String, dynamic>? existing;
 
   @override
   State<NewPickupScreen> createState() => _NewPickupScreenState();
@@ -30,6 +34,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   String _interval = 'Weekly';
   bool _loading = false;
   XFile? _photo;
+  String? _existingPhotoUrl;
+
+  bool get _isEditing => widget.existing != null;
 
   static const _allowedIntervals = ['Weekly', 'Bi-weekly'];
   String? _descriptionError;
@@ -39,6 +46,16 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   @override
   void initState() {
     super.initState();
+    final existing = widget.existing;
+    if (existing != null) {
+      _description.text = (existing['description'] as String?) ?? '';
+      final parsed = DateTime.tryParse(existing['preferredDate'] as String? ?? '');
+      if (parsed != null) _date = parsed.toLocal();
+      _recurring = existing['isRecurring'] == true;
+      final interval = existing['recurrenceInterval'] as String?;
+      if (interval != null && _allowedIntervals.contains(interval)) _interval = interval;
+      _existingPhotoUrl = existing['photoUrl'] as String?;
+    }
     _dateLabel = TextEditingController(text: DateFormat('EEE, d MMM yyyy').format(_date));
   }
 
@@ -126,7 +143,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     if (!_validate()) return;
     setState(() => _loading = true);
     try {
-      String? photoUrl;
+      String? photoUrl = _existingPhotoUrl;
       if (_photo != null) {
         photoUrl = await PickupPhotoService.upload(_photo!);
       }
@@ -137,6 +154,15 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
         if (_recurring) 'recurrenceInterval': _interval,
         if (photoUrl != null) 'photoUrl': photoUrl,
       };
+
+      if (_isEditing) {
+        await _api.put('/pickuprequests/${widget.existing!['id']}', body: body);
+        widget.onSubmitted?.call();
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
+        return;
+      }
+
       final created = await _api.post('/pickuprequests', body: body);
       widget.onSubmitted?.call();
       if (!mounted) return;
@@ -176,7 +202,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const EcoBackHeader(title: 'New pickup'),
+          EcoBackHeader(title: _isEditing ? 'Edit pickup' : 'New pickup'),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
@@ -192,7 +218,12 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                             borderRadius: BorderRadius.circular(20),
                             child: Image.file(File(_photo!.path), fit: BoxFit.cover, width: double.infinity, height: double.infinity),
                           )
-                        : null,
+                        : (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty)
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Image.network(_existingPhotoUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+                              )
+                            : null,
                   ),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Description'),
@@ -207,7 +238,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                         context: context,
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
-                        initialDate: _date,
+                        initialDate: _date.isBefore(DateTime.now()) ? DateTime.now() : _date,
                       );
                       if (picked != null) {
                         setState(() {
@@ -268,7 +299,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
-            child: EcoPrimaryButton(label: 'Submit request', loading: _loading, onPressed: _submit),
+            child: EcoPrimaryButton(label: _isEditing ? 'Save changes' : 'Submit request', loading: _loading, onPressed: _submit),
           ),
         ],
       ),

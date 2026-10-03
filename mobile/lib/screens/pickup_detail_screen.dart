@@ -8,6 +8,7 @@ import '../utils/user_helpers.dart';
 import '../widgets/eco_components.dart';
 import '../widgets/resident_approval_banner.dart';
 import '../utils/pickup_approval_ui.dart';
+import 'new_pickup_screen.dart';
 
 class PickupDetailScreen extends StatefulWidget {
   const PickupDetailScreen({super.key, required this.pickupId});
@@ -22,6 +23,7 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
   final _api = Api();
   Map<String, dynamic>? _pickup;
   bool _loading = true;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -35,6 +37,48 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
       setState(() => _pickup = json as Map<String, dynamic>);
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _edit() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => NewPickupScreen(existing: _pickup)),
+    );
+    if (changed == true && mounted) {
+      setState(() => _loading = true);
+      await _load();
+    }
+  }
+
+  Future<void> _cancel() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel this request?'),
+        content: const Text('This permanently removes your pending pickup request.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: EcoColors.danger),
+            child: const Text('Cancel request'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      await _api.delete('/pickuprequests/${widget.pickupId}');
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
   }
 
   @override
@@ -57,6 +101,7 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
     final approval = pickupApprovalStatus(p)?.toLowerCase();
     final approvalPending = approval == 'pending';
     final approvalRejected = approval == 'rejected';
+    final isPending = (p['status'] as String?)?.toLowerCase() == 'pending';
 
     return EcoScreen(
       child: Column(
@@ -125,6 +170,30 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
               ),
             ),
           ),
+          if (isPending)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: EcoPrimaryButton(
+                      label: 'Edit',
+                      icon: Icons.edit_outlined,
+                      onPressed: _busy ? null : _edit,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: EcoPrimaryButton(
+                      label: 'Cancel request',
+                      color: EcoColors.danger,
+                      loading: _busy,
+                      onPressed: _cancel,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

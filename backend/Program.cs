@@ -49,6 +49,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 
 // Pickup requests
 builder.Services.AddScoped<backend.Services.IPickupRequestService, backend.Services.PickupRequestService>();
