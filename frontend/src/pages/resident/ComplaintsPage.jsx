@@ -7,6 +7,12 @@ import { useAuth } from '../../context/AuthContext'
 import { resolveComplaintLookupId } from '../../lib/complaintLookup'
 import { pickupLabel } from '../../lib/catalog'
 import { apiRequest } from '../../lib/api'
+import {
+  COMPLAINT_DESCRIPTION_MAX,
+  COMPLAINT_DESCRIPTION_MIN,
+  mapComplaintBackendErrors,
+  validateComplaintForm,
+} from '../../lib/residentComplaint'
 
 const STORAGE_KEY = 'ecocycle-resident-complaints'
 
@@ -33,6 +39,7 @@ export default function ResidentComplaintsPage() {
   const [showForm, setShowForm] = useState(false)
   const [lookupId, setLookupId] = useState('')
   const [form, setForm] = useState({ pickupRequestId: '', description: '' })
+  const [formErrors, setFormErrors] = useState({})
   const [filter, setFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -96,22 +103,38 @@ export default function ResidentComplaintsPage() {
 
   useEffect(() => { load() }, [load])
 
+  function openComplaintForm() {
+    setFormErrors({})
+    setError(null)
+    setShowForm(true)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
+    const errs = validateComplaintForm(form, { pickups, complaints })
+    setFormErrors(errs)
+    if (Object.keys(errs).length > 0) return
+
     setBusy(true)
     setError(null)
     try {
       const created = await apiRequest('/complaints', {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          pickupRequestId: form.pickupRequestId,
+          description: form.description.trim(),
+        }),
       })
       storeComplaintId(created.id)
       setSuccess('Complaint filed. Support will pick it up from here.')
       setForm({ pickupRequestId: '', description: '' })
+      setFormErrors({})
       setShowForm(false)
       await loadComplaints()
     } catch (err) {
-      setError(err.message)
+      const fieldErrors = mapComplaintBackendErrors(err.details)
+      if (fieldErrors) setFormErrors(fieldErrors)
+      else setError(err.message)
     } finally {
       setBusy(false)
     }
@@ -148,7 +171,7 @@ export default function ResidentComplaintsPage() {
         <button
           type="button"
           className="ac-btn ac-btn-primary ac-btn-sm"
-          onClick={() => setShowForm(true)}
+          onClick={openComplaintForm}
           disabled={role !== 'resident'}
         >
           <Plus size={15} strokeWidth={2.4} aria-hidden="true" />
@@ -215,7 +238,11 @@ export default function ResidentComplaintsPage() {
         </>
       )}
 
-      <AcModal open={showForm} onClose={() => setShowForm(false)} title="File a complaint">
+      <AcModal
+        open={showForm}
+        onClose={() => { setShowForm(false); setFormErrors({}) }}
+        title="File a complaint"
+      >
         <p className="ac-sub">
           Report a missed pickup, damage, or anything else that went wrong.
         </p>
@@ -225,14 +252,30 @@ export default function ResidentComplaintsPage() {
             <select
               id="complaint-pickup"
               value={form.pickupRequestId}
-              onChange={(e) => setForm({ ...form, pickupRequestId: e.target.value })}
-              required
+              onChange={(e) => {
+                setForm({ ...form, pickupRequestId: e.target.value })
+                setFormErrors((prev) => {
+                  const next = { ...prev }
+                  delete next.pickupRequestId
+                  return next
+                })
+              }}
+              aria-invalid={Boolean(formErrors.pickupRequestId)}
+              aria-describedby={formErrors.pickupRequestId ? 'complaint-pickup-error' : undefined}
             >
               <option value="">Select a pickup request…</option>
               {pickups.map((pickup) => (
                 <option key={pickup.id} value={pickup.id}>{pickupLabel(pickup)}</option>
               ))}
             </select>
+            {pickups.length === 0 && (
+              <p className="ac-field-hint">You need at least one pickup request before filing a complaint.</p>
+            )}
+            {formErrors.pickupRequestId && (
+              <p id="complaint-pickup-error" className="ac-field-error" role="alert">
+                {formErrors.pickupRequestId}
+              </p>
+            )}
           </div>
           <div className="ac-field">
             <label htmlFor="complaint-description">What happened?</label>
@@ -240,16 +283,34 @@ export default function ResidentComplaintsPage() {
               id="complaint-description"
               rows={4}
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              maxLength={COMPLAINT_DESCRIPTION_MAX}
+              onChange={(e) => {
+                setForm({ ...form, description: e.target.value })
+                setFormErrors((prev) => {
+                  const next = { ...prev }
+                  delete next.description
+                  return next
+                })
+              }}
               placeholder="Describe the issue with this pickup…"
-              required
+              aria-invalid={Boolean(formErrors.description)}
+              aria-describedby="complaint-description-hint complaint-description-error"
             />
+            <p id="complaint-description-hint" className="ac-field-hint">
+              {COMPLAINT_DESCRIPTION_MIN}–{COMPLAINT_DESCRIPTION_MAX} characters (
+              {form.description.trim().length}/{COMPLAINT_DESCRIPTION_MAX})
+            </p>
+            {formErrors.description && (
+              <p id="complaint-description-error" className="ac-field-error" role="alert">
+                {formErrors.description}
+              </p>
+            )}
           </div>
           <div className="ac-actions">
             <button
               type="submit"
               className="ac-btn ac-btn-primary"
-              disabled={busy || role !== 'resident'}
+              disabled={busy || role !== 'resident' || pickups.length === 0}
             >
               <MessageSquare size={16} strokeWidth={2.2} aria-hidden="true" />
               Submit complaint
