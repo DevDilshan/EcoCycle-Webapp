@@ -17,5 +17,11 @@ public class CreateZoneDto
 
     public double? Longitude { get; set; }
 
+    /// <summary>
+    /// Days of the week this zone is collected, as DayOfWeek numbers
+    /// (0 = Sunday ... 6 = Saturday). Empty means no fixed days.
+    /// </summary>
+    public List<int> CollectionDays { get; set; } = [];
+
     public bool IsActive { get; set; } = true;
 }

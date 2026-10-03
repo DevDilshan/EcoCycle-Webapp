@@ -326,3 +326,28 @@
   .admin-console .c-strip { grid-template-columns: minmax(0, 1fr); }
   .admin-console .c-ns-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- Stop detail ---------- */
+
+/* The resident's description in full. The list row truncates it, and the part
+   that matters to a crew is usually at the end. */
+.admin-console .c-stop-full {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--honeydew);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/* Opens the address in a maps app. Not a map of its own: pickups carry no
+   coordinates, so a map would stack every stop in a zone on one pin and tell a
+   driver nothing. Turn-by-turn from the address is what they actually need. */
+.admin-console .c-navigate {
+  justify-content: flex-start;
+  text-align: left;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.admin-console .c-upcoming-day .ac-row .ac-pill { flex: none; }

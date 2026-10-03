@@ -19,16 +19,35 @@ public class RouteAssignmentService
         _rewards = rewards;
     }
 
+    /// <summary>
+    /// The round in front of the collector now.
+    /// </summary>
+    /// <remarks>
+    /// Today's stops, plus anything older that is still pending.
+    ///
+    /// The carry-forward matters. This used to return the current day and
+    /// nothing else, so a stop the crew never got to yesterday appeared on no
+    /// screen at all the next morning: it was behind today, and
+    /// GetUpcomingRouteForCollectorAsync starts at tomorrow. Nobody could
+    /// complete it or report it, and the only way it surfaced again was the
+    /// resident noticing and asking for another visit.
+    ///
+    /// Completed and missed stops are not carried, only pending ones. Those two
+    /// are finished with; repeating them would grow the round a little longer
+    /// every day.
+    /// </remarks>
     public async Task<List<RouteAssignmentDto>> GetTodayRouteForCollectorAsync(Guid collectorId)
     {
-        var today = DateTime.UtcNow.Date;
-        var tomorrow = today.AddDays(1);
+        var tomorrow = ServiceClock.TodayPlus(1);
 
         return await _context.RouteAssignments
             .AsNoTracking()
             .Where(r => r.CollectorId == collectorId
-                && r.ScheduledDate >= today
-                && r.ScheduledDate < tomorrow)
+                && r.ScheduledDate < tomorrow
+                && (r.ScheduledDate >= ServiceClock.Today
+                    || r.CompletionStatus == RouteCompletionStatus.Pending))
+            // Oldest first, so anything carried over sits at the top of the
+            // round rather than being buried among today's stops.
             .OrderBy(r => r.ScheduledDate)
             .Select(r => MapToDto(r))
             .ToListAsync();
@@ -45,7 +64,7 @@ public class RouteAssignmentService
     /// </param>
     public async Task<List<RouteAssignmentDto>> GetUpcomingRouteForCollectorAsync(Guid collectorId, int days = 7)
     {
-        var from = DateTime.UtcNow.Date.AddDays(1);
+        var from = ServiceClock.TodayPlus(1);
         var to = from.AddDays(Math.Clamp(days, 1, 30));
 
         return await _context.RouteAssignments
@@ -118,14 +137,18 @@ public class RouteAssignmentService
         // Collected: close the pickup and pay the resident in the same save,
         // so a completed pickup can never be left without its points.
         var pickup = await _context.PickupRequests.FirstOrDefaultAsync(p => p.Id == route.PickupRequestId);
+        PickupRequest? nextOccurrence = null;
         if (pickup is not null)
         {
             pickup.Status = PickupStatus.Completed;
             await _rewards.StageCompletionAwardAsync(pickup.Id);
+            nextOccurrence = BuildNextOccurrence(pickup);
+            if (nextOccurrence is not null) _context.PickupRequests.Add(nextOccurrence);
         }
 
         await _context.SaveChangesAsync();
 
+        NextRecurringPickupId = nextOccurrence?.Id;
         return MapToDto(route);
     }
 
@@ -140,7 +163,13 @@ public class RouteAssignmentService
     /// <param name="date">The day to report on, in UTC. Defaults to today.</param>
     public async Task<List<RouteAssignmentDto>> GetAssignmentsForDayAsync(DateTime? date = null)
     {
-        var from = (date ?? DateTime.UtcNow).Date;
+        // Kind matters here. ScheduledDate is "timestamp with time zone", and
+        // Npgsql refuses a DateTime whose Kind is Unspecified -- which is
+        // exactly what model binding produces from ?date=2026-10-02. Without
+        // this the query throws the moment a date is supplied, and the caller
+        // sees an empty table rather than an error.
+        // No date means today, read the same way everything else reads it.
+        var from = date is null ? ServiceClock.Today : ServiceClock.AsServiceDay(date.Value);
         var to = from.AddDays(1);
 
         return await _context.RouteAssignments
@@ -163,6 +192,62 @@ public class RouteAssignmentService
     /// silently erase its CompletedAt, so that is refused rather than accepted.
     /// </remarks>
     /// <returns>Null when no such stop exists; the updated stop once missed.</returns>
+    /// <summary>
+    /// The id of the pickup created by the last MarkCompleteAsync call, when
+    /// that pickup was recurring. Null otherwise.
+    /// </summary>
+    /// <remarks>
+    /// The caller needs it to book the new occurrence onto a round, which takes
+    /// an agent call and so must not happen inside the collector's save.
+    /// </remarks>
+    public Guid? NextRecurringPickupId { get; private set; }
+
+    /// <summary>
+    /// The next occurrence of a recurring collection, or null if there is none.
+    /// </summary>
+    /// <remarks>
+    /// Created when a collection actually happens rather than by a nightly job.
+    /// That needs no scheduler, and it has a property worth keeping: the chain
+    /// continues only while collections are really being made, so a resident who
+    /// stops putting bins out does not accumulate a queue of phantom pickups.
+    ///
+    /// The photo is deliberately not copied -- it showed last fortnight's
+    /// rubbish, and the classifier would be reading a stale picture.
+    /// </remarks>
+    private static PickupRequest? BuildNextOccurrence(PickupRequest pickup)
+    {
+        if (!pickup.IsRecurring) return null;
+
+        var interval = (pickup.RecurrenceInterval ?? string.Empty).Trim().ToLowerInvariant();
+        var days = interval switch
+        {
+            "weekly" => 7,
+            "bi-weekly" or "biweekly" or "fortnightly" => 14,
+            _ => 0
+        };
+
+        if (days == 0) return null;
+
+        return new PickupRequest
+        {
+            ResidentId = pickup.ResidentId,
+            ZoneId = pickup.ZoneId,
+            Description = pickup.Description,
+            PreferredDate = ServiceClock.TodayPlus(days),
+            IsRecurring = true,
+            RecurrenceInterval = pickup.RecurrenceInterval,
+            IsBulkRequest = false,
+            Status = PickupStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>Whether this stop belongs to the given collector's round.</summary>
+    public Task<bool> IsAssignedToAsync(Guid routeId, Guid collectorId)
+        => _context.RouteAssignments
+            .AsNoTracking()
+            .AnyAsync(r => r.Id == routeId && r.CollectorId == collectorId);
+
     public async Task<RouteAssignmentDto?> MarkMissedAsync(Guid id, string? issueNotes = null)
     {
         var route = await _context.RouteAssignments.FirstOrDefaultAsync(r => r.Id == id);
@@ -244,7 +329,7 @@ public class RouteAssignmentService
     /// </remarks>
     public async Task<List<ZoneLoadDto>> GetZoneLoadReportAsync()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = ServiceClock.Today;
         var tomorrow = today.AddDays(1);
 
         return await _context.Zones
@@ -312,10 +397,10 @@ public class RouteAssignmentService
             PickupRequestId = pickupRequestId,
             ZoneId = zone.Id,
             CollectorId = collectorId.Value,
-            // Today, not tomorrow: an admin assigning a pickup expects it on the
-            // collector's screen now, and GetTodayRouteForCollectorAsync only
-            // returns the current UTC day.
-            ScheduledDate = DateTime.UtcNow.Date,
+            // Today, not tomorrow: an admin assigning a pickup expects it on
+            // the collector's screen now, and GetTodayRouteForCollectorAsync
+            // only returns the current service day.
+            ScheduledDate = ServiceClock.Today,
             CompletionStatus = RouteCompletionStatus.Pending,
             CreatedAt = DateTime.UtcNow
         };

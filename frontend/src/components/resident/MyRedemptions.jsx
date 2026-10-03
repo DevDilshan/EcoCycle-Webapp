@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import AdminCard from '../admin/AdminCard'
-import FormModal from '../FormModal'
+import { Gift, Pencil, Trash2 } from 'lucide-react'
+import { AcCard, AcModal } from '../admin/AcUi'
+import { AcStatusPill } from '../admin/AcPills'
 import { useConfirm } from '../../hooks/useConfirm'
 import { apiRequest, formatDate } from '../../lib/api'
 
 /**
  * The resident's redemption requests. They pick an item from the catalog in a
- * pop-up; a Pending request can be switched to another item (also a pop-up) or
+ * drawer; a Pending request can be switched to another item (also a drawer) or
  * cancelled after a confirmation. Points only leave the balance once an admin
  * approves.
+ *
+ * Uses the shared console drawer rather than the older FormModal, so the two
+ * forms here look and behave like every other form in the app.
  */
 export default function MyRedemptions({ canRequest, balance, showForm, onCloseForm, onError, onSuccess, onChanged }) {
   const [items, setItems] = useState([])
@@ -111,13 +115,22 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
   // What the resident can still pick: not sold out and within their free points.
   function rewardSelect(id, value, onChange, extraRoom = 0) {
     return (
-      <select id={id} value={value} aria-invalid={Boolean(fieldError)} onChange={(e) => { setFieldError(null); onChange(e.target.value) }}>
+      <select
+        id={id}
+        value={value}
+        aria-invalid={Boolean(fieldError)}
+        onChange={(e) => { setFieldError(null); onChange(e.target.value) }}
+      >
         <option value="" disabled>Select a reward</option>
         {catalog.map((item) => {
           const stock = item.stock == null ? '' : ` · ${item.stock} left`
           return (
-            <option key={item.id} value={item.id} disabled={item.stock === 0 || item.pointsCost > available + extraRoom}>
-              {item.name} — {item.pointsCost} pts{stock}
+            <option
+              key={item.id}
+              value={item.id}
+              disabled={item.stock === 0 || item.pointsCost > available + extraRoom}
+            >
+              {item.name} &mdash; {item.pointsCost} pts{stock}
             </option>
           )
         })}
@@ -131,76 +144,104 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
     <>
       {confirmDialog}
 
-      <FormModal
-        open={Boolean(showForm)}
-        onClose={closeCreate}
-        title="Request a redemption"
-        subtitle={`${available.toLocaleString()} points available${reserved > 0 ? ` (${reserved} already requested)` : ''}`}
-      >
+      <AcModal open={Boolean(showForm)} onClose={closeCreate} title="Request a redemption">
+        <p className="ac-sub">
+          {available.toLocaleString()} points available
+          {reserved > 0 ? ` (${reserved} already requested)` : ''}
+        </p>
+
         {catalog.length === 0 ? (
-          <p className="admin-empty">No rewards are available yet. Check back soon.</p>
+          <p className="ac-empty">No rewards are available yet. Check back soon.</p>
         ) : (
-          <form className="admin-form" onSubmit={handleCreate} noValidate>
-            <div>
+          <form className="ac-form" onSubmit={handleCreate} noValidate>
+            <div className="ac-field">
               <label htmlFor="redeem-item">Reward</label>
               {rewardSelect('redeem-item', chosen, setChosen)}
-              {fieldError && <p className="ac-field-error" role="alert" style={{ color: '#8a1c12', fontWeight: 700, fontSize: 12 }}>{fieldError}</p>}
+              {fieldError && <p className="ac-field-error" role="alert">{fieldError}</p>}
             </div>
-            <div className="ecoc-modal-actions">
-              <button type="button" className="btn-secondary btn-sm" onClick={closeCreate}>Cancel</button>
-              <button type="submit" className="btn-primary btn-sm" disabled={busy || !canRequest}>Send request</button>
+            <div className="ac-actions">
+              <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || !canRequest}>
+                <Gift size={16} strokeWidth={2.2} aria-hidden="true" />
+                Send request
+              </button>
+              <button type="button" className="ac-btn ac-btn-ghost" onClick={closeCreate} disabled={busy}>
+                Cancel
+              </button>
             </div>
           </form>
         )}
-      </FormModal>
+      </AcModal>
 
-      <FormModal
-        open={Boolean(editing)}
-        onClose={closeEdit}
-        title="Change your request"
-        subtitle="Pick a different reward. Your points stay set aside until an admin decides."
-      >
+      <AcModal open={Boolean(editing)} onClose={closeEdit} title="Change your request">
         {editing && (
-          <form className="admin-form" onSubmit={handleSave} noValidate>
-            <div>
-              <label htmlFor="change-item">Reward</label>
-              {rewardSelect('change-item', editing.rewardItemId, (value) => setEditing({ ...editing, rewardItemId: value }), editingRequest?.points ?? 0)}
-              {fieldError && <p className="ac-field-error" role="alert" style={{ color: '#8a1c12', fontWeight: 700, fontSize: 12 }}>{fieldError}</p>}
-            </div>
-            <div className="ecoc-modal-actions">
-              <button type="button" className="btn-secondary btn-sm" onClick={closeEdit}>Cancel</button>
-              <button type="submit" className="btn-primary btn-sm" disabled={busy}>Save</button>
-            </div>
-          </form>
+          <>
+            <p className="ac-sub">
+              Pick a different reward. Your points stay set aside until an admin decides.
+            </p>
+            <form className="ac-form" onSubmit={handleSave} noValidate>
+              <div className="ac-field">
+                <label htmlFor="change-item">Reward</label>
+                {rewardSelect(
+                  'change-item',
+                  editing.rewardItemId,
+                  (value) => setEditing({ ...editing, rewardItemId: value }),
+                  editingRequest?.points ?? 0,
+                )}
+                {fieldError && <p className="ac-field-error" role="alert">{fieldError}</p>}
+              </div>
+              <div className="ac-actions">
+                <button type="submit" className="ac-btn ac-btn-primary" disabled={busy}>Save</button>
+                <button type="button" className="ac-btn ac-btn-ghost" onClick={closeEdit} disabled={busy}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </>
         )}
-      </FormModal>
+      </AcModal>
 
-      <AdminCard title="My redemption requests">
+      <AcCard title="My redemption requests" subtitle="Points leave your balance once an admin approves">
         {loading ? (
-          <p className="admin-loading">Loading requests…</p>
+          <p className="ac-loading">Loading requests…</p>
         ) : items.length === 0 ? (
-          <p className="admin-empty">No redemption requests yet.</p>
+          <p className="ac-empty">No redemption requests yet.</p>
         ) : (
-          <ul className="resident-activity-list">
+          <ul className="ac-list">
             {items.map((item) => (
-              <li key={item.id} className="resident-activity-item" style={{ flexWrap: 'wrap' }}>
-                <div className="resident-activity-body">
+              <li className="ac-row" key={item.id}>
+                <span className="ac-ic">
+                  <Gift size={18} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span className="ac-grow">
                   <strong>{item.reason}</strong>
-                  <small>
-                    {formatDate(item.createdAt)} · {item.status}
+                  <span className="ac-sub">
+                    {item.points} pts · {formatDate(item.createdAt)}
                     {item.adminNote ? ` · Admin: ${item.adminNote}` : ''}
-                  </small>
-                </div>
-                <span className="leaderboard-points">{item.points}</span>
+                  </span>
+                </span>
+                <AcStatusPill status={item.status} />
                 {item.status === 'Pending' && (
-                  <span className="admin-actions">
-                    <button type="button" className="btn-secondary btn-sm" disabled={busy}
-                      onClick={() => { setFieldError(null); setEditing({ id: item.id, rewardItemId: item.rewardItemId ?? '' }) }}>
+                  <span className="ac-actions" style={{ marginTop: 0 }}>
+                    <button
+                      type="button"
+                      className="ac-btn ac-btn-ghost ac-btn-sm"
+                      disabled={busy}
+                      onClick={() => {
+                        setFieldError(null)
+                        setEditing({ id: item.id, rewardItemId: item.rewardItemId ?? '' })
+                      }}
+                    >
+                      <Pencil size={14} strokeWidth={2.2} aria-hidden="true" />
                       Change
                     </button>
-                    <button type="button" className="btn-secondary btn-sm" disabled={busy}
-                      onClick={() => handleCancel(item)}>
-                      Cancel request
+                    <button
+                      type="button"
+                      className="ac-btn ac-btn-danger ac-btn-sm"
+                      disabled={busy}
+                      onClick={() => handleCancel(item)}
+                    >
+                      <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
+                      Cancel
                     </button>
                   </span>
                 )}
@@ -208,7 +249,7 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
             ))}
           </ul>
         )}
-      </AdminCard>
+      </AcCard>
     </>
   )
 }

@@ -41,6 +41,28 @@ public class AgentPipelineClient : IAgentPipelineClient
         return raw is null ? null : JsonSerializer.Deserialize<RoutingDto>(raw, AgentJson.Options);
     }
 
+    public async Task<RoutingDto?> ChooseSlotAsync(
+        RoutingContextDto context, CancellationToken cancellationToken = default)
+    {
+        var body = new ChooseSlotRequestDto { RoutingContext = context };
+        var raw = await PostForRawJsonAsync("/choose-slot", body, cancellationToken);
+        return raw is null ? null : JsonSerializer.Deserialize<RoutingDto>(raw, AgentJson.Options);
+    }
+
+    public async Task<MissedExplanationDto?> ExplainMissedAsync(
+        ExplainMissedRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var raw = await PostForRawJsonAsync("/explain-missed", request, cancellationToken);
+        return raw is null ? null : JsonSerializer.Deserialize<MissedExplanationDto>(raw, AgentJson.Options);
+    }
+
+    public async Task<DecisionExplanationDto?> ExplainDecisionAsync(
+        ExplainDecisionRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var raw = await PostForRawJsonAsync("/explain-decision", request, cancellationToken);
+        return raw is null ? null : JsonSerializer.Deserialize<DecisionExplanationDto>(raw, AgentJson.Options);
+    }
+
     /// <summary>
     /// POSTs and returns the response body, or null if the service could not be
     /// reached. Distinguishes an outage (null, caller degrades) from a rejected

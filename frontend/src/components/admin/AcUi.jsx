@@ -140,6 +140,52 @@ export function AcDrawer({ open, onClose, title, children, headAction }) {
   )
 }
 
+/**
+ * Centred modal, for a form too long to read in the drawer's narrow column.
+ *
+ * Closes on Escape and on a click outside the panel, the same two ways
+ * AcDrawer does. Unlike the drawer it is not rendered while closed, because a
+ * long form in the middle of the screen has nothing to slide in from.
+ */
+export function AcModal({ open, onClose, title, children, headAction }) {
+  useEffect(() => {
+    if (!open) return undefined
+    function onKeyDown(event) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return (
+    <>
+      <div className="ac-scrim is-open" onClick={onClose} aria-hidden="true" />
+      <div
+        className="ac-modal-wrap"
+        // A click that both starts and ends on the backdrop closes it. Checking
+        // the target is the wrapper itself keeps a drag that began inside the
+        // panel -- selecting text, for instance -- from closing the form.
+        onClick={(event) => { if (event.target === event.currentTarget) onClose() }}
+      >
+        <div className="ac-modal" role="dialog" aria-modal="true" aria-label={title}>
+          <div className="ac-modal-head">
+            <h2>{title}</h2>
+            <div className="ac-drawer-head-actions">
+              {headAction}
+              <button type="button" className="ac-icon-btn" onClick={onClose} aria-label="Close">
+                <X size={18} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          {children}
+        </div>
+      </div>
+    </>
+  )
+}
+
 const TOAST_ICONS = { success: CircleCheckBig, danger: Trash2, warning: TriangleAlert }
 const TOAST_LIFETIME = { success: 4500, danger: 4500, warning: 8000 }
 

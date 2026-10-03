@@ -198,7 +198,7 @@ export default function RewardCatalogPanel({ onError, onSuccess, onChanged, relo
               {errors.description && <p className="ac-field-error" role="alert">{errors.description}</p>}
             </div>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="checkbox" style={{ width: 'auto' }} checked={form.isActive}
+              <input type="checkbox" checked={form.isActive}
                 onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
               Available to residents
             </label>

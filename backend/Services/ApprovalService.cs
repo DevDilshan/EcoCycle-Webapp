@@ -11,17 +11,20 @@ public class ApprovalService : IApprovalService
     private readonly ApplicationDbContext _db;
     private readonly IAgentPipelineClient _agents;
     private readonly RouteAssignmentService _routes;
+    private readonly RoutingOptionBuilder _routingOptions;
     private readonly ILogger<ApprovalService> _logger;
 
     public ApprovalService(
         ApplicationDbContext db,
         IAgentPipelineClient agents,
         RouteAssignmentService routes,
+        RoutingOptionBuilder routingOptions,
         ILogger<ApprovalService> logger)
     {
         _db = db;
         _agents = agents;
         _routes = routes;
+        _routingOptions = routingOptions;
         _logger = logger;
     }
 
@@ -130,7 +133,18 @@ public class ApprovalService : IApprovalService
         entity.ReviewNotes = dto.Notes?.Trim();
 
         if (entity.PickupRequest is not null)
+        {
             entity.PickupRequest.Status = PickupStatus.Approved;
+
+            // Approving a bulky pickup spends a bulky slot. Without this the
+            // admin's decision is forgotten: the collection happens, the
+            // allowance still reads untouched, and the same resident is flagged
+            // again next week for the same reason.
+            if (await IsBulkAsync(entity.PickupRequestId))
+            {
+                entity.PickupRequest.IsBulkRequest = true;
+            }
+        }
 
         // The approval is committed before routing is attempted. An admin's
         // decision must not be lost because the agent service is having a bad
@@ -139,6 +153,9 @@ public class ApprovalService : IApprovalService
         await _db.SaveChangesAsync();
 
         var routingWarning = await TryRouteApprovedPickupAsync(entity);
+
+        await WriteDecisionMessageAsync(
+            entity, approved: true, reason: dto.Notes ?? entity.FlagReason);
 
         var response = ToDto(entity);
         response.RoutingWarning = routingWarning;
@@ -183,12 +200,19 @@ public class ApprovalService : IApprovalService
         RoutingDto? routing;
         try
         {
-            // Deliberately re-read the loads now rather than reusing the snapshot
-            // taken at submission: a flagged pickup can sit in review for days,
-            // and the collector who was quietest then may be the busiest today.
-            var loads = await GetCollectorLoadsAsync();
-            if (loads.Count == 0)
-                return "No collectors are available to take this pickup.";
+            // Deliberately rebuilt now rather than reusing the snapshot taken at
+            // submission: a flagged pickup can sit in review for days, and the
+            // day that was empty then may be full today.
+            //
+            // Here the category IS known -- an admin has just approved it -- so
+            // the slots are filtered by vehicle properly, unlike the submission
+            // path where classification has not happened yet.
+            var category = ParseCategory(storedResult);
+            var context = await _routingOptions.BuildAsync(
+                pickup.ZoneId.Value, category, pickup.PreferredDate);
+
+            if (context.Options.Count == 0)
+                return "No collector equipped for this pickup has a free slot in the next two weeks.";
 
             routing = await _agents.RouteApprovedPickupAsync(new RouteApprovedPickupRequestDto
             {
@@ -198,7 +222,7 @@ public class ApprovalService : IApprovalService
                     ["description"] = pickup.Description ?? string.Empty
                 },
                 PipelineResult = storedResult.RootElement.Clone(),
-                CollectorLoads = loads
+                RoutingContext = context
             });
         }
         catch (Exception ex)
@@ -251,6 +275,157 @@ public class ApprovalService : IApprovalService
         return report.ToDictionary(c => c.CollectorId.ToString(), c => c.PendingAssignments);
     }
 
+    /// <summary>
+    /// The collector loads the routing agent is allowed to choose from, narrowed
+    /// to the zone's own collector when it has one.
+    /// </summary>
+    /// <remarks>
+    /// Same reason as the submission path: the agent only ever picks the lowest
+    /// load and is never told which collector serves which zone, so an
+    /// unfiltered list routes work across zone boundaries. Falls back to every
+    /// collector when the zone has nobody assigned.
+    /// </remarks>
+    /// <summary>
+    /// The category the pipeline settled on, read back from the stored result.
+    /// </summary>
+    /// <remarks>
+    /// Falls back to General when the stored JSON predates the field or cannot
+    /// be read: that only widens the slots offered, and the vehicle rules are
+    /// enforced again when the assignment is built.
+    /// </remarks>
+    private static WasteCategory ParseCategory(JsonDocument storedResult)
+    {
+        try
+        {
+            if (storedResult.RootElement.TryGetProperty("classification", out var classification)
+                && classification.TryGetProperty("category", out var category)
+                && Enum.TryParse<WasteCategory>(category.GetString(), ignoreCase: true, out var parsed))
+            {
+                return parsed;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Stored JSON of an unexpected shape; the fallback is safe.
+        }
+
+        return WasteCategory.General;
+    }
+
+    /// <summary>
+    /// Whether this pickup is bulky -- either the resident said so, or the
+    /// classifier decided it was.
+    /// </summary>
+    /// <summary>
+    /// Stores the resident-facing wording of an admin's decision.
+    /// </summary>
+    /// <remarks>
+    /// The Notifier already drafts a resident message when a pickup is flagged,
+    /// and nothing has ever delivered it -- it was written, stored, shown to the
+    /// admin and dropped. Where that draft exists it is used as-is, because it
+    /// was written for exactly this moment and costs nothing to reuse. A
+    /// rejection has no draft, since the flag assumed the pickup would go ahead,
+    /// so that one is written now.
+    ///
+    /// Best-effort: the decision itself is already saved, and losing the
+    /// friendly wording must not lose the decision.
+    /// </remarks>
+    private async Task WriteDecisionMessageAsync(ApprovalRequest entity, bool approved, string? reason)
+    {
+        var pickup = entity.PickupRequest;
+        if (pickup is null || string.IsNullOrWhiteSpace(reason)) return;
+
+        try
+        {
+            string? message = null;
+
+            if (approved)
+            {
+                message = ReadStoredResidentNotification(entity.PipelineResultJson);
+            }
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                var written = await _agents.ExplainDecisionAsync(new DTOs.ExplainDecisionRequestDto
+                {
+                    Approved = approved,
+                    Reason = reason,
+                    Description = pickup.Description ?? string.Empty
+                });
+                message = written?.ResidentMessage;
+            }
+
+            if (string.IsNullOrWhiteSpace(message)) return;
+
+            pickup.ResidentMessage = message.Length > 1000 ? message[..1000] : message;
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not write the resident message for approval {ApprovalId}; the decision " +
+                "itself still stands.", entity.Id);
+        }
+    }
+
+    /// <summary>The resident message the Notifier wrote when the pickup was flagged.</summary>
+    private static string? ReadStoredResidentNotification(string? pipelineResultJson)
+    {
+        if (string.IsNullOrWhiteSpace(pipelineResultJson)) return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(pipelineResultJson);
+            if (document.RootElement.TryGetProperty("approval", out var approval)
+                && approval.ValueKind == JsonValueKind.Object
+                && approval.TryGetProperty("resident_notification", out var note))
+            {
+                return note.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+            // Unreadable stored JSON is not worth failing a decision over.
+        }
+
+        return null;
+    }
+
+    private async Task<bool> IsBulkAsync(Guid pickupRequestId)
+    {
+        var declared = await _db.PickupRequests
+            .AsNoTracking()
+            .Where(p => p.Id == pickupRequestId)
+            .Select(p => p.IsBulkRequest)
+            .FirstOrDefaultAsync();
+
+        if (declared) return true;
+
+        return await _db.WasteClassifications
+            .AsNoTracking()
+            .Where(w => w.PickupRequestId == pickupRequestId)
+            .OrderByDescending(w => w.CreatedAt)
+            .Select(w => w.Category)
+            .FirstOrDefaultAsync() == WasteCategory.Bulk;
+    }
+
+    private async Task<Dictionary<string, int>> ZoneAwareLoadsAsync(
+        Guid zoneId,
+        Dictionary<string, int> allLoads)
+    {
+        var zoneCollectorId = await _db.Zones
+            .Where(z => z.Id == zoneId)
+            .Select(z => z.AssignedCollectorId)
+            .FirstOrDefaultAsync();
+
+        if (zoneCollectorId is null) return allLoads;
+
+        var key = zoneCollectorId.Value.ToString();
+        return allLoads.TryGetValue(key, out var load)
+            ? new Dictionary<string, int> { [key] = load }
+            : allLoads;
+    }
+
     public async Task<ApprovalResponseDto?> RejectAsync(Guid id, Guid adminId, RejectApprovalDto dto)
     {
         var entity = await _db.ApprovalRequests
@@ -266,7 +441,17 @@ public class ApprovalService : IApprovalService
         entity.ReviewedAt = DateTime.UtcNow;
         entity.ReviewNotes = dto.Reason.Trim();
 
+        // The pickup itself was left as Classified before this: not scheduled,
+        // not refused, invisible to everyone including the resident who asked.
+        if (entity.PickupRequest is not null)
+        {
+            entity.PickupRequest.Status = PickupStatus.Rejected;
+        }
+
         await _db.SaveChangesAsync();
+
+        await WriteDecisionMessageAsync(entity, approved: false, reason: dto.Reason);
+
         return ToDto(entity);
     }
 

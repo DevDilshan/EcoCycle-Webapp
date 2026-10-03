@@ -35,6 +35,9 @@ const STATUSES = {
   Flagged: ['bad', Flag, 'Flagged'],
   Open: ['bad', CircleAlert, 'Open'],
   InProgress: ['warn', Eye, 'In review'],
+  // residentPickupStatusPillKey returns this spelling when an approval request
+  // is still open, so it needs its own entry or it falls through to grey.
+  'In review': ['warn', Eye, 'In review'],
   Resolved: ['ok', CircleCheckBig, 'Resolved'],
   Active: ['ok', CircleCheckBig, 'Active'],
   Inactive: ['neutral', CircleDot, 'Inactive'],

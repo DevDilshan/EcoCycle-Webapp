@@ -1,12 +1,15 @@
 import { useId, useState } from 'react'
-import { ImagePlus, Upload } from 'lucide-react'
+import { ImagePlus, Upload, X } from 'lucide-react'
 
 /**
  * Waste photo upload with preview, drag-and-drop, and replace/remove actions.
+ *
+ * Styled with the console's own tokens (`r-pf-*`) rather than the older
+ * `resident-photo-*` rules, so it sits in the same forms as every other field.
  */
 export default function PickupPhotoField({
   label = 'Waste photo',
-  hint = 'Optional — a clear shot helps the classifier',
+  hint = 'A clear shot is what the classifier reads',
   existingUrl = '',
   previewUrl = '',
   onFileChange,
@@ -31,12 +34,10 @@ export default function PickupPhotoField({
   }
 
   return (
-    <div className="resident-photo-field">
-      <div className="resident-photo-field-head">
-        <label htmlFor={inputId} className="resident-photo-label">
-          {label}
-        </label>
-        <span className="resident-photo-hint">{hint}</span>
+    <div className="r-pf">
+      <div className="r-pf-head">
+        <label htmlFor={inputId}>{label}</label>
+        <span className="r-pf-hint">{hint}</span>
       </div>
 
       <input
@@ -44,7 +45,7 @@ export default function PickupPhotoField({
         type="file"
         accept="image/*"
         capture="environment"
-        className="resident-photo-input"
+        className="r-pf-input"
         disabled={disabled}
         onChange={(e) => {
           pickFile(e.target.files?.[0] ?? null)
@@ -54,21 +55,22 @@ export default function PickupPhotoField({
 
       {hasPhoto ? (
         <>
-          <div className="resident-photo-frame has-preview">
-            <img src={displayUrl} alt="Waste to collect" className="resident-photo-preview" />
+          <div className="r-pf-shot">
+            <img src={displayUrl} alt="Waste to collect" />
           </div>
-          <div className="resident-photo-actions">
-            <label htmlFor={inputId} className="resident-photo-action-btn primary">
-              <Upload size={15} aria-hidden />
+          <div className="ac-actions" style={{ marginTop: 0 }}>
+            <label htmlFor={inputId} className="ac-btn ac-btn-soft ac-btn-sm">
+              <Upload size={14} strokeWidth={2.2} aria-hidden="true" />
               Replace photo
             </label>
             {onClear && (
               <button
                 type="button"
-                className="resident-photo-action-btn ghost"
+                className="ac-btn ac-btn-ghost ac-btn-sm"
                 disabled={disabled}
                 onClick={() => onClear()}
               >
+                <X size={14} strokeWidth={2.2} aria-hidden="true" />
                 Remove
               </button>
             )}
@@ -77,7 +79,7 @@ export default function PickupPhotoField({
       ) : (
         <label
           htmlFor={inputId}
-          className={`resident-photo-frame empty${dragOver ? ' drag-over' : ''}${disabled ? ' disabled' : ''}`}
+          className={`r-pf-frame${dragOver ? ' is-drag' : ''}${disabled ? ' is-disabled' : ''}`}
           onDragEnter={(e) => {
             e.preventDefault()
             if (!disabled) setDragOver(true)
@@ -89,11 +91,11 @@ export default function PickupPhotoField({
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
         >
-          <span className="resident-photo-icon" aria-hidden>
+          <span className="r-pf-icon" aria-hidden="true">
             <ImagePlus size={26} strokeWidth={2} />
           </span>
-          <strong>Upload a photo of the waste</strong>
-          <small>Click to browse, drag and drop, or use your camera on mobile</small>
+          <strong>Add a photo of the waste</strong>
+          <small>Click to browse, drag one in, or use your camera on a phone</small>
         </label>
       )}
     </div>
