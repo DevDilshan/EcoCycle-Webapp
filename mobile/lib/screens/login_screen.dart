@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/eco_theme.dart';
 import '../utils/network_errors.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/google_sign_in_button.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -131,6 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Text(_error!, style: const TextStyle(color: EcoColors.danger, fontSize: 13)),
             ),
           EcoPrimaryButton(label: 'Log in', loading: _loading, onPressed: _signIn),
+          const SizedBox(height: 16),
+          GoogleSignInButton(onError: (message) => setState(() => _error = message)),
           const SizedBox(height: 20),
           Center(
             child: GestureDetector(

@@ -217,6 +217,10 @@
 
 .eco-alert { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 12px 14px; border-radius: var(--eco-radius-sm); background: var(--danger-bg); color: var(--danger-ink); font-size: 14px; font-weight: 600; }
 .eco-alert svg { flex: none; margin-top: 2px; }
+.eco-auth-divider { display: flex; align-items: center; gap: 12px; margin: 0; color: var(--eco-muted); font-size: 13px; font-weight: 600; }
+.eco-auth-divider::before, .eco-auth-divider::after { content: ''; flex: 1; height: 1px; background: rgba(0, 86, 59, 0.18); }
+.eco-btn-google { background: var(--surface); color: var(--eco-ink); box-shadow: inset 0 0 0 1px rgba(0, 86, 59, 0.2); }
+.eco-btn-google:hover:not(:disabled) { background: var(--surface); color: var(--eco-ink); box-shadow: inset 0 0 0 1px rgba(0, 86, 59, 0.4); transform: translateY(-1px); }
 .eco-auth-alt { margin: 24px 0 0; text-align: center; color: var(--eco-muted); font-size: 15px; }
 .eco-auth-alt a { color: var(--eco-green); font-weight: 700; }
 .eco-auth-alt a:hover { text-decoration: underline; }

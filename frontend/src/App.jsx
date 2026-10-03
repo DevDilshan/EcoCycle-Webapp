@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -7,32 +8,36 @@ import CollectorLayout from './components/layout/CollectorLayout'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-import ForgotPasswordPage from './pages/ForgotPasswordPage'
-import ResetPasswordPage from './pages/ResetPasswordPage'
-import DashboardPage from './pages/admin/DashboardPage'
-import PickupRequestsPage from './pages/admin/PickupRequestsPage'
-import RoutesPage from './pages/admin/RoutesPage'
-import RewardsPage from './pages/admin/RewardsPage'
-import RewardCatalogPage from './pages/admin/rewards/RewardCatalogPage'
-import RewardRequestsPage from './pages/admin/rewards/RewardRequestsPage'
-import RewardHistoryPage from './pages/admin/rewards/RewardHistoryPage'
-import RewardAwardPage from './pages/admin/rewards/RewardAwardPage'
-import RewardCheckPage from './pages/admin/rewards/RewardCheckPage'
-import ApprovalsPage from './pages/admin/ApprovalsPage'
-import ComplaintsPage from './pages/admin/ComplaintsPage'
-import CompliancePage from './pages/admin/CompliancePage'
-import AdminAccountPage from './pages/admin/AdminAccountPage'
-import ResidentDashboardPage from './pages/resident/DashboardPage'
-import ResidentPickupsPage from './pages/resident/PickupsPage'
-import ResidentRewardsPage from './pages/resident/RewardsPage'
-import ResidentComplaintsPage from './pages/resident/ComplaintsPage'
-import CollectorDashboardPage from './pages/collector/DashboardPage'
-import CollectorRoutePage from './pages/collector/RoutePage'
+
+// Each console page is its own chunk: a resident never downloads the admin
+// screens or the map library, and the landing page loads without any of them.
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
+const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'))
+const PickupRequestsPage = lazy(() => import('./pages/admin/PickupRequestsPage'))
+const RoutesPage = lazy(() => import('./pages/admin/RoutesPage'))
+const RewardsPage = lazy(() => import('./pages/admin/RewardsPage'))
+const RewardCatalogPage = lazy(() => import('./pages/admin/rewards/RewardCatalogPage'))
+const RewardRequestsPage = lazy(() => import('./pages/admin/rewards/RewardRequestsPage'))
+const RewardHistoryPage = lazy(() => import('./pages/admin/rewards/RewardHistoryPage'))
+const RewardAwardPage = lazy(() => import('./pages/admin/rewards/RewardAwardPage'))
+const RewardCheckPage = lazy(() => import('./pages/admin/rewards/RewardCheckPage'))
+const ApprovalsPage = lazy(() => import('./pages/admin/ApprovalsPage'))
+const ComplaintsPage = lazy(() => import('./pages/admin/ComplaintsPage'))
+const CompliancePage = lazy(() => import('./pages/admin/CompliancePage'))
+const AdminAccountPage = lazy(() => import('./pages/admin/AdminAccountPage'))
+const ResidentDashboardPage = lazy(() => import('./pages/resident/DashboardPage'))
+const ResidentPickupsPage = lazy(() => import('./pages/resident/PickupsPage'))
+const ResidentRewardsPage = lazy(() => import('./pages/resident/RewardsPage'))
+const ResidentComplaintsPage = lazy(() => import('./pages/resident/ComplaintsPage'))
+const CollectorDashboardPage = lazy(() => import('./pages/collector/DashboardPage'))
+const CollectorRoutePage = lazy(() => import('./pages/collector/RoutePage'))
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -94,6 +99,7 @@ export default function App() {
             <Route path="account" element={<AdminAccountPage />} />
           </Route>
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   )

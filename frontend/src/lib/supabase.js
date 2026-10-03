@@ -9,8 +9,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// "user" is the same thing as "resident", and an account with no role at all
+// (one created through Google sign-in) is a resident too -- the backend maps
+// both the same way.
 function normalizeRole(role) {
-  return role ? String(role).toLowerCase() : null
+  if (!role) return null
+  const normalized = String(role).toLowerCase()
+  return normalized === 'user' ? 'resident' : normalized
 }
 
 function roleFromToken(accessToken) {
@@ -34,7 +39,7 @@ export function getUserRole(user, session) {
     if (fromToken) return fromToken
   }
 
-  return 'user'
+  return 'resident'
 }
 
 export function isAdmin(user, session) {

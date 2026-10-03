@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/eco_theme.dart';
 import '../utils/network_errors.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/google_sign_in_button.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -200,6 +201,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           const SizedBox(height: 24),
           EcoPrimaryButton(label: 'Create account', loading: _loading, onPressed: _register),
+          const SizedBox(height: 16),
+          GoogleSignInButton(onError: (message) => setState(() => _error = message)),
+          const SizedBox(height: 8),
+          const Text(
+            'Signing up with Google creates a resident account.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: EcoColors.muted),
+          ),
           const SizedBox(height: 16),
           Center(
             child: GestureDetector(

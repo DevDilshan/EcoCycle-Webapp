@@ -16,8 +16,13 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionStringSupabase = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING")
     ?? throw new InvalidOperationException("SUPABASE_CONNECTION_STRING not found in environment/.env file");
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionStringSupabase));
+// One data source for EF and for the raw health check, so the app holds a
+// single connection pool. Supabase's pooler counts every client against a small
+// limit, and two pools reach it twice as fast.
+builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionStringSupabase));
+
+builder.Services.AddDbContext<ApplicationDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlDataSource>()));
 
 builder.Services.AddScoped<ZoneService>();
 builder.Services.AddScoped<RouteAssignmentService>();
@@ -69,7 +74,8 @@ builder.Services.AddScoped<backend.Services.IApprovalService, backend.Services.A
 // resident submitting a pickup must not wait on them indefinitely. If it is
 // exceeded the client returns null and the caller degrades to Pending.
 var agentServiceUrl = Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
-    ?? "http://localhost:8000";
+    ?? "http://127.0.0.1:8000"; // not "localhost": uvicorn listens on IPv4 only, and
+                                // Windows spends ~2s trying ::1 first
 var agentServiceKey = Environment.GetEnvironmentVariable("INTERNAL_API_KEY");
 
 if (string.IsNullOrWhiteSpace(agentServiceKey))
@@ -102,19 +108,6 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
-
-var connectionString = builder.Configuration.GetConnectionString("Supabase");
-if (string.IsNullOrWhiteSpace(connectionString))
-    connectionString = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
-
-if (string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException(
-        "Supabase connection string is missing. Copy backend/.env.example to backend/.env " +
-        "and set SUPABASE_CONNECTION_STRING (or ConnectionStrings:Supabase in appsettings.Development.json).");
-}
-
-builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 
 var supabaseUrl = builder.Configuration["Supabase:Url"];
 if (string.IsNullOrWhiteSpace(supabaseUrl))
