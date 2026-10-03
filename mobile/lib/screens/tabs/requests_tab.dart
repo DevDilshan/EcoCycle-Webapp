@@ -91,12 +91,15 @@ class RequestsTabState extends State<RequestsTab> {
                       final p = _filtered[i];
                       return _RequestCard(
                         pickup: p,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) =>
-                                PickupDetailScreen(pickupId: p['id'] as String),
-                          ),
-                        ),
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  PickupDetailScreen(pickupId: p['id'] as String),
+                            ),
+                          );
+                          if (mounted) reload();
+                        },
                       );
                     },
                   ),
