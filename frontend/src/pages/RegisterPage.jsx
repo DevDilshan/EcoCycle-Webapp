@@ -13,6 +13,7 @@ import {
   Truck,
 } from 'lucide-react'
 import EcoLogo, { EcoMark } from '../components/public/EcoLogo'
+import GoogleButton from '../components/public/GoogleButton'
 import { useAuth } from '../context/AuthContext'
 import { getHomePath } from '../lib/roles'
 import '../styles/public.css'
@@ -187,6 +188,9 @@ export default function RegisterPage() {
               <span>{loading ? 'Creating account…' : 'Create account'}</span>
               <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
             </button>
+
+            <GoogleButton onError={setError} />
+            <p className="eco-hint">Signing up with Google creates a resident account.</p>
           </div>
 
           <p className="eco-auth-alt">
