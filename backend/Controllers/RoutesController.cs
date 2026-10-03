@@ -38,10 +38,15 @@ public class RoutesController : ControllerBase
         return CreatedAtAction(nameof(GetTodayRoute), new { collectorId = route.CollectorId }, route);
     }
 
+    // A round is the collector's own, or an admin's to look at. It lists the
+    // route ids that complete/missed act on, so it is not for anyone else.
     [HttpGet("{collectorId:guid}/today")]
+    [Authorize(Roles = "admin,collector")]
     [ProducesResponseType(typeof(List<RouteAssignmentDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<RouteAssignmentDto>>> GetTodayRoute(Guid collectorId)
     {
+        if (!IsAdmin && collectorId != CurrentUserId) return Forbid();
+
         var routes = await _routeService.GetTodayRouteForCollectorAsync(collectorId);
         return Ok(routes);
     }
@@ -49,20 +54,33 @@ public class RoutesController : ControllerBase
     // GET /api/routes/{collectorId}/upcoming?days=7 — stops after today, so a
     // collector can see what is coming rather than only the current day.
     [HttpGet("{collectorId:guid}/upcoming")]
+    [Authorize(Roles = "admin,collector")]
     [ProducesResponseType(typeof(List<RouteAssignmentDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<RouteAssignmentDto>>> GetUpcomingRoute(
         Guid collectorId,
         [FromQuery] int days = 7)
     {
+        if (!IsAdmin && collectorId != CurrentUserId) return Forbid();
+
         var routes = await _routeService.GetUpcomingRouteForCollectorAsync(collectorId, days);
         return Ok(routes);
     }
 
     [HttpPatch("{id:guid}/complete")]
+    [Authorize(Roles = "admin,collector")]
     [ProducesResponseType(typeof(RouteAssignmentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<RouteAssignmentDto>> Complete(Guid id, [FromBody] CompleteRouteDto? dto)
     {
+        // Completing a stop pays the resident their points, so it has to come
+        // from the collector who made the collection -- not from the resident,
+        // and not from another collector.
+        if (!IsAdmin)
+        {
+            var isTheirs = await _routeService.IsAssignedToAsync(id, CurrentUserId);
+            if (!isTheirs) return Forbid();
+        }
+
         var route = await _routeService.MarkCompleteAsync(id, dto?.IssueNotes);
         if (route is null) return NotFound();
 

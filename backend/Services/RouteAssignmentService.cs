@@ -129,6 +129,13 @@ public class RouteAssignmentService
             return null;
         }
 
+        // Already collected: nothing to redo, and the first completion's time
+        // and notes stay as they were recorded.
+        if (route.CompletionStatus == RouteCompletionStatus.Completed)
+        {
+            return MapToDto(route);
+        }
+
         route.CompletionStatus = RouteCompletionStatus.Completed;
         route.CompletedAt = DateTime.UtcNow;
         route.IssueNotes = issueNotes;
