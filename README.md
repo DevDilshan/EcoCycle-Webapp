@@ -229,7 +229,8 @@ The backend has a [Dockerfile](backend/Dockerfile) — Render's native .NET
 support is inconsistent, so deploy it as a Docker service with
 `Root Directory = backend`. It binds `0.0.0.0` on `$PORT`.
 
-The agent service has no Dockerfile yet. Run it with
+The agent service has a [Dockerfile](agentic-ai/Dockerfile) too
+(`Root Directory = agentic-ai`). It runs
 `uvicorn api:app --host 0.0.0.0 --port $PORT` — the default host `127.0.0.1` is
 not reachable from outside a container.
 

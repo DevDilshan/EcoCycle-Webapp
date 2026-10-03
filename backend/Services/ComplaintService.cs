@@ -33,9 +33,14 @@ public class ComplaintService : IComplaintService
         return ToDto(entity);
     }
 
-    public async Task<PagedResult<ComplaintResponseDto>> GetListAsync(ComplaintQueryParams query)
+    public async Task<PagedResult<ComplaintResponseDto>> GetListAsync(
+        Guid userId, bool isAdmin, ComplaintQueryParams query)
     {
         var q = _db.Complaints.AsNoTracking().AsQueryable();
+
+        // A resident sees only their own complaints; an admin sees everyone's.
+        if (!isAdmin)
+            q = q.Where(c => c.ResidentId == userId);
 
         if (query.Status.HasValue)
             q = q.Where(c => c.Status == query.Status.Value);
