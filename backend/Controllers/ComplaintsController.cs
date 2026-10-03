@@ -34,10 +34,21 @@ public class ComplaintsController : ControllerBase
     [Authorize(Roles = "resident")]
     public async Task<IActionResult> Create([FromBody] CreateComplaintDto dto)
     {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
         try
         {
             var created = await _service.CreateAsync(CurrentUserId, dto);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {
