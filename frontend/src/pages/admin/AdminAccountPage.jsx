@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { KeyRound, Mail, UserRound } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
 import { AcAlert, AcCard, AcToast } from '../../components/admin/AcUi'
 import { useAuth } from '../../context/AuthContext'
+import { apiRequest } from '../../lib/api'
 import { profileInitials, shortProfileName } from '../../lib/adminUi'
 
 /**
@@ -23,10 +25,13 @@ function formatDate(value) {
 }
 
 export default function AdminAccountPage() {
-  const { user, role, updatePassword, sendPasswordResetEmail } = useAuth()
+  const { user, role, updatePassword, sendPasswordResetEmail, signOut } = useAuth()
+  const navigate = useNavigate()
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
 
   const [passwordForm, setPasswordForm] = useState({
     password: '',
@@ -76,6 +81,20 @@ export default function AdminAccountPage() {
       setSuccess(`Password reset link sent to ${user.email}.`)
     }
     setBusy(false)
+  }
+
+  async function handleDeleteAccount() {
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await apiRequest('/account', { method: 'DELETE' })
+      await signOut()
+      navigate('/', { replace: true })
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
   }
 
   const displayName = shortProfileName({
@@ -151,6 +170,57 @@ export default function AdminAccountPage() {
           </form>
         </AcCard>
       </div>
+
+      <AcCard title="Delete account" subtitle="Permanently remove your account and data">
+        <p style={{ marginTop: 0, color: '#8a1c12' }}>
+          This permanently deletes your account and all associated data. This action cannot be undone.
+        </p>
+        {!confirmDelete ? (
+          <div className="ac-actions">
+            <button
+              type="button"
+              className="ac-btn"
+              style={{ background: '#8a1c12', color: '#fff' }}
+              onClick={() => setConfirmDelete(true)}
+              disabled={busy}
+            >
+              Delete account
+            </button>
+          </div>
+        ) : (
+          <div className="ac-form">
+            <div className="ac-field">
+              <label htmlFor="ac-confirm-delete">Type DELETE to confirm</label>
+              <input
+                id="ac-confirm-delete"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+              />
+            </div>
+            <div className="ac-actions">
+              <button
+                type="button"
+                className="ac-btn"
+                style={{ background: '#8a1c12', color: '#fff' }}
+                onClick={handleDeleteAccount}
+                disabled={busy || confirmText !== 'DELETE'}
+              >
+                {busy ? 'Deleting…' : 'Delete my account permanently'}
+              </button>
+              <button
+                type="button"
+                className="ac-btn ac-btn-ghost"
+                onClick={() => { setConfirmDelete(false); setConfirmText('') }}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </AcCard>
 
       <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>

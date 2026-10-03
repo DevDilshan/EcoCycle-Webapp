@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageShell from '../../components/PageShell'
 import AdminAlert from '../../components/admin/AdminAlert'
 import AdminCard from '../../components/admin/AdminCard'
 import { useAuth } from '../../context/AuthContext'
+import { apiRequest } from '../../lib/api'
 
 function formatDate(value) {
   if (!value) return '—'
@@ -14,10 +16,13 @@ function formatDate(value) {
 }
 
 export default function AccountPage({ eyebrow = null }) {
-  const { user, role, updatePassword, sendPasswordResetEmail } = useAuth()
+  const { user, role, updatePassword, sendPasswordResetEmail, signOut } = useAuth()
+  const navigate = useNavigate()
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
 
   const [passwordForm, setPasswordForm] = useState({
     password: '',
@@ -67,6 +72,20 @@ export default function AccountPage({ eyebrow = null }) {
       setSuccess(`Password reset link sent to ${user.email}.`)
     }
     setBusy(false)
+  }
+
+  async function handleDeleteAccount() {
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await apiRequest('/account', { method: 'DELETE' })
+      await signOut()
+      navigate('/', { replace: true })
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
   }
 
   return (
@@ -138,6 +157,50 @@ export default function AccountPage({ eyebrow = null }) {
           </form>
         </AdminCard>
       </div>
+
+      <AdminCard title="Delete account" subtitle="Permanently remove your account and data">
+        <p style={{ marginTop: 0, color: '#8a1c12' }}>
+          This permanently deletes your account and all associated data. This action cannot be undone.
+        </p>
+        {!confirmDelete ? (
+          <div className="admin-actions">
+            <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)} disabled={busy}>
+              Delete account
+            </button>
+          </div>
+        ) : (
+          <div className="admin-form">
+            <div>
+              <label htmlFor="confirm-delete">Type DELETE to confirm</label>
+              <input
+                id="confirm-delete"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+              />
+            </div>
+            <div className="admin-actions">
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={handleDeleteAccount}
+                disabled={busy || confirmText !== 'DELETE'}
+              >
+                {busy ? 'Deleting…' : 'Delete my account permanently'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => { setConfirmDelete(false); setConfirmText('') }}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </AdminCard>
     </PageShell>
   )
 }
