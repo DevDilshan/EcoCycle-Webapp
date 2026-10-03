@@ -11,6 +11,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<PickupRequest> PickupRequests => Set<PickupRequest>();
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Zone> Zones => Set<Zone>();
+    public DbSet<CollectorSetting> CollectorSettings => Set<CollectorSetting>();
     public DbSet<RouteAssignment> RouteAssignments => Set<RouteAssignment>();
     public DbSet<Complaint> Complaints => Set<Complaint>();
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
@@ -31,6 +32,12 @@ public class ApplicationDbContext : DbContext
             .HasOne(p => p.Resident)
             .WithMany()
             .HasForeignKey(p => p.ResidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CollectorSetting>()
+            .HasOne(c => c.Collector)
+            .WithMany()
+            .HasForeignKey(c => c.CollectorId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Zone>()

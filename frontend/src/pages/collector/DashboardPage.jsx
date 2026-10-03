@@ -8,6 +8,7 @@ import {
   CircleX,
   Clock,
   MapPin,
+  Package,
   Route as RouteIcon,
 } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
@@ -17,7 +18,7 @@ import MarkCompleteDrawer from '../../components/collector/MarkCompleteDrawer'
 import { useCollectorData } from '../../components/collector/collectorShell'
 import { useAuth } from '../../context/AuthContext'
 import { formatRequestId } from '../../lib/adminUi'
-import { firstName, formatStopTime, greeting, joinNames } from '../../lib/collectorUi'
+import { firstName, formatStopDay, formatStopWhen, greeting, joinNames } from '../../lib/collectorUi'
 
 // r=42 in a 100-box: the ring's circumference, used to drive the arc length.
 const RING_R = 42
@@ -130,7 +131,7 @@ export default function CollectorDashboardPage() {
           <div className="ac-grid ac-g-2-1">
             <AcCard
               title="Next stop"
-              subtitle={nextStop ? `Scheduled for ${formatStopTime(nextStop.scheduledDate)}` : undefined}
+              subtitle={nextStop ? `Scheduled for ${formatStopWhen(nextStop.scheduledDate)}` : undefined}
             >
               {!nextStop ? (
                 <p className="ac-empty">
@@ -167,7 +168,13 @@ export default function CollectorDashboardPage() {
                         {nextStop.pickup?.zoneName && (
                           <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{nextStop.pickup.zoneName}</span>
                         )}
-                        <span><Clock size={15} strokeWidth={2} aria-hidden="true" />{formatStopTime(nextStop.scheduledDate)}</span>
+                        {nextStop.pickup?.isBulkRequest && (
+                          <span className="ac-pill ac-s-info">
+                            <Package size={13} strokeWidth={2.4} aria-hidden="true" />
+                            Bulky collection
+                          </span>
+                        )}
+                        <span><Clock size={15} strokeWidth={2} aria-hidden="true" />{formatStopWhen(nextStop.scheduledDate)}</span>
                       </div>
                     </div>
                   </div>
@@ -262,7 +269,7 @@ export default function CollectorDashboardPage() {
                         ].filter(Boolean).join(' · ') || 'No details available'}
                       </span>
                     </span>
-                    <span className="ac-time">{formatStopTime(stop.scheduledDate)}</span>
+                    <span className="ac-time">{formatStopDay(stop.scheduledDate)}</span>
                   </li>
                 ))}
               </ul>

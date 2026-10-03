@@ -41,6 +41,36 @@ async function fetchPickups() {
 }
 
 /**
+ * Today's date, re-read when the clock passes midnight.
+ *
+ * A crew leaves the app open on the dash all shift, and a round that starts
+ * before midnight was still showing the previous day's stops the next morning
+ * -- the data was fetched once on mount and nothing ever asked again. The
+ * returned string changes at midnight, which is enough to make the effects
+ * below refetch.
+ *
+ * The timer is set to the next midnight rather than polling, and is re-armed
+ * each time it fires. Date arithmetic across the boundary is done on a real
+ * Date so the month and year roll over too.
+ */
+function useServiceDay() {
+  const [day, setDay] = useState(() => new Date().toDateString())
+
+  useEffect(() => {
+    const now = new Date()
+    const midnight = new Date(now)
+    midnight.setHours(24, 0, 0, 0)
+
+    // A second past, so the clock has definitely crossed the boundary when it
+    // fires and the new date cannot read as the old one.
+    const timer = setTimeout(() => setDay(new Date().toDateString()), midnight - now + 1000)
+    return () => clearTimeout(timer)
+  }, [day])
+
+  return day
+}
+
+/**
  * Today's stops for the signed-in collector, joined to their pickup details.
  *
  * CollectorLayout calls this once and shares the result, so the sidebar badge,
@@ -49,6 +79,9 @@ async function fetchPickups() {
 export function useCollectorRoute() {
   const { user } = useAuth()
   const collectorId = user?.id
+  // Changes at midnight, so the round and the upcoming list reload themselves
+  // on a screen that was left open overnight.
+  const day = useServiceDay()
   const [routes, setRoutes] = useState([])
   const [upcomingRoutes, setUpcomingRoutes] = useState([])
   const [pickups, setPickups] = useState([])
@@ -63,7 +96,7 @@ export function useCollectorRoute() {
       .catch((err) => { if (!cancelled) setError(err.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [collectorId])
+  }, [collectorId, day])
 
   useEffect(() => {
     let cancelled = false
@@ -76,12 +109,25 @@ export function useCollectorRoute() {
     let cancelled = false
     fetchUpcoming(collectorId).then((items) => { if (!cancelled) setUpcomingRoutes(items) })
     return () => { cancelled = true }
-  }, [collectorId])
+  }, [collectorId, day])
 
-  /** Re-read the stops after a write, without disturbing the pickup cache. */
+  /**
+   * Re-read the stops after a write, without disturbing the pickup cache.
+   *
+   * Both lists, not just today's. Reporting a stop as not collected books the
+   * pickup onto a later round, and completing a recurring one creates its next
+   * occurrence -- so a write to today's round routinely adds a stop to the
+   * upcoming list. Refreshing only today left that new booking invisible until
+   * the collector reloaded the whole page.
+   */
   const reload = useCallback(async () => {
     if (!collectorId) return
-    setRoutes(await fetchToday(collectorId))
+    const [today, ahead] = await Promise.all([
+      fetchToday(collectorId),
+      fetchUpcoming(collectorId),
+    ])
+    setRoutes(today)
+    setUpcomingRoutes(ahead)
   }, [collectorId])
 
   /** Stops in timeline order, each with its pickup attached when one matched. */
@@ -167,6 +213,17 @@ export function useCollectorRoute() {
 
   const zoneNames = useMemo(() => zones.map((zone) => zone.name), [zones])
 
+  /// Report a stop as not collected. A reason is required: "missed" with no
+  /// explanation tells the admin nothing and cannot be answered to a resident.
+  const reportMissed = useCallback(async (routeId, issueNotes) => {
+    const result = await apiRequest(`/routes/${routeId}/missed`, {
+      method: 'PATCH',
+      body: JSON.stringify({ issueNotes: issueNotes?.trim() || undefined }),
+    })
+    await reload()
+    return result
+  }, [reload])
+
   const completeStop = useCallback(async (routeId, issueNotes) => {
     await apiRequest(`/routes/${routeId}/complete`, {
       method: 'PATCH',
@@ -190,5 +247,6 @@ export function useCollectorRoute() {
     setError,
     reload,
     completeStop,
+    reportMissed,
   }
 }

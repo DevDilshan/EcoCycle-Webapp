@@ -3380,3 +3380,116 @@ a:hover {
 }
 
 .admin-theme .zone-map-canvas:active { cursor: grabbing; }
+
+
+/* ---------- Bulky-waste booking (resident submit form) ---------- */
+
+.resident-bulk-box {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f0fff0;
+  box-shadow: inset 0 0 0 1px rgba(0, 86, 59, 0.14);
+}
+
+.resident-bulk-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.resident-bulk-check input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: #00563b;
+  flex: none;
+}
+
+.resident-bulk-check input:disabled { cursor: not-allowed; }
+
+.resident-bulk-note {
+  margin: 0;
+  color: #4a5d53;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The nudge is advice, not an error: amber, not red, because the resident has
+   done nothing wrong and can legitimately ignore it. */
+.resident-bulk-nudge {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fcf1d8;
+  color: #7a4b00;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Shown in place of a category while the classifier has not decided yet.
+   Deliberately plain, so it never reads as a decided category. */
+.resident-awaiting {
+  color: #7a8c82;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* "It wasn't collected" sits apart from the pickup's details: it is an action,
+   not information, and should not read as part of the status text. */
+.resident-again {
+  margin: 10px 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 86, 59, 0.1);
+}
+
+/* Tells the resident which days their zone is actually collected, so the date
+   field below reads as a preference rather than a promise. */
+.resident-zone-days {
+  margin: 6px 0 0;
+  color: #4a5d53;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Shown on a pickup that could not be collected. Amber, not red: nothing has
+   gone wrong for the resident to fix beyond what the message asks. */
+.resident-missed {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fcf1d8;
+  color: #7a4b00;
+}
+
+.resident-missed strong { display: block; margin-bottom: 4px; }
+.resident-missed p { margin: 0; font-size: 13px; }
+.resident-missed-next { margin-top: 6px; font-weight: 700; }
+
+/* A refused request. Red rather than amber: unlike a missed collection, nothing
+   further is coming and no new date will appear. */
+.resident-rejected {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #8a1c12;
+}
+
+.resident-rejected strong { display: block; margin-bottom: 4px; }
+.resident-rejected p { margin: 0; font-size: 13px; }
+
+/* The explanation that came with an approval. Nothing is wrong, so it is a
+   plain note rather than a warning colour. */
+.resident-note {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0fff0;
+  color: #16241d;
+}
+
+.resident-note p { margin: 0; font-size: 13px; }

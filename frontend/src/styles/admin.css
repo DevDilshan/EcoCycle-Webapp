@@ -1006,8 +1006,11 @@
   color: var(--ac-muted, #6b7280);
 }
 
+/* Checkboxes and radios are excluded. These rules are written for a text box --
+   full width, 10px padding, an inset border -- and applying them to a tick box
+   stretches it across the row and shoves its label out of the way. */
 .admin-console .ac-field select,
-.admin-console .ac-field input,
+.admin-console .ac-field input:not([type="checkbox"]):not([type="radio"]),
 .admin-console .ac-field textarea {
   width: 100%;
   padding: 10px 12px;
@@ -1020,13 +1023,22 @@
 }
 
 .admin-console .ac-field select:focus,
-.admin-console .ac-field input:focus,
+.admin-console .ac-field input:not([type="checkbox"]):not([type="radio"]):focus,
 .admin-console .ac-field textarea:focus {
   outline: none;
   box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
 }
 
-.admin-console .ac-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* align-items:start matters here. Each .ac-field is itself a grid, and a
+   stretched one shares the extra height out among its rows -- so pairing a
+   field that carries a hint or an error with one that does not pushed the
+   shorter one's control down and left the two boxes off the same line. */
+.admin-console .ac-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 12px;
+}
 
 /* EntitySelect renders its own wrapper div, so the field grid has to reach one
    level further down to keep its label and control spaced the same way. */
@@ -1034,7 +1046,7 @@
 .admin-console .ac-field > div > label { font-size: 13px; font-weight: 700; }
 
 .admin-console .ac-form select,
-.admin-console .ac-form input,
+.admin-console .ac-form input:not([type="checkbox"]):not([type="radio"]),
 .admin-console .ac-form textarea {
   width: 100%;
   padding: 10px 12px;
@@ -1047,7 +1059,7 @@
 }
 
 .admin-console .ac-form select:focus,
-.admin-console .ac-form input:focus,
+.admin-console .ac-form input:not([type="checkbox"]):not([type="radio"]):focus,
 .admin-console .ac-form textarea:focus {
   outline: none;
   box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
@@ -1071,6 +1083,92 @@
 .admin-console .ac-rank.is-top { background: var(--green); color: var(--ivory); }
 .admin-console .ac-mini-meter { display: flex; align-items: center; gap: 8px; min-width: 140px; }
 .admin-console .ac-mini-meter .ac-meter { flex: 1; height: 6px; }
+
+/* ---------- Centred modal ----------
+   Not from the handoff, which only specifies the right-hand drawer. A long
+   form -- the resident's new pickup has a photo, zone, address, date,
+   description, the bulky box and the recurrence -- is hard to read in a 460px
+   column against the edge of the screen, so forms that long open in the middle
+   instead. Values are the drawer's own, so the two match.
+
+   Unscoped like .ac-drawer: both are fixed to the viewport and have to work
+   wherever they are mounted. */
+
+.ac-modal-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  /* Not pointer-events:none -- a click on the padding around the panel should
+     land on the scrim behind and close the modal, as clicking away does. */
+  overflow-y: auto;
+}
+
+.ac-modal {
+  width: min(620px, 100%);
+  max-height: calc(100dvh - 40px);
+  padding: 22px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 56, 38, 0.05), 0 24px 56px rgba(0, 56, 38, 0.14);
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  font-family: Manrope, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #16241d;
+  font-size: 14px;
+  animation: ac-modal-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes ac-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ac-modal { animation: none; }
+}
+
+.ac-modal h2 { margin: 0; font-size: 20px; color: #00563b; }
+
+.ac-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ac-modal .ac-icon-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0, 86, 59, 0.18);
+  color: #00563b;
+  cursor: pointer;
+}
+
+.ac-modal .ac-icon-btn:hover { background: #f0fff0; }
+
+/* On a phone there is no room to centre anything: the panel takes the screen
+   and the keyboard pushes the rest, so it behaves like a full-screen sheet. */
+@media (max-width: 560px) {
+  .ac-modal-wrap { padding: 0; place-items: stretch; }
+  .ac-modal {
+    width: 100%;
+    max-height: none;
+    min-height: 100dvh;
+    border-radius: 0;
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
+  }
+}
 
 /* ---------- Drawer ---------- */
 
@@ -1230,6 +1328,109 @@
 .admin-console .ac-account-head strong { display: block; font-size: 16px; color: var(--ink); }
 .admin-console .ac-avatar-lg { width: 52px; height: 52px; font-size: 17px; background: var(--celadon); }
 .admin-console .ac-kv dt { display: flex; align-items: center; gap: 6px; }
+
+/* The day picker in a card header: label, date input and a Today shortcut. */
+.admin-console .ac-day-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.admin-console .ac-day-picker label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-console .ac-day-picker input {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.admin-console .ac-day-picker input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 4px rgba(172, 225, 175, 0.4);
+}
+
+@media (max-width: 560px) {
+  .admin-console .ac-day-picker { flex-wrap: wrap; }
+}
+
+/* Day-of-week picker on the zone form. */
+.admin-console .ac-days { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.admin-console .ac-day {
+  min-width: 46px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 200ms, color 200ms;
+}
+
+.admin-console .ac-day:hover { color: var(--green); }
+.admin-console .ac-day.is-on { background: var(--green); color: var(--surface); box-shadow: none; }
+
+.admin-console .ac-hint { margin: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+
+/* Narrow number field inside a table cell. */
+.admin-console .ac-mini-input {
+  width: 72px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.admin-console .ac-mini-input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--celadon-strong), 0 0 0 3px rgba(172, 225, 175, 0.4);
+}
+
+.admin-console .ac-table .ac-check { gap: 6px; }
+
+/* Column headers that need a line of explanation under them. */
+.admin-console .ac-th-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--faint);
+}
+
+/* A note under a card. The icon was previously jammed inline with the text and
+   sat on the first line's baseline; this keeps it beside the paragraph. */
+.admin-console .ac-foot-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-console .ac-foot-note svg { flex: none; color: var(--green); margin-top: 1px; }
 
 /* ---------- Responsive ---------- */
 

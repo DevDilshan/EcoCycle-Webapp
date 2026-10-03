@@ -49,7 +49,8 @@ def run_pipeline(pickup_request: dict) -> dict:
             description:        required, the resident's own words
             photo_url:          optional, image for photo recognition
             resident_zone_id:   required, zone used for routing
-            collector_loads:    required, {collector_id: pickups_assigned}
+            routing_context:    required, the slots the backend says are legal
+                                (see routing_agent.route_pickup)
             resident_history:   optional, past pickups for the bulk-limit rule
             complaint_description: optional, resident complaint to weigh
 
@@ -69,14 +70,13 @@ def run_pipeline(pickup_request: dict) -> dict:
     """
     description = pickup_request.get("description")
     resident_zone_id = pickup_request.get("resident_zone_id")
-    collector_loads = pickup_request.get("collector_loads")
+    routing_context = pickup_request.get("routing_context") or {}
+    routing_error = None
 
     if not description or not str(description).strip():
         raise ValueError("pickup_request is missing 'description'")
     if not resident_zone_id:
         raise ValueError("pickup_request is missing 'resident_zone_id'")
-    if not collector_loads:
-        raise ValueError("pickup_request is missing 'collector_loads'")
 
     # 1. Classifier: what kind of waste is this?
     classification = classify_waste(
@@ -98,11 +98,15 @@ def run_pipeline(pickup_request: dict) -> dict:
     #    assigned while a hazardous one waits for an admin.
     routing = None
     if not validation["violated_rules"]:
-        routing = route_pickup(
-            category=category,
-            resident_zone_id=resident_zone_id,
-            collector_loads=collector_loads,
-        )
+        # No legal slot is not a crash: the pickup is simply left unrouted for an
+        # admin to place by hand, which is better than failing the resident's
+        # submission because every truck is full.
+        try:
+            routing = route_pickup(routing_context)
+            routing["zone_id"] = resident_zone_id
+        except ValueError as error:
+            routing = None
+            routing_error = str(error)
 
     # 4. Notifier: only when something actually needs an admin's attention.
     flag_reason = _build_flag_reason(classification, validation)
@@ -120,6 +124,7 @@ def run_pipeline(pickup_request: dict) -> dict:
         "classification": classification,
         "validation": validation,
         "routing": routing,
+        "routing_error": routing_error,
         "approval": approval,
         "flag_reason": flag_reason,
         "requires_approval": flag_reason is not None,
@@ -134,14 +139,14 @@ def route_approved_pickup(pickup_request: dict, pipeline_result: dict) -> dict:
     this once the admin approves it; the backend then stores the returned
     routing exactly as it would have stored run_pipeline()'s.
 
-    `pickup_request["collector_loads"]` must be the loads as they are NOW, not
+    `pickup_request["routing_context"]` must be the slots as they are NOW, not
     the snapshot taken when the resident submitted. That freshness is the whole
     reason routing was deferred rather than done up front: a pickup can sit in
     the review queue for days, and the collector who was quietest then is not
     necessarily the quietest now.
 
     Args:
-        pickup_request: Needs resident_zone_id and a CURRENT collector_loads.
+        pickup_request: Needs resident_zone_id and a CURRENT routing_context.
         pipeline_result: What run_pipeline() returned for this pickup, so the
             stored category is reused instead of re-classifying (which would
             cost another LLM call and could return a different answer).
@@ -154,14 +159,15 @@ def route_approved_pickup(pickup_request: dict, pipeline_result: dict) -> dict:
             needed approval, or if it was already routed.
     """
     resident_zone_id = pickup_request.get("resident_zone_id")
-    collector_loads = pickup_request.get("collector_loads")
+    routing_context = pickup_request.get("routing_context") or {}
 
     if not resident_zone_id:
         raise ValueError("pickup_request is missing 'resident_zone_id'")
-    if not collector_loads:
+    if not routing_context.get("options"):
         raise ValueError(
-            "pickup_request is missing 'collector_loads' -- pass the CURRENT "
-            "loads, not the ones captured when the pickup was submitted"
+            "pickup_request is missing 'routing_context' with options -- pass "
+            "the slots as they are NOW, not the ones captured when the pickup "
+            "was submitted"
         )
 
     # Guard the two ways this gets called wrongly: on a pickup that was never
@@ -178,11 +184,9 @@ def route_approved_pickup(pickup_request: dict, pipeline_result: dict) -> dict:
             f"{pipeline_result['routing']['collector_id']}"
         )
 
-    return route_pickup(
-        category=pipeline_result["classification"]["category"],
-        resident_zone_id=resident_zone_id,
-        collector_loads=collector_loads,
-    )
+    routing = route_pickup(routing_context)
+    routing["zone_id"] = resident_zone_id
+    return routing
 
 
 def _build_flag_reason(classification: dict, validation: dict):
