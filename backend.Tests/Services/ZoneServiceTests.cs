@@ -1,7 +1,9 @@
 using backend.Data;
+using backend.DTOs;
 using backend.Models;
 using backend.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace backend.Tests.Services;
 
@@ -15,7 +17,39 @@ public class ZoneServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private ZoneService Service => new(_db);
+    private ZoneService Service => new(
+        _db,
+        new PickupSchedulingService(
+            _db,
+            new UnreachableAgentClient(),
+            new RoutingOptionBuilder(_db),
+            NullLogger<PickupSchedulingService>.Instance),
+        NullLogger<ZoneService>.Instance);
+
+    // The agent service as the backend sees it when it is down: every call
+    // answers null. Nothing these tests cover should need it.
+    private sealed class UnreachableAgentClient : IAgentPipelineClient
+    {
+        public Task<PipelineResultDto?> RunPipelineAsync(
+            RunPipelineRequestDto request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PipelineResultDto?>(null);
+
+        public Task<RoutingDto?> RouteApprovedPickupAsync(
+            RouteApprovedPickupRequestDto request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<RoutingDto?>(null);
+
+        public Task<RoutingDto?> ChooseSlotAsync(
+            RoutingContextDto context, CancellationToken cancellationToken = default) =>
+            Task.FromResult<RoutingDto?>(null);
+
+        public Task<MissedExplanationDto?> ExplainMissedAsync(
+            ExplainMissedRequestDto request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<MissedExplanationDto?>(null);
+
+        public Task<DecisionExplanationDto?> ExplainDecisionAsync(
+            ExplainDecisionRequestDto request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<DecisionExplanationDto?>(null);
+    }
 
     private Zone AddZone(
         string name,

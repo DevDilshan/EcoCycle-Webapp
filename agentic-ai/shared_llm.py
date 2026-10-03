@@ -43,7 +43,13 @@ def call_llm(prompt: str, model: str = "gpt-4o-mini") -> str:
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json",
         },
-        json={"model": model, "messages": [{"role": "user", "content": prompt}]},
+        # temperature 0: the same pickup should get the same category, slot and
+        # recommendation every time it is asked about.
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+        },
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
