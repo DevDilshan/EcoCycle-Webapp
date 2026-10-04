@@ -201,6 +201,7 @@ export default function ResidentPickupsPage() {
   const [editErrors, setEditErrors] = useState({})
   const [zones, setZones] = useState([])
   const [bulkAllowance, setBulkAllowance] = useState(null)
+  const [cancelId, setCancelId] = useState(null)
 
   // The actual dates the chosen zone is collected on, for the next few weeks.
   // A free date box let a resident pick a Wednesday in a Tue/Fri zone and then
@@ -463,7 +464,6 @@ export default function ResidentPickupsPage() {
   }
 
   async function handleCancel(id) {
-    if (!window.confirm('Cancel this pickup request? The booked visit is released.')) return
     setBusyId(id)
     setError(null)
     try {
@@ -941,7 +941,7 @@ export default function ResidentPickupsPage() {
                             type="button"
                             className="ac-btn ac-btn-danger ac-btn-sm"
                             disabled={busyId === item.id}
-                            onClick={() => handleCancel(item.id)}
+                            onClick={() => setCancelId(item.id)}
                           >
                             <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
                             Cancel this request
@@ -1052,6 +1052,41 @@ export default function ResidentPickupsPage() {
             </div>
           </form>
         )}
+      </AcModal>
+
+      <AcModal
+        open={cancelId !== null}
+        onClose={() => setCancelId(null)}
+        title="Cancel this pickup request?"
+      >
+        <div style={{ padding: '4px 20px 20px' }}>
+          <p className="ac-sub" style={{ marginTop: 0 }}>
+            This permanently deletes the request and releases the booked visit. This
+            cannot be undone.
+          </p>
+          <div className="ac-actions" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost"
+              onClick={() => setCancelId(null)}
+              disabled={busyId === cancelId}
+            >
+              Keep request
+            </button>
+            <button
+              type="button"
+              className="ac-btn ac-btn-danger"
+              disabled={busyId === cancelId}
+              onClick={async () => {
+                const id = cancelId
+                await handleCancel(id)
+                setCancelId(null)
+              }}
+            >
+              {busyId === cancelId ? 'Cancelling…' : 'Cancel request'}
+            </button>
+          </div>
+        </div>
       </AcModal>
 
       <AcToast message={success} onDone={() => setSuccess(null)} />
