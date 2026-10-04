@@ -200,11 +200,20 @@ class EcoScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: EcoColors.canvas,
+      // With a bar, the page runs underneath it so the bar reads as floating
+      // rather than as a band that cuts the list off.
+      extendBody: bottomNavigationBar != null,
       body: SafeArea(bottom: bottomNavigationBar == null, child: child),
       bottomNavigationBar: bottomNavigationBar,
     );
   }
 }
+
+/// Bottom padding for a list on a screen with the floating bar: the bar's
+/// height (reported by the Scaffold once the body extends beneath it) plus a
+/// little breathing room.
+double ecoNavClearance(BuildContext context) =>
+    MediaQuery.paddingOf(context).bottom + 20;
 
 class EcoFieldLabel extends StatelessWidget {
   const EcoFieldLabel(this.text, {super.key});
@@ -388,11 +397,16 @@ class EcoSecondaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EcoColors.ivory,
-      borderRadius: BorderRadius.circular(14),
+      color: EcoColors.surface,
+      // Outlined, so it reads as a button and not as a line of text on the
+      // ivory page it usually sits on.
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: EcoColors.green.withValues(alpha: .28)),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(14),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -403,6 +417,80 @@ class EcoSecondaryButton extends StatelessWidget {
               color: EcoColors.green,
               fontWeight: FontWeight.w700,
               fontSize: 15,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// For actions that remove something or cannot be undone: delete account,
+/// report a stop as not collected. Tinted and outlined in red so it is
+/// clearly a button, without competing with the green primary action.
+class EcoDangerButton extends StatelessWidget {
+  const EcoDangerButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.loading = false,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null && !loading;
+    return Opacity(
+      opacity: enabled || loading ? 1 : .5,
+      child: Material(
+        color: EcoColors.dangerBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: EcoColors.danger.withValues(alpha: .35)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: enabled ? onPressed : null,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (loading)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: EcoColors.danger,
+                      ),
+                    )
+                  else ...[
+                    if (icon != null) ...[
+                      Icon(icon, size: 20, color: EcoColors.danger),
+                      const SizedBox(width: 8),
+                    ],
+                    Flexible(
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: EcoColors.danger,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
@@ -424,6 +512,7 @@ class EcoBackHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
+            tooltip: 'Back',
             onPressed: () => Navigator.maybePop(context),
             icon: const Icon(
               Icons.chevron_left,
@@ -437,9 +526,25 @@ class EcoBackHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).appBarTheme.titleTextStyle,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.3,
+                    color: EcoColors.green,
+                  ),
                 ),
-                if (subtitle != null) Text(subtitle!, style: ecoMono()),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      subtitle!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: EcoColors.body,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -458,102 +563,68 @@ class StripedPhotoZone extends StatelessWidget {
     this.onTap,
     this.child,
   });
-
   final double height;
   final String? title;
   final String? subtitle;
   final VoidCallback? onTap;
   final Widget? child;
-
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
+  Widget build(BuildContext context) => Material(
+    color: EcoColors.honeydew,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(22),
+      side: BorderSide(color: EcoColors.green.withValues(alpha: .16)),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
       onTap: onTap,
-      child: Container(
-        height: height,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(title != null ? 20 : 16),
-          border: Border.all(color: const Color(0xFFCDBBD0), width: 1.5),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFEEF3EE), Color(0xFFE7EFE7)],
-            stops: [0.0, 1.0],
-          ),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(title != null ? 20 : 16),
-              child: CustomPaint(painter: _StripePainter()),
-            ),
-            if (child != null)
-              child!
-            else
-              Center(
+      child: child != null
+          ? SizedBox(height: height, width: double.infinity, child: child)
+          : ConstrainedBox(
+              constraints: BoxConstraints(minHeight: height),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: EcoColors.primary,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: EcoColors.primary.withValues(alpha: 0.55),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text('📷', style: TextStyle(fontSize: 26)),
+                    Icon(
+                      onTap == null
+                          ? Icons.image_outlined
+                          : Icons.add_a_photo_outlined,
+                      size: 34,
+                      color: EcoColors.green,
                     ),
                     if (title != null) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Text(
                         title!,
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                          fontSize: 15,
+                          height: 1.4,
+                          fontWeight: FontWeight.w800,
+                          color: EcoColors.green,
                         ),
                       ),
                     ],
-                    if (subtitle != null) Text(subtitle!, style: ecoMono()),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: EcoColors.body,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StripePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    const tile = 20.0;
-    final p1 = Paint()..color = const Color(0xFFEEF3EE);
-    final p2 = Paint()..color = const Color(0xFFE7EFE7);
-    for (var y = 0.0; y < size.height; y += tile) {
-      for (var x = 0.0; x < size.width; x += tile) {
-        canvas.drawRect(Rect.fromLTWH(x, y, tile, tile), p1);
-        canvas.drawRect(Rect.fromLTWH(x, y, tile / 2, tile / 2), p2);
-        canvas.drawRect(
-          Rect.fromLTWH(x + tile / 2, y + tile / 2, tile / 2, tile / 2),
-          p2,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+            ),
+    ),
+  );
 }
 
 class StatusBadge extends StatelessWidget {
@@ -614,118 +685,281 @@ BadgeTone toneForPickupStatus(String status, {bool hasApproval = false}) {
   };
 }
 
+/// One destination in the bottom bar: outlined icon, filled icon, label.
+typedef EcoDestination = (IconData, IconData, String);
+
+/// The raised button that sits in the bar's notch.
+class EcoNavAction {
+  const EcoNavAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+}
+
+/// The resident bar: two destinations either side of "request a pickup".
 class EcoBottomNav extends StatelessWidget {
   const EcoBottomNav({
     super.key,
     required this.index,
     required this.onChanged,
-    required this.onFab,
+    required this.onRequestPickup,
   });
-
   final int index;
   final ValueChanged<int> onChanged;
-  final VoidCallback onFab;
+  final VoidCallback onRequestPickup;
+  @override
+  Widget build(BuildContext context) => EcoNavigationBar(
+    index: index,
+    onChanged: onChanged,
+    destinations: const [
+      (Icons.home_outlined, Icons.home_rounded, 'Home'),
+      (Icons.local_shipping_outlined, Icons.local_shipping_rounded, 'Pickups'),
+      (Icons.card_giftcard_outlined, Icons.card_giftcard_rounded, 'Rewards'),
+      (Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
+    ],
+    centerAction: EcoNavAction(
+      icon: Icons.add_rounded,
+      label: 'Request a pickup',
+      onTap: onRequestPickup,
+    ),
+  );
+}
+
+/// A floating bar with a dot under the selected destination. With a
+/// [centerAction] the bar dips in the middle and the action sits in the dip,
+/// so the one thing a resident comes to do is always under the thumb.
+class EcoNavigationBar extends StatelessWidget {
+  const EcoNavigationBar({
+    super.key,
+    required this.index,
+    required this.onChanged,
+    required this.destinations,
+    this.centerAction,
+  });
+  final int index;
+  final ValueChanged<int> onChanged;
+  final List<EcoDestination> destinations;
+  final EcoNavAction? centerAction;
+
+  static const _barHeight = 68.0;
+  static const _actionSize = 58.0;
+  // How far the action rises above the bar's top edge.
+  static const _lift = 26.0;
+  static const _notchGap = 86.0;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: EcoColors.ivory,
-        border: Border(
-          top: BorderSide(color: EcoColors.green.withValues(alpha: 0.08)),
+    final action = centerAction;
+    final half = destinations.length ~/ 2;
+    final items = <Widget>[
+      for (var i = 0; i < destinations.length; i++) ...[
+        if (action != null && i == half) const SizedBox(width: _notchGap),
+        Expanded(
+          child: _EcoNavItem(
+            destination: destinations[i],
+            selected: index == i,
+            onTap: () => onChanged(i),
+          ),
         ),
-      ),
-      padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _NavItem(
-            icon: Icons.home_rounded,
-            label: 'Home',
-            selected: index == 0,
-            onTap: () => onChanged(0),
-          ),
-          _NavItem(
-            icon: Icons.list_alt_rounded,
-            label: 'Requests',
-            selected: index == 1,
-            onTap: () => onChanged(1),
-          ),
-          Transform.translate(
-            offset: const Offset(0, -22),
-            child: GestureDetector(
-              onTap: onFab,
-              child: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: EcoColors.primary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: EcoColors.primary.withValues(alpha: 0.55),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
+      ],
+    ];
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+        child: SizedBox(
+          height: _barHeight + (action == null ? 0 : _lift),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: _barHeight,
+                child: CustomPaint(
+                  painter: _EcoNavBarPainter(notched: action != null),
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Row(children: items),
                     ),
-                  ],
+                  ),
                 ),
-                child: const Icon(Icons.add, color: Colors.white, size: 28),
               ),
-            ),
+              if (action != null)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Semantics(
+                      button: true,
+                      label: action.label,
+                      child: Tooltip(
+                        message: action.label,
+                        excludeFromSemantics: true,
+                        child: Material(
+                          color: EcoColors.green,
+                          shape: const CircleBorder(),
+                          elevation: 6,
+                          shadowColor: EcoColors.green.withValues(alpha: .45),
+                          child: InkWell(
+                            onTap: action.onTap,
+                            customBorder: const CircleBorder(),
+                            child: SizedBox(
+                              width: _actionSize,
+                              height: _actionSize,
+                              child: Icon(
+                                action.icon,
+                                size: 30,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          _NavItem(
-            icon: Icons.emoji_events_outlined,
-            label: 'Rewards',
-            selected: index == 2,
-            onTap: () => onChanged(2),
-          ),
-          _NavItem(
-            icon: Icons.person_outline,
-            label: 'Profile',
-            selected: index == 3,
-            onTap: () => onChanged(3),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
+class _EcoNavItem extends StatelessWidget {
+  const _EcoNavItem({
+    required this.destination,
     required this.selected,
     required this.onTap,
   });
-
-  final IconData icon;
-  final String label;
+  final EcoDestination destination;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? EcoColors.primary : EcoColors.muted;
-    return InkWell(
+    final (outline, filled, label) = destination;
+    final color = selected ? EcoColors.green : EcoColors.muted;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: label,
       onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-              color: color,
-            ),
+      child: ExcludeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(selected ? filled : outline, size: 24, color: color),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1.3,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: selected ? EcoColors.green : EcoColors.body,
+                ),
+              ),
+              const SizedBox(height: 4),
+              AnimatedContainer(
+                duration: duration,
+                width: selected ? 6 : 0,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: EcoColors.green,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
+}
+
+/// The bar's surface: a rounded slab, optionally dipping in the middle to
+/// make room for the raised action.
+class _EcoNavBarPainter extends CustomPainter {
+  const _EcoNavBarPainter({required this.notched});
+  final bool notched;
+
+  static const _radius = 26.0;
+  static const _notchHalfWidth = 62.0;
+  static const _notchDepth = 36.0;
+
+  Path _outline(Size size) {
+    final w = size.width;
+    final h = size.height;
+    final cx = w / 2;
+    final path = Path()..moveTo(_radius, 0);
+    if (notched) {
+      path
+        ..lineTo(cx - _notchHalfWidth, 0)
+        ..cubicTo(cx - 38, 0, cx - 40, _notchDepth, cx, _notchDepth)
+        ..cubicTo(cx + 40, _notchDepth, cx + 38, 0, cx + _notchHalfWidth, 0);
+    }
+    return path
+      ..lineTo(w - _radius, 0)
+      ..arcToPoint(Offset(w, _radius), radius: const Radius.circular(_radius))
+      ..lineTo(w, h - _radius)
+      ..arcToPoint(
+        Offset(w - _radius, h),
+        radius: const Radius.circular(_radius),
+      )
+      ..lineTo(_radius, h)
+      ..arcToPoint(
+        Offset(0, h - _radius),
+        radius: const Radius.circular(_radius),
+      )
+      ..lineTo(0, _radius)
+      ..arcToPoint(
+        const Offset(_radius, 0),
+        radius: const Radius.circular(_radius),
+      )
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _outline(size);
+    canvas
+      ..drawPath(
+        path.shift(const Offset(0, 5)),
+        Paint()
+          ..color = EcoColors.green.withValues(alpha: .10)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+      )
+      ..drawPath(path, Paint()..color = EcoColors.surface)
+      ..drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = EcoColors.border,
+      );
+  }
+
+  @override
+  bool shouldRepaint(_EcoNavBarPainter oldDelegate) =>
+      notched != oldDelegate.notched;
 }
 
 class FilterPills extends StatelessWidget {
@@ -735,47 +969,38 @@ class FilterPills extends StatelessWidget {
     required this.selected,
     required this.onSelect,
   });
-
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onSelect;
-
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: List.generate(labels.length, (i) {
-          final active = i == selected;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => onSelect(i),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: active ? EcoColors.primary : Colors.white,
-                  border: Border.all(
-                    color: active ? EcoColors.primary : EcoColors.border,
-                  ),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  labels[i],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w600,
-                    color: active ? Colors.white : EcoColors.body,
-                  ),
-                ),
-              ),
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: List.generate(
+        labels.length,
+        (i) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            label: Text(labels[i]),
+            selected: i == selected,
+            showCheckmark: false,
+            onSelected: (_) => onSelect(i),
+            selectedColor: EcoColors.green,
+            backgroundColor: EcoColors.surface,
+            labelStyle: TextStyle(
+              fontFamily: 'Manrope',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: i == selected ? Colors.white : EcoColors.body,
             ),
-          );
-        }),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            side: const BorderSide(color: EcoColors.border),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
       ),
-    );
-  }
+    ),
+  );
 }

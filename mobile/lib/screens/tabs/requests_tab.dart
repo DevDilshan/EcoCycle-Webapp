@@ -1,167 +1,142 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
+import '../../app/eco_app_scope.dart';
 import '../../services/api.dart';
 import '../../theme/eco_theme.dart';
-import '../../utils/user_helpers.dart';
 import '../../widgets/eco_components.dart';
+import '../../widgets/eco_feature.dart';
 import '../../widgets/eco_loading.dart';
-import '../../utils/pickup_approval_ui.dart';
 import '../pickup_detail_screen.dart';
 
 class RequestsTab extends StatefulWidget {
-  const RequestsTab({super.key});
-
+  const RequestsTab({super.key, required this.onRequestPickup});
+  final VoidCallback onRequestPickup;
   @override
   State<RequestsTab> createState() => RequestsTabState();
 }
 
 class RequestsTabState extends State<RequestsTab> {
-  final _api = Api();
+  late final Api _api;
   int _filter = 0;
   bool _loading = true;
+  bool _failed = false;
   List<Map<String, dynamic>> _items = [];
-
   @override
   void initState() {
     super.initState();
+    _api = EcoAppScope.apiOf(context);
     reload();
   }
 
   Future<void> reload() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
     try {
       final json = await _api.get('/pickuprequests', query: {'pageSize': '50'});
-      setState(() {
-        _items = (json['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      });
-    } catch (_) {}
-    if (mounted) setState(() => _loading = false);
+      if (!mounted) return;
+      setState(
+        () => _items =
+            (json['items'] as List?)?.cast<Map<String, dynamic>>() ?? [],
+      );
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  List<Map<String, dynamic>> get _filtered {
-    if (_filter == 1) {
-      return _items.where((p) {
-        final s = (p['status'] as String? ?? '').toLowerCase();
-        return s != 'completed' && s != 'cancelled' && s != 'rejected';
-      }).toList();
-    }
-    if (_filter == 2) {
-      return _items
+  List<Map<String, dynamic>> get _filtered => switch (_filter) {
+    1 => _items.where(activePickup).toList(),
+    2 =>
+      _items
           .where(
             (p) => (p['status'] as String? ?? '').toLowerCase() == 'completed',
           )
-          .toList();
-    }
-    return _items;
-  }
-
+          .toList(),
+    _ => _items,
+  };
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) => RefreshIndicator(
+    onRefresh: reload,
+    color: EcoColors.green,
+    child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      // The page scrolls underneath the floating bar; this is the room
+      // that lets the last item come to rest above it.
+      padding: EdgeInsets.only(bottom: ecoNavClearance(context)),
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(22, 8, 22, 12),
-          child: Text(
-            'My requests',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+        EcoPageHeading(
+          title: 'Your pickups',
+          subtitle: 'Every request, from start to finish.',
+          trailing: IconButton.filled(
+            tooltip: 'Request a pickup',
+            onPressed: widget.onRequestPickup,
+            style: IconButton.styleFrom(
+              backgroundColor: EcoColors.green,
+              minimumSize: const Size(48, 48),
+            ),
+            icon: const Icon(Icons.add_rounded, color: Colors.white),
           ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 22),
           child: FilterPills(
-            labels: const ['All', 'Active', 'Done'],
+            labels: const ['All', 'Active', 'Completed'],
             selected: _filter,
             onSelect: (i) => setState(() => _filter = i),
           ),
         ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: _loading
-              ? const EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true)
-              : RefreshIndicator(
-                  onRefresh: reload,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
-                    itemCount: _filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, i) {
-                      final p = _filtered[i];
-                      return _RequestCard(
-                        pickup: p,
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  PickupDetailScreen(pickupId: p['id'] as String),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_loading)
+                const EcoLoadingState(
+                  title: 'Loading your pickups',
+                  message: 'Checking the latest updates.',
+                  compact: true,
+                )
+              else if (_failed)
+                EcoLoadError(onRetry: reload)
+              else if (_filtered.isEmpty)
+                EcoEmptyState(
+                  icon: Icons.local_shipping_outlined,
+                  title: _filter == 2
+                      ? 'Your impact starts here'
+                      : 'No pickups here yet',
+                  message: _filter == 2
+                      ? 'Completed pickups will appear here. Each one makes a difference.'
+                      : 'Gather your recyclables and arrange your next pickup.',
+                  action: 'Request a pickup',
+                  onAction: widget.onRequestPickup,
+                )
+              else
+                ..._filtered.map(
+                  (pickup) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: EcoPickupCard(
+                      pickup: pickup,
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => PickupDetailScreen(
+                              pickupId: pickup['id'] as String,
                             ),
-                          );
-                          if (mounted) reload();
-                        },
-                      );
-                    },
+                          ),
+                        );
+                        if (mounted) reload();
+                      },
+                    ),
                   ),
                 ),
+            ],
+          ),
         ),
       ],
-    );
-  }
-}
-
-class _RequestCard extends StatelessWidget {
-  const _RequestCard({required this.pickup, required this.onTap});
-  final Map<String, dynamic> pickup;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final id = pickup['id'] as String;
-    final status = pickup['status'] as String? ?? 'Pending';
-    final hasApproval = pickup['hasApprovalRequest'] == true;
-    final cat = pickup['category'] as String? ?? '';
-    final desc = pickup['description'] as String? ?? 'Pickup';
-    final date = pickup['preferredDate'] as String?;
-    final (approvalLabel, approvalTone) = hasApproval
-        ? residentApprovalBadge(pickup)
-        : (status, toneForPickupStatus(status));
-    final label = hasApproval ? approvalLabel : status;
-    final tone = hasApproval ? approvalTone : toneForPickupStatus(status);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: EcoColors.cardBorder),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(shortPickupId(id), style: ecoMono()),
-                StatusBadge(label: label, tone: tone),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              cat.isNotEmpty ? '$desc · $cat' : desc,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              date != null
-                  ? 'Submitted ${DateFormat('d MMM').format(DateTime.parse(date))}'
-                  : status,
-              style: const TextStyle(fontSize: 12, color: EcoColors.body),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }
