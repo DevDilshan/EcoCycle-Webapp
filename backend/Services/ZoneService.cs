@@ -116,9 +116,12 @@ public class ZoneService
 
     public async Task<ZoneDto> CreateZoneAsync(CreateZoneDto dto)
     {
+        await EnsureAssignableAsync(dto.AssignedCollectorId);
+        await EnsureNameIsFreeAsync(dto.Name, excludingId: null);
+
         var zone = new Zone
         {
-            Name = dto.Name,
+            Name = dto.Name.Trim(),
             Description = dto.Description,
             AssignedCollectorId = dto.AssignedCollectorId,
             Latitude = dto.Latitude,
@@ -142,7 +145,10 @@ public class ZoneService
             return null;
         }
 
-        zone.Name = dto.Name;
+        await EnsureAssignableAsync(dto.AssignedCollectorId);
+        await EnsureNameIsFreeAsync(dto.Name, excludingId: id);
+
+        zone.Name = dto.Name.Trim();
         zone.Description = dto.Description;
         zone.AssignedCollectorId = dto.AssignedCollectorId;
         zone.Latitude = dto.Latitude;
@@ -292,6 +298,54 @@ public class ZoneService
     /// possible; the routing agent is given this list verbatim and would have no
     /// way to tell a typo from a real day.
     /// </remarks>
+    /// <summary>
+    /// Refuses a collector id that is not a collector's.
+    /// </summary>
+    /// <remarks>
+    /// Checked on the role, not merely on existence. Every id here is a profiles
+    /// row, so a resident's id is a valid foreign key and the database cannot tell
+    /// the two apart -- a zone assigned to a resident routes its pickups to
+    /// somebody with no collector screen, and the stops are never driven.
+    /// </remarks>
+    private async Task EnsureAssignableAsync(Guid? collectorId)
+    {
+        // Unassigned is allowed: a zone can exist before anyone is put on it.
+        if (collectorId is null || collectorId == Guid.Empty) return;
+
+        var role = await _context.Profiles
+            .AsNoTracking()
+            .Where(p => p.Id == collectorId)
+            .Select(p => p.Role)
+            .FirstOrDefaultAsync();
+
+        if (role is null)
+            throw new ArgumentException("That collector no longer exists.");
+
+        if (!string.Equals(role, "collector", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("A zone can only be assigned to a collector.");
+    }
+
+    /// <summary>
+    /// Refuses a name another zone already has.
+    /// </summary>
+    /// <remarks>
+    /// Case-insensitively, because "Dehiwala" and "dehiwala" are the same suburb
+    /// and a resident choosing between two identical-looking entries in a dropdown
+    /// has no way to pick the right one. Retired zones are counted too: their name
+    /// is still on the rounds and complaints they are attached to.
+    /// </remarks>
+    private async Task EnsureNameIsFreeAsync(string name, Guid? excludingId)
+    {
+        var trimmed = name.Trim();
+        var clash = await _context.Zones
+            .AsNoTracking()
+            .AnyAsync(z => z.Id != excludingId
+                && z.Name.ToLower() == trimmed.ToLower());
+
+        if (clash)
+            throw new ArgumentException($"A zone called {trimmed} already exists.");
+    }
+
     private static List<int> NormaliseCollectionDays(IEnumerable<int>? days)
         => (days ?? [])
             .Where(d => d is >= 0 and <= 6)

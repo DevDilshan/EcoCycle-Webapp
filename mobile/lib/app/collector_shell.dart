@@ -4,7 +4,6 @@ import '../screens/collector/route_map_screen.dart';
 import '../screens/collector/route_screen.dart';
 import '../screens/tabs/profile_tab.dart';
 import '../widgets/eco_components.dart';
-import '../widgets/eco_feature.dart';
 import 'eco_app_scope.dart';
 
 class CollectorShell extends StatefulWidget {
@@ -46,27 +45,10 @@ class _CollectorShellState extends State<CollectorShell> {
             collectorId: user.id,
             onOpenProfile: () => setState(() => _tab = _profileTab),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const EcoPageHeading(
-                title: 'Route map',
-                subtitle: 'Where today’s round takes you.',
-              ),
-              Expanded(
-                // A Builder, because the bar's height is only known below
-                // the Scaffold, not from this widget's own context.
-                child: Builder(
-                  builder: (context) => Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.paddingOf(context).bottom,
-                    ),
-                    child: RouteMapScreen(collectorId: user.id),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          // The map screen owns its heading now, so its subtitle can carry the
+          // stop count and the caveat that pins sit on the zone centre rather
+          // than on the address -- as the web console's map page does.
+          RouteMapScreen(collectorId: user.id),
           const ProfileTab(),
         ],
       ),

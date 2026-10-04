@@ -231,6 +231,14 @@
 .admin-console .r-notice.is-bad { background: var(--bad-bg); color: var(--bad-ink); }
 .admin-console .r-notice.is-info { background: var(--info-bg); color: var(--info-ink); }
 
+/* A notice that offers an action rather than only stating one. The button is
+   sized to its label instead of the grid's full width, which on a wide card
+   stretched it across the whole panel. */
+.admin-console .r-notice .ac-btn {
+  justify-self: start;
+  margin-top: 6px;
+}
+
 .admin-console .r-notice-next { font-weight: 700; }
 
 /* ---------- Photo thumbnail ---------- */

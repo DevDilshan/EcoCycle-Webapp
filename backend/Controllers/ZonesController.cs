@@ -44,10 +44,20 @@ public class ZonesController : ControllerBase
     [HttpPost]
     [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(ZoneDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ZoneDto>> Create([FromBody] CreateZoneDto dto)
     {
-        var zone = await _zoneService.CreateZoneAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = zone.Id }, zone);
+        try
+        {
+            var zone = await _zoneService.CreateZoneAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = zone.Id }, zone);
+        }
+        catch (ArgumentException ex)
+        {
+            // The message names the clash -- a duplicate name, a collector who is
+            // not one. An admin can act on that; a bare 500 they cannot.
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // Admin only: ZoneDto carries the assigned collector's id. Residents pick
@@ -75,10 +85,18 @@ public class ZonesController : ControllerBase
     [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(ZoneDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ZoneDto>> Update(Guid id, [FromBody] CreateZoneDto dto)
     {
-        var zone = await _zoneService.UpdateZoneAsync(id, dto);
-        return zone is null ? NotFound() : Ok(zone);
+        try
+        {
+            var zone = await _zoneService.UpdateZoneAsync(id, dto);
+            return zone is null ? NotFound() : Ok(zone);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // Deactivates the zone rather than removing the row: pickups and route

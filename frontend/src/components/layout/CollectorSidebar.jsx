@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { House, LogOut, Route } from 'lucide-react'
+import { House, LogOut, Map as MapIcon, Route } from 'lucide-react'
 import { EcoMark } from '../public/EcoLogo'
 import { useAuth } from '../../context/AuthContext'
 import { useCollectorData } from '../collector/collectorShell'
@@ -43,6 +43,14 @@ export default function CollectorSidebar({ isOpen = false, onNavigate }) {
           <Route size={18} strokeWidth={2} aria-hidden="true" />
           <span>Today&rsquo;s route</span>
           {counts.pending > 0 && <span className="ac-count">{counts.pending}</span>}
+        </NavLink>
+        <NavLink
+          to="/collector/map"
+          onClick={onNavigate}
+          className={({ isActive }) => `ac-nav-link${isActive ? ' is-active' : ''}`}
+        >
+          <MapIcon size={18} strokeWidth={2} aria-hidden="true" />
+          <span>Route map</span>
         </NavLink>
       </nav>
 

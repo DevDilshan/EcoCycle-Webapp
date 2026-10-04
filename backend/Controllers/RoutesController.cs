@@ -34,8 +34,17 @@ public class RoutesController : ControllerBase
     [ProducesResponseType(typeof(RouteAssignmentDto), StatusCodes.Status201Created)]
     public async Task<ActionResult<RouteAssignmentDto>> Create([FromBody] CreateRouteAssignmentDto dto)
     {
-        var route = await _routeService.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetTodayRoute), new { collectorId = route.CollectorId }, route);
+        try
+        {
+            var route = await _routeService.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetTodayRoute), new { collectorId = route.CollectorId }, route);
+        }
+        catch (ArgumentException ex)
+        {
+            // The message names what is wrong -- a retired zone, a pickup already
+            // on a round. Swallowing it to a bare 500 left an admin guessing.
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // A round is the collector's own, or an admin's to look at. It lists the
@@ -98,6 +107,18 @@ public class RoutesController : ControllerBase
 
     // GET /api/routes/day?date=2026-09-29 — every stop on one day, across all
     // collectors, so an admin can see the round rather than one collector's view.
+    // GET /api/routes/overdue — pending stops too old to still be on a round.
+    //
+    // Admin-only, and deliberately so: these are the stops a collector can no
+    // longer act on, and what they need is someone to reassign them or account
+    // for them. A collector seeing them again would be no more able to collect
+    // them than they were a week ago.
+    [HttpGet("overdue")]
+    [Authorize(Roles = "admin")]
+    [ProducesResponseType(typeof(List<RouteAssignmentDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<RouteAssignmentDto>>> GetOverdue()
+        => Ok(await _routeService.GetOverdueStopsAsync());
+
     [HttpGet("day")]
     [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(List<RouteAssignmentDto>), StatusCodes.Status200OK)]
@@ -154,6 +175,11 @@ public class RoutesController : ControllerBase
                 rescheduleMessage = rescheduleError
             });
         }
+        catch (ArgumentException ex)
+        {
+            // A missing reason is a bad request, not a state conflict.
+            return BadRequest(new { message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -166,8 +192,21 @@ public class RoutesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<RouteAssignmentDto>> Reassign(Guid id, [FromBody] ReassignRouteDto dto)
     {
-        var route = await _routeService.ReassignAsync(id, dto.NewCollectorId);
-        return route is null ? NotFound() : Ok(route);
+        try
+        {
+            var route = await _routeService.ReassignAsync(id, dto.NewCollectorId);
+            return route is null ? NotFound() : Ok(route);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            // 409: the stop exists and the request is well formed, but its state
+            // does not allow this -- a completed stop cannot change hands.
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [HttpGet("load-report")]
