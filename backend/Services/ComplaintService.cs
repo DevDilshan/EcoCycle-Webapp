@@ -13,6 +13,15 @@ public class ComplaintService : IComplaintService
 
     public async Task<ComplaintResponseDto> CreateAsync(Guid residentId, CreateComplaintDto dto)
     {
+        if (dto.PickupRequestId == Guid.Empty)
+            throw new ArgumentException("Pickup request is required.");
+
+        var description = dto.Description?.Trim() ?? string.Empty;
+        if (description.Length < 10)
+            throw new ArgumentException("Description must be at least 10 characters.");
+        if (description.Length > 2000)
+            throw new ArgumentException("Description must be 2000 characters or fewer.");
+
         var pickupExists = await _db.PickupRequests
             .AsNoTracking()
             .AnyAsync(p => p.Id == dto.PickupRequestId && p.ResidentId == residentId);
@@ -20,11 +29,20 @@ public class ComplaintService : IComplaintService
         if (!pickupExists)
             throw new KeyNotFoundException("Pickup request not found for this resident.");
 
+        var hasOpenComplaint = await _db.Complaints.AnyAsync(c =>
+            c.ResidentId == residentId
+            && c.PickupRequestId == dto.PickupRequestId
+            && c.Status != ComplaintStatus.Resolved);
+
+        if (hasOpenComplaint)
+            throw new InvalidOperationException(
+                "You already have an open complaint for this pickup. Wait for a response or use the existing one.");
+
         var entity = new Complaint
         {
             ResidentId = residentId,
             PickupRequestId = dto.PickupRequestId,
-            Description = dto.Description.Trim(),
+            Description = description,
             Status = ComplaintStatus.Open
         };
 
@@ -33,9 +51,14 @@ public class ComplaintService : IComplaintService
         return ToDto(entity);
     }
 
-    public async Task<PagedResult<ComplaintResponseDto>> GetListAsync(ComplaintQueryParams query)
+    public async Task<PagedResult<ComplaintResponseDto>> GetListAsync(
+        Guid userId, bool isAdmin, ComplaintQueryParams query)
     {
         var q = _db.Complaints.AsNoTracking().AsQueryable();
+
+        // A resident sees only their own complaints; an admin sees everyone's.
+        if (!isAdmin)
+            q = q.Where(c => c.ResidentId == userId);
 
         if (query.Status.HasValue)
             q = q.Where(c => c.Status == query.Status.Value);

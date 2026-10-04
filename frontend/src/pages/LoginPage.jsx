@@ -2,10 +2,17 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import EcoLogo, { EcoMark } from '../components/public/EcoLogo'
+import GoogleButton from '../components/public/GoogleButton'
 import { useAuth } from '../context/AuthContext'
 import { getUserRole } from '../lib/supabase'
 import { getHomePath } from '../lib/roles'
 import '../styles/public.css'
+
+function readOAuthError() {
+  const query = new URLSearchParams(window.location.search)
+  const hash = new URLSearchParams(window.location.hash.slice(1))
+  return query.get('error_description') ?? hash.get('error_description')
+}
 
 export default function LoginPage() {
   const { signIn, user, role } = useAuth()
@@ -13,7 +20,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState(null)
+  // A failed Google sign-in comes back to this page with the reason in the URL.
+  const [error, setError] = useState(readOAuthError)
   const [loading, setLoading] = useState(false)
 
   if (user) {
@@ -103,6 +111,15 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div style={{ textAlign: 'right', marginTop: '-0.35rem' }}>
+              <Link
+                to="/forgot-password"
+                style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--eco-green, #1b7a4b)' }}
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             {error && (
               <p className="eco-alert" role="alert">{error}</p>
             )}
@@ -115,6 +132,8 @@ export default function LoginPage() {
               <span>{loading ? 'Logging in…' : 'Log in'}</span>
               <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
             </button>
+
+            <GoogleButton onError={setError} />
           </div>
 
           <p className="eco-auth-alt">

@@ -13,9 +13,13 @@ import '../widgets/eco_components.dart';
 import 'pickup_submitted_screen.dart';
 
 class NewPickupScreen extends StatefulWidget {
-  const NewPickupScreen({super.key, this.onSubmitted});
+  const NewPickupScreen({super.key, this.onSubmitted, this.existing});
 
   final VoidCallback? onSubmitted;
+
+  /// When non-null, the screen edits this existing pickup (PUT) instead of
+  /// creating a new one (POST). Pops `true` on a successful save.
+  final Map<String, dynamic>? existing;
 
   @override
   State<NewPickupScreen> createState() => _NewPickupScreenState();
@@ -30,10 +34,28 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   String _interval = 'Weekly';
   bool _loading = false;
   XFile? _photo;
+  String? _existingPhotoUrl;
+
+  bool get _isEditing => widget.existing != null;
+
+  static const _allowedIntervals = ['Weekly', 'Bi-weekly'];
+  String? _descriptionError;
+  String? _dateError;
+  String? _intervalError;
 
   @override
   void initState() {
     super.initState();
+    final existing = widget.existing;
+    if (existing != null) {
+      _description.text = (existing['description'] as String?) ?? '';
+      final parsed = DateTime.tryParse(existing['preferredDate'] as String? ?? '');
+      if (parsed != null) _date = parsed.toLocal();
+      _recurring = existing['isRecurring'] == true;
+      final interval = existing['recurrenceInterval'] as String?;
+      if (interval != null && _allowedIntervals.contains(interval)) _interval = interval;
+      _existingPhotoUrl = existing['photoUrl'] as String?;
+    }
     _dateLabel = TextEditingController(text: DateFormat('EEE, d MMM yyyy').format(_date));
   }
 
@@ -74,10 +96,54 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     if (source != null) await _pickPhoto(source);
   }
 
+  bool _validate() {
+    String? descErr;
+    String? dateErr;
+    String? intervalErr;
+
+    final desc = _description.text.trim();
+    if (desc.isEmpty) {
+      descErr = 'Please describe the waste to be collected.';
+    } else if (desc.length < 5) {
+      descErr = 'Description must be at least 5 characters.';
+    } else if (desc.length > 1000) {
+      descErr = 'Description must be 1000 characters or fewer.';
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final picked = DateTime(_date.year, _date.month, _date.day);
+    if (picked.isBefore(today)) {
+      dateErr = 'Preferred date cannot be in the past.';
+    } else if (picked.isAfter(today.add(const Duration(days: 365)))) {
+      dateErr = 'Preferred date must be within the next 12 months.';
+    }
+
+    if (_recurring && !_allowedIntervals.contains(_interval)) {
+      intervalErr = 'Recurrence must be Weekly or Bi-weekly.';
+    }
+
+    setState(() {
+      _descriptionError = descErr;
+      _dateError = dateErr;
+      _intervalError = intervalErr;
+    });
+    return descErr == null && dateErr == null && intervalErr == null;
+  }
+
+  Widget _fieldError(String text) => Padding(
+        padding: const EdgeInsets.only(top: 6, left: 4),
+        child: Text(
+          text,
+          style: const TextStyle(color: Color(0xFFB42318), fontSize: 12.5, fontWeight: FontWeight.w500),
+        ),
+      );
+
   Future<void> _submit() async {
+    if (!_validate()) return;
     setState(() => _loading = true);
     try {
-      String? photoUrl;
+      String? photoUrl = _existingPhotoUrl;
       if (_photo != null) {
         photoUrl = await PickupPhotoService.upload(_photo!);
       }
@@ -88,6 +154,15 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
         if (_recurring) 'recurrenceInterval': _interval,
         if (photoUrl != null) 'photoUrl': photoUrl,
       };
+
+      if (_isEditing) {
+        await _api.put('/pickuprequests/${widget.existing!['id']}', body: body);
+        widget.onSubmitted?.call();
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
+        return;
+      }
+
       final created = await _api.post('/pickuprequests', body: body);
       widget.onSubmitted?.call();
       if (!mounted) return;
@@ -127,7 +202,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const EcoBackHeader(title: 'New pickup'),
+          EcoBackHeader(title: _isEditing ? 'Edit pickup' : 'New pickup'),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
@@ -143,11 +218,17 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                             borderRadius: BorderRadius.circular(20),
                             child: Image.file(File(_photo!.path), fit: BoxFit.cover, width: double.infinity, height: double.infinity),
                           )
-                        : null,
+                        : (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty)
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Image.network(_existingPhotoUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+                              )
+                            : null,
                   ),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Description'),
                   EcoTextField(controller: _description, maxLines: 3),
+                  if (_descriptionError != null) _fieldError(_descriptionError!),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Preferred date'),
                   EcoTextField(
@@ -157,7 +238,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                         context: context,
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
-                        initialDate: _date,
+                        initialDate: _date.isBefore(DateTime.now()) ? DateTime.now() : _date,
                       );
                       if (picked != null) {
                         setState(() {
@@ -169,6 +250,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                     controller: _dateLabel,
                     suffix: const Icon(Icons.calendar_today, color: EcoColors.primary, size: 20),
                   ),
+                  if (_dateError != null) _fieldError(_dateError!),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Pickup type'),
                   Row(
@@ -190,8 +272,11 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(color: EcoColors.border),
+                              color: active ? EcoColors.mintBg : Colors.white,
+                              border: Border.all(
+                                color: active ? EcoColors.primary : EcoColors.border,
+                                width: active ? 1.5 : 1,
+                              ),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -206,6 +291,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                         );
                       }).toList(),
                     ),
+                    if (_intervalError != null) _fieldError(_intervalError!),
                   ],
                 ],
               ),
@@ -213,7 +299,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
-            child: EcoPrimaryButton(label: 'Submit request', loading: _loading, onPressed: _submit),
+            child: EcoPrimaryButton(label: _isEditing ? 'Save changes' : 'Submit request', loading: _loading, onPressed: _submit),
           ),
         ],
       ),

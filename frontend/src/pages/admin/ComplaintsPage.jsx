@@ -218,7 +218,7 @@ export default function ComplaintsPage() {
         )}
       </AcDrawer>
 
-      <AcToast message={success} />
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }

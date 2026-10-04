@@ -24,7 +24,7 @@ authentication — **by both the web app and the Flutter app**.
    
 2. The backend calls the Python agent service, which runs four agents in order:
    - 🧠 **Classifier** — decides the waste category. OpenAI reads the resident's
-     description; Gemini describes the photo when one is supplied.
+     description, and also describes the photo when one is supplied.
    - ✅ **Validator** — deterministic business rules (hazardous waste, max 2 bulk
      pickups per resident per month). No AI, no network.
    - 🚛 **Routing** — picks the collector with the lowest pending load. Skipped
@@ -72,6 +72,7 @@ uvicorn api:app --reload --port 8000
 
 ```bash
 cd backend
+cp .env.example .env          # first time only, then fill in the values
 dotnet run                    # http://localhost:5051, opens Swagger
 ```
 
@@ -80,6 +81,7 @@ dotnet run                    # http://localhost:5051, opens Swagger
 ```bash
 cd frontend
 npm install                   # first time only
+cp .env.example .env          # first time only
 npm run dev                   # http://localhost:5173
 ```
 
@@ -97,10 +99,10 @@ flutter run                   # point it at the backend, see the mobile section
 
 ## 🔑 Configuration
 
-Secrets live in `.env` files that are **gitignored**. Copy the `.env.example`
-templates and fill in real values. 🚫 Never commit a real key.
+Each app has its own `.env` file in its own folder, all **gitignored**. Copy the
+`.env.example` next to it and fill in real values. 🚫 Never commit a real key.
 
-### Repository root `.env` — read by the backend
+### `backend/.env` — read by the backend
 
 | Variable | Purpose |
 | --- | --- |
@@ -109,15 +111,33 @@ templates and fill in real values. 🚫 Never commit a real key.
 | `SUPABASE_JWT_SECRET` | Validates incoming JWTs |
 | `AGENT_SERVICE_URL` | Agent service base URL (default `http://localhost:8000`) |
 | `INTERNAL_API_KEY` | Shared secret sent to the agent service |
-| `ALLOWED_ORIGINS` | Comma-separated CORS origins (default `http://localhost:5173`) |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated CORS origins (default `http://localhost:5173`) |
 
 ### `agentic-ai/.env` — read by the agent service
 
 | Variable | Purpose |
 | --- | --- |
-| `OPENAI_API_KEY` | Required. All agent reasoning runs on `gpt-4o-mini`. |
-| `INTERNAL_API_KEY` | ⚠️ **Must match the root `.env` value**, or every call is 401 |
-| `GEMINI_API_KEY` | Optional. Without it, photos are ignored and classification is text-only. |
+| `OPENAI_API_KEY` | Required. All agent reasoning and photo recognition run on `gpt-4o-mini`. |
+| `INTERNAL_API_KEY` | ⚠️ **Must match the `backend/.env` value**, or every call is 401 |
+| `OPENAI_VISION_MODEL` | Optional. Vision-capable model for photo recognition (default `gpt-4o-mini`). |
+
+### `frontend/.env` — read by Vite
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon (public) key |
+| `VITE_SUPABASE_PICKUP_BUCKET` | Storage bucket for pickup photos |
+| `VITE_API_BASE_URL` | Backend origin. Leave empty locally — Vite proxies `/api`. |
+
+### `mobile/.env` — read by the Flutter app
+
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anon (public) key |
+| `SUPABASE_PICKUP_BUCKET` | Storage bucket for pickup photos |
+| `API_BASE_URL` | Backend API URL, including `/api` |
 
 ---
 
@@ -134,7 +154,9 @@ was never set).
 | 🚩 Approvals (admin) | `GET /approvals`, `GET /approvals/{id}`, `POST /approvals/{id}/approve`, `POST /approvals/{id}/reject` |
 | 🚛 Routes | `GET /routes/{collectorId}/today`, `GET /routes/load-report`, `GET /routes/zone-load`, `POST /routes/assign/{pickupRequestId}`, `PUT /routes/{id}/reassign` |
 | 🗺️ Zones | `GET /zones`, `POST /zones`, `PUT /zones/{id}`, `DELETE /zones/{id}` |
-| 🎁 Rewards | `POST /rewards`, `GET /rewards/leaderboard`, `GET /rewards/{residentId}/history`, `POST /rewards/redeem` |
+| 🎁 Rewards | `POST /rewards`, `GET /rewards/leaderboard`, `GET /rewards/{residentId}/history`, `PUT`/`DELETE /rewards/{id}` (admin corrections) |
+| 🛍️ Reward catalog | `GET /reward-items`, `GET /reward-items/{id}` (residents see active items only), `POST`, `PUT`, `DELETE /reward-items/{id}` (admin) |
+| 🎟️ Redemptions | `POST /redemptions` (pick a catalog item), `GET /redemptions`, `GET /redemptions/{id}`, `PUT`/`DELETE /redemptions/{id}` (resident, while Pending), `POST /redemptions/{id}/approve` and `/reject` (admin) |
 | 💬 Complaints | `POST /complaints`, `GET /complaints`, `PUT`, `DELETE` |
 | 👤 Profiles | `GET /profiles?role=resident\|collector\|admin` |
 
@@ -180,7 +202,7 @@ shared with the web app. Put it in a `mobile/` folder at the repo root.
 - 🔤 **Enums are strings** (`"EWaste"`, `"Scheduled"`), so map them to Dart
   enums **by name, never by index** — the numeric order is not stable across the
   codebase.
-- 🌐 CORS does not apply to a mobile app, so `ALLOWED_ORIGINS` is a web-only
+- 🌐 CORS does not apply to a mobile app, so `CORS_ALLOWED_ORIGINS` is a web-only
   concern.
 
 ### Pickup status, and what to show the resident
@@ -207,7 +229,8 @@ The backend has a [Dockerfile](backend/Dockerfile) — Render's native .NET
 support is inconsistent, so deploy it as a Docker service with
 `Root Directory = backend`. It binds `0.0.0.0` on `$PORT`.
 
-The agent service has no Dockerfile yet. Run it with
+The agent service has a [Dockerfile](agentic-ai/Dockerfile) too
+(`Root Directory = agentic-ai`). It runs
 `uvicorn api:app --host 0.0.0.0 --port $PORT` — the default host `127.0.0.1` is
 not reachable from outside a container.
 
@@ -223,8 +246,8 @@ Things that work but are not finished, so nobody rediscovers them the hard way:
 - ⏱️ **The AI pipeline runs inline on the request thread**, which is why pickup
   creation takes 8–17 seconds. It belongs in a background job — and this will be
   more noticeable on mobile than on desktop.
-- 🎁 **Reward points are awarded entirely by hand.** Nothing grants them
-  automatically on pickup completion, and there is no points-per-category table.
+- 🎁 **Points are awarded automatically** when a collector completes a stop (per-category
+  table in `PointsRules`); admins can still correct or reverse entries.
 - 🔁 **`RewardRules` (C#) duplicates the Python Validator** — same rule codes,
   same limits. Still wired to `POST /rewards/validate`; remove once nothing
   depends on it.

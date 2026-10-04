@@ -7,20 +7,33 @@ namespace backend.Services;
 
 public class PickupRequestService : IPickupRequestService
 {
+    /// <summary>
+    /// Bulky collections a resident may book per calendar month.
+    /// </summary>
+    /// <remarks>
+    /// Must match MAX_BULK_PICKUPS_PER_MONTH in the Validator agent: this side
+    /// refuses the booking up front, that side flags any that slip through
+    /// undeclared.
+    /// </remarks>
+    public const int MaxBulkPickupsPerMonth = 2;
+
     private readonly ApplicationDbContext _db;
     private readonly IAgentPipelineClient _agents;
     private readonly RouteAssignmentService _routes;
+    private readonly RoutingOptionBuilder _routingOptions;
     private readonly ILogger<PickupRequestService> _logger;
 
     public PickupRequestService(
         ApplicationDbContext db,
         IAgentPipelineClient agents,
         RouteAssignmentService routes,
+        RoutingOptionBuilder routingOptions,
         ILogger<PickupRequestService> logger)
     {
         _db = db;
         _agents = agents;
         _routes = routes;
+        _routingOptions = routingOptions;
         _logger = logger;
     }
 
@@ -38,22 +51,42 @@ public class PickupRequestService : IPickupRequestService
         var entity = new PickupRequest
         {
             ResidentId = residentId,
-            PhotoUrl = dto.PhotoUrl,
+            PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl),
             Description = dto.Description,
             PreferredDate = NormalizeToUtc(dto.PreferredDate),
+            Address = dto.Address?.Trim(),
+            IsBulkRequest = dto.IsBulkRequest,
             IsRecurring = dto.IsRecurring,
             RecurrenceInterval = dto.RecurrenceInterval,
             Status = PickupStatus.Pending
         };
 
-        // TODO: residents cannot choose a zone yet, so every pickup lands in the
-        // first active zone. Replace with a resident-selected or address-derived
-        // zone -- see PickupRequest.ZoneId.
-        entity.ZoneId = await _db.Zones
-            .Where(z => z.IsActive)
-            .OrderBy(z => z.CreatedAt).ThenBy(z => z.Id)
-            .Select(z => (Guid?)z.Id)
-            .FirstOrDefaultAsync();
+        // The resident chooses the zone. It is validated rather than defaulted:
+        // silently filing a pickup in the wrong zone sends a collector to the
+        // wrong side of the city, which is worse than refusing the submission.
+        var zoneIsUsable = await _db.Zones
+            .AnyAsync(z => z.Id == dto.ZoneId && z.IsActive);
+
+        if (!zoneIsUsable)
+        {
+            throw new ArgumentException(
+                "That zone does not exist or is no longer active. Pick a zone from the list.");
+        }
+
+        entity.ZoneId = dto.ZoneId;
+
+        // A council tells you the allowance is spent when you book, not after.
+        // Checked before the pickup is saved so nothing half-exists.
+        if (dto.IsBulkRequest)
+        {
+            var allowance = await GetBulkAllowanceAsync(residentId);
+            if (allowance.Remaining <= 0)
+            {
+                throw new ArgumentException(
+                    $"You have used all {allowance.Limit} bulky-waste collections for this month. " +
+                    "The allowance resets on the 1st.");
+            }
+        }
 
         _db.PickupRequests.Add(entity);
         await _db.SaveChangesAsync();
@@ -90,21 +123,24 @@ public class PickupRequestService : IPickupRequestService
         PipelineResultDto? result;
         try
         {
-            var loads = await GetCollectorLoadsAsync();
-            if (loads.Count == 0)
-            {
-                _logger.LogWarning(
-                    "No collector has any route assignments, so the routing agent would have " +
-                    "nothing to choose from; leaving pickup {PickupId} Pending.", entity.Id);
-                return;
-            }
+            _logger.LogInformation(
+                "Running agent pipeline for pickup {PickupId} (photo supplied: {HasPhoto})",
+                entity.Id,
+                !string.IsNullOrWhiteSpace(entity.PhotoUrl));
 
             result = await _agents.RunPipelineAsync(new RunPipelineRequestDto
             {
                 Description = entity.Description,
                 ResidentZoneId = entity.ZoneId.Value.ToString(),
-                CollectorLoads = loads,
-                PhotoUrl = entity.PhotoUrl
+                // Slots have to be built before the pipeline runs, and the
+                // category only exists afterwards -- classification and routing
+                // are one call. They are therefore built without a vehicle
+                // restriction, and the real category is checked against the
+                // chosen collector once it is known (see VehicleCanCarry).
+                RoutingContext = await _routingOptions.BuildAsync(
+                    entity.ZoneId.Value, WasteCategory.General, entity.PreferredDate),
+                PhotoUrl = entity.PhotoUrl,
+                ResidentHistory = await ResidentHistoryThisMonthAsync(entity.ResidentId, entity.Id)
             });
         }
         catch (Exception ex)
@@ -181,6 +217,33 @@ public class PickupRequestService : IPickupRequestService
             flagReasons.Add(result.FlagReason!);
         flagReasons.AddRange(findings.Select(f => f.Message));
 
+        // A bulky item that was not booked as one. Most of these are honest --
+        // people do not know a mattress counts -- so sending every one to an
+        // admin would fill the queue with mistakes and drown the signal.
+        //
+        // If the resident still has allowance left the outcome is identical to
+        // having declared it, so the slot is simply consumed and nobody is
+        // troubled. Only the case that actually costs the council something --
+        // an undeclared bulky item with the month's allowance already spent --
+        // is worth a human looking at it.
+        if (category == WasteCategory.Bulk && !entity.IsBulkRequest)
+        {
+            var allowance = await GetBulkAllowanceAsync(entity.ResidentId);
+            if (allowance.Remaining > 0)
+            {
+                entity.IsBulkRequest = true;
+                _logger.LogInformation(
+                    "Pickup {PickupId} classified Bulk but was not booked as one; consuming a " +
+                    "bulky slot ({Remaining} were left).", entity.Id, allowance.Remaining);
+            }
+            else
+            {
+                flagReasons.Add(
+                    "Bulky item was not booked as a bulky collection, and this month's " +
+                    "allowance is already used.");
+            }
+        }
+
         if (flagReasons.Count > 0)
         {
             _db.ApprovalRequests.Add(new ApprovalRequest
@@ -196,7 +259,8 @@ public class PickupRequestService : IPickupRequestService
                 entity.Id, string.Join("; ", flagReasons));
         }
         else if (AgentRoutingMapper.TryBuild(
-                     entity.Id, entity.ZoneId!.Value, result.Routing, out var assignment, out var routingError))
+                     entity.Id, entity.ZoneId!.Value, result.Routing, out var assignment, out var routingError)
+                 && await VehicleCanCarryAsync(assignment!.CollectorId, category))
         {
             _db.RouteAssignments.Add(assignment!);
             entity.Status = PickupStatus.Scheduled;
@@ -215,6 +279,194 @@ public class PickupRequestService : IPickupRequestService
     /// Current load per collector, in the shape the routing agent expects:
     /// collector id to the number of pickups still outstanding.
     /// </summary>
+    /// <summary>
+    /// The collector loads the routing agent is allowed to choose from.
+    /// </summary>
+    /// <remarks>
+    /// Narrowed to the zone's own collector when it has one. The agent is only
+    /// ever told "pick the lowest load" and is never given a zone-to-collector
+    /// map, so handing it every collector made it choose the globally quietest
+    /// one -- which is how a pickup in one zone ended up on a collector who
+    /// serves another.
+    ///
+    /// Falls back to every collector when the zone has nobody assigned, so an
+    /// unstaffed zone still gets collected rather than silently stalling.
+    /// </remarks>
+    /// <summary>
+    /// The resident's earlier pickups this calendar month, with the category
+    /// each was classified as.
+    /// </summary>
+    /// <remarks>
+    /// Without this the Validator always saw an empty history, so
+    /// EXCESSIVE_BULK_PICKUPS ("max 2 bulk pickups per resident per month")
+    /// could never fire -- the check is `earlier + 1 > 2`, which is never true
+    /// at zero. The agent's own tests passed because they call validate_pickup
+    /// directly with a history the real pipeline never supplied.
+    ///
+    /// Scoped to this month because that is the only window the rule looks at;
+    /// loading a resident's whole history would grow without bound for nothing.
+    /// </remarks>
+    /// <summary>
+    /// How much of this month's bulky-waste allowance a resident has left.
+    /// </summary>
+    /// <remarks>
+    /// Counted from what residents declared, not from what the classifier
+    /// decided: the booking is the thing being rationed. Rejected pickups do not
+    /// count -- a refused booking should not cost someone their allowance.
+    /// </remarks>
+    /// <summary>
+    /// Whether a resident may ask for this pickup to be collected again.
+    /// </summary>
+    /// <remarks>
+    /// Guarded on purpose. Without a check this becomes a button that books a
+    /// second truck for a pickup that is simply not due yet, so it is allowed
+    /// only when the collection genuinely has not happened: the stop was marked
+    /// missed, or its day has passed and nobody closed it off.
+    /// </remarks>
+    public async Task<(bool NotFound, string? Reason)> CanRequestAgainAsync(
+        Guid residentId,
+        Guid pickupRequestId)
+    {
+        var pickup = await _db.PickupRequests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == pickupRequestId && p.ResidentId == residentId);
+
+        if (pickup is null) return (true, null);
+
+        if (pickup.Status == PickupStatus.Completed)
+            return (false, "This pickup has already been collected.");
+
+        var stops = await _db.RouteAssignments
+            .AsNoTracking()
+            .Where(r => r.PickupRequestId == pickupRequestId)
+            .OrderByDescending(r => r.ScheduledDate)
+            .Select(r => new { r.CompletionStatus, r.ScheduledDate })
+            .ToListAsync();
+
+        if (stops.Count == 0)
+            return (false, "This pickup has not been scheduled yet, so there is nothing to repeat.");
+
+        var latest = stops[0];
+
+        if (latest.CompletionStatus == RouteCompletionStatus.Missed) return (false, null);
+
+        if (latest.CompletionStatus == RouteCompletionStatus.Pending
+            && latest.ScheduledDate.Date < ServiceClock.Today)
+        {
+            return (false, null);
+        }
+
+        return (false, "This pickup is still booked in. You can ask again if the day passes " +
+                       "and it has not been collected.");
+    }
+
+    public async Task<BulkAllowanceDto> GetBulkAllowanceAsync(Guid residentId)
+    {
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var used = await _db.PickupRequests
+            .CountAsync(p => p.ResidentId == residentId
+                && p.IsBulkRequest
+                && p.CreatedAt >= monthStart);
+
+        return new BulkAllowanceDto
+        {
+            Limit = MaxBulkPickupsPerMonth,
+            Used = used,
+            Remaining = Math.Max(0, MaxBulkPickupsPerMonth - used)
+        };
+    }
+
+    private async Task<List<ResidentHistoryEntryDto>> ResidentHistoryThisMonthAsync(
+        Guid residentId,
+        Guid currentPickupId)
+    {
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        // The category is projected as the enum and converted in memory: calling
+        // ToString() on it inside the query does not translate to SQL.
+        var rows = await _db.PickupRequests
+            .AsNoTracking()
+            .Where(p => p.ResidentId == residentId
+                && p.Id != currentPickupId
+                && p.CreatedAt >= monthStart)
+            .Select(p => new
+            {
+                p.CreatedAt,
+                Category = _db.WasteClassifications
+                    .Where(w => w.PickupRequestId == p.Id)
+                    .OrderByDescending(w => w.CreatedAt)
+                    .Select(w => (WasteCategory?)w.Category)
+                    .FirstOrDefault()
+            })
+            .ToListAsync();
+
+        return rows
+            .Where(r => r.Category is not null)
+            .Select(r => new ResidentHistoryEntryDto
+            {
+                Category = r.Category!.Value.ToString(),
+                CreatedAt = r.CreatedAt
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Whether the chosen collector's vehicle may carry this category.
+    /// </summary>
+    /// <remarks>
+    /// The slots offered to the router are built before the pickup is
+    /// classified, so they carry no vehicle restriction. This is the check that
+    /// closes that gap: a sofa must not be left with a collector who has no
+    /// lift, and hazardous waste must not be left with an unlicensed one, no
+    /// matter how sensible the agent's choice looked.
+    ///
+    /// Failing here simply leaves the pickup unrouted for an admin to place,
+    /// which is the safe outcome.
+    /// </remarks>
+    private async Task<bool> VehicleCanCarryAsync(Guid collectorId, WasteCategory category)
+    {
+        if (category is not (WasteCategory.Bulk or WasteCategory.Hazardous)) return true;
+
+        var setting = await _db.CollectorSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CollectorId == collectorId);
+
+        var handlesBulky = setting?.HandlesBulky ?? CollectorSettingService.DefaultSetting.HandlesBulky;
+        var handlesHazardous = setting?.HandlesHazardous ?? CollectorSettingService.DefaultSetting.HandlesHazardous;
+
+        var allowed = category == WasteCategory.Bulk ? handlesBulky : handlesHazardous;
+        if (!allowed)
+        {
+            _logger.LogWarning(
+                "Routing agent chose collector {CollectorId} for a {Category} pickup, but their " +
+                "vehicle is not equipped for it; leaving it unrouted.", collectorId, category);
+        }
+        return allowed;
+    }
+
+    private async Task<Dictionary<string, int>> ZoneAwareLoadsAsync(
+        Guid zoneId,
+        Dictionary<string, int> allLoads)
+    {
+        var zoneCollectorId = await _db.Zones
+            .Where(z => z.Id == zoneId)
+            .Select(z => z.AssignedCollectorId)
+            .FirstOrDefaultAsync();
+
+        if (zoneCollectorId is null) return allLoads;
+
+        var key = zoneCollectorId.Value.ToString();
+
+        // If the zone's collector is not in the load report at all (profile
+        // removed, role changed), fall back rather than send an empty list.
+        return allLoads.TryGetValue(key, out var load)
+            ? new Dictionary<string, int> { [key] = load }
+            : allLoads;
+    }
+
     private async Task<Dictionary<string, int>> GetCollectorLoadsAsync()
     {
         var report = await _routes.GetLoadReportAsync();
@@ -222,6 +474,34 @@ public class PickupRequestService : IPickupRequestService
         // PendingAssignments, not TotalAssignments: balancing on lifetime totals
         // would permanently penalise the collectors who finish the most work.
         return report.ToDictionary(c => c.CollectorId.ToString(), c => c.PendingAssignments);
+    }
+
+    private static string? NormalizePhotoUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        return url.Trim();
+    }
+
+    /// <summary>
+    /// Drops prior classification/approval rows so a pending pickup can be
+    /// re-run through the agent pipeline (e.g. after a Supabase photo URL is added).
+    /// </summary>
+    private async Task ClearStalePipelineResultsAsync(Guid pickupRequestId)
+    {
+        var pendingApprovals = await _db.ApprovalRequests
+            .Where(a => a.PickupRequestId == pickupRequestId && a.Status == ApprovalStatus.Pending)
+            .ToListAsync();
+        if (pendingApprovals.Count > 0)
+            _db.ApprovalRequests.RemoveRange(pendingApprovals);
+
+        var classifications = await _db.WasteClassifications
+            .Where(w => w.PickupRequestId == pickupRequestId)
+            .ToListAsync();
+        if (classifications.Count > 0)
+            _db.WasteClassifications.RemoveRange(classifications);
+
+        if (pendingApprovals.Count > 0 || classifications.Count > 0)
+            await _db.SaveChangesAsync();
     }
 
     private static string Truncate(string? value, int maxLength) =>
@@ -309,22 +589,81 @@ public class PickupRequestService : IPickupRequestService
         if (entity.Status != PickupStatus.Pending)
             throw new InvalidOperationException("Only pending requests can be edited.");
 
-        entity.PhotoUrl = dto.PhotoUrl;
+        var previousPhoto = entity.PhotoUrl;
+        var previousDescription = entity.Description;
+
+        entity.PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl);
         entity.Description = dto.Description;
         entity.PreferredDate = NormalizeToUtc(dto.PreferredDate);
         entity.IsRecurring = dto.IsRecurring;
         entity.RecurrenceInterval = dto.RecurrenceInterval;
 
         await _db.SaveChangesAsync();
+
+        var photoChanged = !string.Equals(previousPhoto, entity.PhotoUrl, StringComparison.Ordinal);
+        var descriptionChanged = !string.Equals(previousDescription, entity.Description, StringComparison.Ordinal);
+        if (photoChanged || descriptionChanged)
+        {
+            await ClearStalePipelineResultsAsync(entity.Id);
+            await TryRunAgentPipelineAsync(entity);
+            await _db.Entry(entity).ReloadAsync();
+        }
+
         return ToDto(entity);
     }
 
+    /// <summary>
+    /// Cancels a pickup the resident no longer needs.
+    /// </summary>
+    /// <remarks>
+    /// This used to allow cancelling only while the request was Pending, which
+    /// in practice meant never: the agent pipeline runs during submission, so a
+    /// request is Classified or Scheduled within seconds. By the time anyone
+    /// realised the neighbour had taken the sofa, cancelling was refused and the
+    /// crew drove out for nothing.
+    ///
+    /// It is allowed up until the waste has actually been collected. Anything
+    /// already booked is released with it, so the slot goes back to the round
+    /// instead of being held for a stop nobody will make.
+    /// </remarks>
     public async Task<PickupOperationResult> DeleteAsync(Guid id, Guid residentId, bool isAdmin)
     {
         var entity = await _db.PickupRequests.FirstOrDefaultAsync(p => p.Id == id);
         if (entity is null) return PickupOperationResult.NotFound;
         if (!isAdmin && entity.ResidentId != residentId) return PickupOperationResult.Forbidden;
-        if (entity.Status != PickupStatus.Pending) return PickupOperationResult.NotEditable;
+
+        // Once it has been collected there is nothing to cancel, and removing it
+        // would erase the record of work that was actually done -- including the
+        // points the resident was paid for it.
+        if (entity.Status == PickupStatus.Completed) return PickupOperationResult.NotEditable;
+
+        // A refused request is finished too. Nothing is booked against it, so
+        // there is no trip to call off, and deleting it would take the reason
+        // for the refusal with it -- which is the one thing the resident still
+        // needs from that row.
+        //
+        // The approval record is checked as well as the status. Rejecting only
+        // began setting PickupRequest.Status recently; before that it set the
+        // approval and left the pickup Classified, so the older refusals are
+        // invisible to a status check even though the resident is shown "Not
+        // approved" for them.
+        if (entity.Status == PickupStatus.Rejected) return PickupOperationResult.NotEditable;
+
+        var wasRefused = await _db.ApprovalRequests
+            .AnyAsync(a => a.PickupRequestId == id && a.Status == ApprovalStatus.Rejected);
+        if (wasRefused) return PickupOperationResult.NotEditable;
+
+        var collected = await _db.RouteAssignments
+            .AnyAsync(r => r.PickupRequestId == id
+                && r.CompletionStatus == RouteCompletionStatus.Completed);
+        if (collected) return PickupOperationResult.NotEditable;
+
+        // Free the booked stop so the day reads honestly: a cancelled pickup
+        // must not keep occupying capacity the router counts against.
+        var stops = await _db.RouteAssignments
+            .Where(r => r.PickupRequestId == id)
+            .ToListAsync();
+        _db.RouteAssignments.RemoveRange(stops);
 
         _db.PickupRequests.Remove(entity);
         await _db.SaveChangesAsync();
@@ -390,7 +729,35 @@ public class PickupRequestService : IPickupRequestService
             Description = p.Description,
             PreferredDate = p.PreferredDate,
             Status = p.Status.ToString(),
-            IsRecurring = p.IsRecurring,
+            Address = p.Address,
+            ResidentMessage = p.ResidentMessage,
+
+            // The most recent attempt, so a resident can see what happened
+            // without an inbox. Ordered by scheduled date so a stop booked after
+            // a miss is the one reported.
+            LastAttemptStatus = _db.RouteAssignments
+                .Where(r => r.PickupRequestId == p.Id)
+                .OrderByDescending(r => r.ScheduledDate)
+                .Select(r => r.CompletionStatus.ToString())
+                .FirstOrDefault(),
+            LastAttemptNote = _db.RouteAssignments
+                .Where(r => r.PickupRequestId == p.Id)
+                .OrderByDescending(r => r.ScheduledDate)
+                .Select(r => r.IssueNotes)
+                .FirstOrDefault(),
+            LastAttemptDate = _db.RouteAssignments
+                .Where(r => r.PickupRequestId == p.Id)
+                .OrderByDescending(r => r.ScheduledDate)
+                .Select(r => (DateTime?)r.ScheduledDate)
+                .FirstOrDefault(),
+            NextVisitDate = _db.RouteAssignments
+                .Where(r => r.PickupRequestId == p.Id
+                    && r.CompletionStatus == RouteCompletionStatus.Pending)
+                .OrderBy(r => r.ScheduledDate)
+                .Select(r => (DateTime?)r.ScheduledDate)
+                .FirstOrDefault(),
+        IsBulkRequest = p.IsBulkRequest,
+        IsRecurring = p.IsRecurring,
             RecurrenceInterval = p.RecurrenceInterval,
             CreatedAt = p.CreatedAt,
 
@@ -437,6 +804,16 @@ public class PickupRequestService : IPickupRequestService
                 .OrderByDescending(a => a.CreatedAt)
                 .Select(a => a.FlagReason)
                 .FirstOrDefault(),
+            ApprovalReviewNotes = _db.ApprovalRequests
+                .Where(a => a.PickupRequestId == p.Id)
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => a.ReviewNotes)
+                .FirstOrDefault(),
+            ApprovalReviewedAt = _db.ApprovalRequests
+                .Where(a => a.PickupRequestId == p.Id)
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => a.ReviewedAt)
+                .FirstOrDefault(),
         });
 
     // Used by Create/Update, which return the row the caller just wrote. The
@@ -451,6 +828,8 @@ public class PickupRequestService : IPickupRequestService
         Description = p.Description,
         PreferredDate = p.PreferredDate,
         Status = p.Status.ToString(),
+        Address = p.Address,
+        IsBulkRequest = p.IsBulkRequest,
         IsRecurring = p.IsRecurring,
         RecurrenceInterval = p.RecurrenceInterval,
         CreatedAt = p.CreatedAt,

@@ -114,29 +114,6 @@ public class RewardsController : ControllerBase
     public async Task<IActionResult> Delete(Guid id) =>
         await _service.DeleteAsync(id) ? NoContent() : NotFound();
 
-    // POST /api/rewards/redeem - resident spends points, recorded as a negative transaction.
-    [HttpPost("redeem")]
-    [Authorize(Roles = "resident")]
-    public async Task<IActionResult> Redeem([FromBody] RedeemRewardPointsDto dto)
-    {
-        try
-        {
-            return Ok(await _service.RedeemAsync(CurrentUserId, dto));
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-    }
-
     // POST /api/rewards/validate/{pickupRequestId} - run the Student 3 rules on a classified pickup.
     [HttpPost("validate/{pickupRequestId:guid}")]
     [Authorize(Roles = "admin")]

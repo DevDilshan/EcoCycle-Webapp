@@ -5,11 +5,12 @@ import { AcAlert, AcCard, AcDrawer, AcKpi, AcToast } from '../../components/admi
 import { AcStatusPill } from '../../components/admin/AcPills'
 import EntitySelect from '../../components/admin/EntitySelect'
 import ZoneCard from '../../components/admin/ZoneCard'
+import CollectorSettingsCard from '../../components/admin/CollectorSettingsCard'
 import ZoneMap from '../../components/admin/ZoneMap'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
 import { formatRequestId, shortProfileName } from '../../lib/adminUi'
 import { formatCompletionStatus } from '../../lib/collector'
-import { formatStopTime } from '../../lib/collectorUi'
+import { formatStopDay } from '../../lib/collectorUi'
 import { apiRequest } from '../../lib/api'
 
 const EMPTY_ZONE = {
@@ -18,8 +19,20 @@ const EMPTY_ZONE = {
   assignedCollectorId: '',
   latitude: '',
   longitude: '',
+  collectionDays: [],
   isActive: true,
 }
+
+// Sunday-first, matching System.DayOfWeek on the backend (0 = Sunday).
+const WEEKDAYS = [
+  { value: 0, label: 'Sun' },
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+]
 
 export default function RoutesPage() {
   const catalog = useAdminCatalog(['Approved'])
@@ -28,10 +41,14 @@ export default function RoutesPage() {
   // Today's stops across every collector, so an admin can close off one
   // nobody completed. Nothing else in the system can create a Missed row.
   const [dayStops, setDayStops] = useState([])
+  // Which day the table is showing. Defaults to today, but a stop routed by the
+  // agent is scheduled for tomorrow, so an admin needs to look ahead as well.
+  const [dayDate, setDayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
+  const [retiring, setRetiring] = useState(null)
   const [form, setForm] = useState(EMPTY_ZONE)
   const [editingId, setEditingId] = useState(null)
   const [routeForm, setRouteForm] = useState({
@@ -46,14 +63,12 @@ export default function RoutesPage() {
     setLoading(true)
     setError(null)
     try {
-      const [loads, zoneReport, today] = await Promise.all([
+      const [loads, zoneReport] = await Promise.all([
         apiRequest('/routes/load-report'),
         apiRequest('/routes/zone-load'),
-        apiRequest('/routes/day'),
       ])
       setLoadReport(loads)
       setZoneLoad(zoneReport)
-      setDayStops(Array.isArray(today) ? today : today?.items ?? [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -62,6 +77,14 @@ export default function RoutesPage() {
   }, [])
 
   useEffect(() => { loadReportData() }, [loadReportData])
+
+  const loadDayStops = useCallback(() => {
+    apiRequest(`/routes/day?date=${dayDate}`)
+      .then((data) => setDayStops(Array.isArray(data) ? data : data?.items ?? []))
+      .catch(() => setDayStops([]))
+  }, [dayDate])
+
+  useEffect(() => { loadDayStops() }, [loadDayStops])
 
   // Counts straight from /routes/zone-load, keyed by zone. Nothing is derived or
   // padded here: a zone with no assignments reports zero rather than a guess.
@@ -104,6 +127,7 @@ export default function RoutesPage() {
       assignedCollectorId: zone.assignedCollectorId || '',
       latitude: zone.latitude ?? '',
       longitude: zone.longitude ?? '',
+      collectionDays: zone.collectionDays ?? [],
       isActive: zone.isActive,
     })
   }
@@ -135,6 +159,7 @@ export default function RoutesPage() {
         assignedCollectorId: form.assignedCollectorId || null,
         latitude: form.latitude === '' ? null : Number(form.latitude),
         longitude: form.longitude === '' ? null : Number(form.longitude),
+        collectionDays: form.collectionDays,
         isActive: form.isActive,
       }
       if (editingId) {
@@ -157,40 +182,74 @@ export default function RoutesPage() {
   // "Deactivate" rather than delete: the endpoint keeps the row and clears the
   // active flag, so the zone stops taking new pickups without breaking the
   // history that points at it.
-  async function handleDeactivateZone(zone) {
-    const ok = window.confirm(
-      `Deactivate ${zone.name}? It will stop taking new pickups. Existing records keep it.`,
-    )
-    if (!ok) return
+  //
+  // A zone with uncollected pickups still in it cannot just be switched off.
+  // Routing only ever offers active zones, so those pickups would become
+  // unroutable and sit there with nobody told. The backend refuses in that case
+  // and says how many there are; the drawer below asks where they should go.
+  async function handleDeactivateZone(zone, moveTo = null) {
+    if (!moveTo) {
+      const ok = window.confirm(
+        `Deactivate ${zone.name}? It will stop taking new pickups. Existing records keep it.`,
+      )
+      if (!ok) return
+    }
+
     setBusy(true)
     setError(null)
     setSuccess(null)
     try {
-      await apiRequest(`/zones/${zone.id}`, { method: 'DELETE' })
-      setSuccess(`${zone.name} deactivated.`)
+      const query = moveTo ? `?moveTo=${moveTo}` : ''
+      const result = await apiRequest(`/zones/${zone.id}${query}`, { method: 'DELETE' })
+      setSuccess(result?.message || `${zone.name} deactivated.`)
+      setRetiring(null)
       catalog.refresh()
       loadReportData()
     } catch (err) {
-      setError(err.message)
+      if (err.status === 409 && !moveTo) {
+        // Not an error the admin caused -- it is a question, so it opens the
+        // drawer rather than showing a red banner they cannot act on.
+        setRetiring({ zone, message: err.message })
+      } else {
+        setError(err.message)
+      }
     } finally {
       setBusy(false)
     }
   }
 
   async function handleMarkMissed(stop) {
+    // Deliberately worded as recording someone else's report. The admin was not
+    // at the kerb; the collector reports it normally, and this covers the case
+    // they never did -- which is the case a resident rings up about.
     const ok = window.confirm(
-      'Mark this stop as missed? Use this when a collector did not complete it.',
+      'Record this stop as not collected? Use this when the collector did not '
+      + 'report it themselves, for example after a resident got in touch.',
     )
     if (!ok) return
     setBusy(true)
     setError(null)
     setSuccess(null)
     try {
-      await apiRequest(`/routes/${stop.id}/missed`, {
+      const result = await apiRequest(`/routes/${stop.id}/missed`, {
         method: 'PATCH',
         body: JSON.stringify({}),
       })
-      setSuccess('Stop marked missed.')
+
+      // Marking missed also tries to book the pickup again. Saying only "marked
+      // missed" hid whether that worked, so a rebooking that failed looked
+      // exactly like one that succeeded.
+      if (result?.rescheduled) {
+        setSuccess('Stop marked missed, and the pickup was booked onto a later round.')
+      } else {
+        setSuccess('Stop marked missed.')
+        setError(
+          result?.rescheduleMessage
+            ? `It could not be booked again: ${result.rescheduleMessage}`
+            : 'It could not be booked again. Place it by hand.',
+        )
+      }
+      loadDayStops()
       loadReportData()
     } catch (err) {
       setError(err.message)
@@ -333,11 +392,29 @@ export default function RoutesPage() {
       </div>
 
       <AcCard
-        title="Today's stops"
-        subtitle="Every scheduled stop today, across all collectors"
+        title="Stops by day"
+        subtitle="Every scheduled stop on the chosen day, across all collectors"
+        action={(
+          <div className="ac-day-picker">
+            <label htmlFor="day-picker">Showing</label>
+            <input
+              id="day-picker"
+              type="date"
+              value={dayDate}
+              onChange={(e) => setDayDate(e.target.value || new Date().toISOString().slice(0, 10))}
+            />
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost ac-btn-sm"
+              onClick={() => setDayDate(new Date().toISOString().slice(0, 10))}
+            >
+              Today
+            </button>
+          </div>
+        )}
       >
         {dayStops.length === 0 ? (
-          <p className="ac-empty">No stops are scheduled for today.</p>
+          <p className="ac-empty">No stops are scheduled for this day.</p>
         ) : (
           <div className="ac-table-wrap">
             <table className="ac-table">
@@ -365,7 +442,7 @@ export default function RoutesPage() {
                       </td>
                       <td>{shortProfileName(catalog.profileMap.get(stop.collectorId))}</td>
                       <td>{catalog.zoneMap.get(stop.zoneId)?.name || '—'}</td>
-                      <td>{formatStopTime(stop.scheduledDate)}</td>
+                      <td>{formatStopDay(stop.scheduledDate)}</td>
                       <td><AcStatusPill status={status} /></td>
                       <td>
                         {/* Only a stop still pending can be missed: a completed
@@ -378,7 +455,7 @@ export default function RoutesPage() {
                             onClick={() => handleMarkMissed(stop)}
                           >
                             <CircleX size={14} strokeWidth={2} aria-hidden="true" />
-                            Mark missed
+                            Record not collected
                           </button>
                         )}
                       </td>
@@ -390,6 +467,8 @@ export default function RoutesPage() {
           </div>
         )}
       </AcCard>
+
+      <CollectorSettingsCard onSaved={loadReportData} />
 
       <div className="ac-section-head">
         <h2>Zones &amp; collectors</h2>
@@ -488,6 +567,38 @@ export default function RoutesPage() {
               />
             </div>
           </div>
+          <div className="ac-field">
+            <label>Collection days</label>
+            {/* The days this zone's round actually runs. Leaving them all off
+                means "no fixed round", and the router may then pick any day. */}
+            <div className="ac-days">
+              {WEEKDAYS.map((day) => {
+                const on = form.collectionDays.includes(day.value)
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    className={`ac-day${on ? ' is-on' : ''}`}
+                    aria-pressed={on}
+                    onClick={() => setForm({
+                      ...form,
+                      collectionDays: on
+                        ? form.collectionDays.filter((d) => d !== day.value)
+                        : [...form.collectionDays, day.value].sort((a, b) => a - b),
+                    })}
+                  >
+                    {day.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="ac-hint">
+              {form.collectionDays.length === 0
+                ? 'No fixed days — pickups can be scheduled on any day.'
+                : `Pickups are only scheduled on these ${form.collectionDays.length} day(s).`}
+            </p>
+          </div>
+
           <label className="ac-check">
             <input
               type="checkbox"
@@ -505,7 +616,95 @@ export default function RoutesPage() {
         </form>
       </AcDrawer>
 
-      <AcToast message={success} />
+      {/* Keyed on the zone so opening it for a different one starts with no
+          destination chosen, rather than carrying over a choice made for the
+          zone before it. */}
+      <RetireZoneDrawer
+        key={retiring?.zone?.id ?? 'none'}
+        retiring={retiring}
+        zones={catalog.zones}
+        busy={busy}
+        onClose={() => setRetiring(null)}
+        onConfirm={(destinationId) => handleDeactivateZone(retiring.zone, destinationId)}
+      />
+
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
+  )
+}
+
+/**
+ * Asks where a retiring zone's uncollected pickups should go.
+ *
+ * Opened only when the backend refuses the deactivation, which it does whenever
+ * any are left: switching the zone off without moving them would make them
+ * permanently unroutable, since routing only ever offers active zones.
+ *
+ * Residents are not attached to a zone -- they pick one per request -- so their
+ * open requests are the only thing there is to move.
+ */
+function RetireZoneDrawer({ retiring, zones, busy, onClose, onConfirm }) {
+  const [destinationId, setDestinationId] = useState('')
+
+  const zoneId = retiring?.zone?.id
+
+  // Only somewhere the pickups can actually be collected from: the zone being
+  // retired and any already-retired zone would leave them just as stuck.
+  const choices = useMemo(
+    () => zones.filter((zone) => zone.id !== zoneId && zone.isActive !== false),
+    [zones, zoneId],
+  )
+
+  if (!retiring) return null
+
+  return (
+    <AcDrawer open onClose={onClose} title={`Deactivate ${retiring.zone.name}`}>
+      <p className="ac-drawer-text">{retiring.message}</p>
+
+      {choices.length === 0 ? (
+        <p className="ac-empty">
+          There is no other active zone to move them to. Create or reactivate one first.
+        </p>
+      ) : (
+        <>
+          <div className="ac-field">
+            <label htmlFor="retire-destination">Move the open requests to</label>
+            <select
+              id="retire-destination"
+              value={destinationId}
+              onChange={(event) => setDestinationId(event.target.value)}
+            >
+              <option value="">Choose a zone…</option>
+              {choices.map((zone) => (
+                <option key={zone.id} value={zone.id}>{zone.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <p className="ac-foot-note">
+            <span>
+              Their booked stops are released and each one is routed again in the new
+              zone, because the collector and the collection days there are different.
+              Anything that cannot be fitted in is reported back for you to place by hand.
+            </span>
+          </p>
+
+          <div className="ac-actions">
+            <button
+              type="button"
+              className="ac-btn ac-btn-danger"
+              disabled={busy || !destinationId}
+              onClick={() => onConfirm(destinationId)}
+            >
+              <CircleX size={16} strokeWidth={2.4} aria-hidden="true" />
+              Move and deactivate
+            </button>
+            <button type="button" className="ac-btn ac-btn-ghost" onClick={onClose} disabled={busy}>
+              Keep the zone
+            </button>
+          </div>
+        </>
+      )}
+    </AcDrawer>
   )
 }

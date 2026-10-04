@@ -4,6 +4,12 @@ namespace backend.Services;
 
 public interface IPickupRequestService
 {
+    /// <summary>What is left of a resident's bulky-waste allowance this month.</summary>
+    /// <summary>Whether a resident may ask for this pickup again.</summary>
+    Task<(bool NotFound, string? Reason)> CanRequestAgainAsync(Guid residentId, Guid pickupRequestId);
+
+    Task<BulkAllowanceDto> GetBulkAllowanceAsync(Guid residentId);
+
     Task<PickupRequestResponseDto> CreateAsync(Guid residentId, CreatePickupRequestDto dto);
 
     // isAdmin = true → sees all; false → scoped to residentId

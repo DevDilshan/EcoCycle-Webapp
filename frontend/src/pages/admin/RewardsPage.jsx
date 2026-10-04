@@ -1,42 +1,46 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Award, Trophy, Users } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Award, Gift, History, Inbox, ListChecks, Trophy, Users, Wand2 } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
-import { AcAlert, AcCard, AcKpi, AcToast } from '../../components/admin/AcUi'
-import EntitySelect from '../../components/admin/EntitySelect'
+import { AcAlert, AcCard, AcKpi } from '../../components/admin/AcUi'
+import AcHubCard from '../../components/admin/AcHubCard'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
 import { profileInitials, shortProfileName } from '../../lib/adminUi'
-import { pickupLabel, toSelectOptions } from '../../lib/catalog'
-import { apiRequest, formatDate, shortId } from '../../lib/api'
+import { apiRequest } from '../../lib/api'
 
 export default function RewardsPage() {
-  const catalog = useAdminCatalog(['Classified', 'Approved', 'Completed'])
+  const catalog = useAdminCatalog()
   const [leaderboard, setLeaderboard] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [showTools, setShowTools] = useState(false)
-  const [awardForm, setAwardForm] = useState({
-    residentId: '',
-    pickupRequestId: '',
-    pointsEarned: 50,
-    reason: '',
-  })
-  const [validatePickupId, setValidatePickupId] = useState('')
-  const [validationResult, setValidationResult] = useState(null)
-  const [historyResidentId, setHistoryResidentId] = useState('')
-  const [history, setHistory] = useState(null)
+  const [counts, setCounts] = useState({ items: null, activeItems: null, pending: null })
 
-  useEffect(() => {
-    apiRequest('/rewards/leaderboard?limit=20')
+  const loadLeaderboard = useCallback(
+    () => apiRequest('/rewards/leaderboard?limit=20')
       .then(setLeaderboard)
       .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+      .finally(() => setLoading(false)),
+    [],
+  )
 
-  // Only what the leaderboard actually reports. The previous version showed an
-  // "avg clean rate" fixed at 91% and a contamination count derived from the
-  // number of leaderboard rows; neither came from the API, so both are gone.
+  // The numbers shown on the tiles.
+  const loadCounts = useCallback(
+    () => Promise.all([
+      apiRequest('/reward-items?pageSize=100'),
+      apiRequest('/redemptions?status=Pending&pageSize=1'),
+    ])
+      .then(([items, pending]) => setCounts({
+        items: items.totalCount,
+        activeItems: items.items.filter((i) => i.isActive).length,
+        pending: pending.totalCount,
+      }))
+      // The tiles still work without their counts.
+      .catch(() => {}),
+    [],
+  )
+
+  useEffect(() => { loadLeaderboard() }, [loadLeaderboard])
+  useEffect(() => { loadCounts() }, [loadCounts])
+
+  // Only what the leaderboard actually reports.
   const stats = useMemo(() => {
     const totalPoints = leaderboard.reduce((sum, entry) => sum + (entry.pointsEarned || 0), 0)
     return {
@@ -46,91 +50,15 @@ export default function RewardsPage() {
     }
   }, [leaderboard])
 
-  const classifiedPickups = useMemo(
-    () => catalog.pickups.filter((p) => p.status === 'Classified'),
-    [catalog.pickups],
-  )
-
-  const classifiedOptions = useMemo(
-    () => toSelectOptions(classifiedPickups, pickupLabel),
-    [classifiedPickups],
-  )
-
-  const residentPickupOptions = useMemo(() => {
-    if (!awardForm.residentId) return []
-    return toSelectOptions(
-      catalog.getPickupsForResident(awardForm.residentId),
-      pickupLabel,
-    )
-  }, [awardForm.residentId, catalog])
-
-  function handleResidentChange(residentId) {
-    const residentPickups = catalog.getPickupsForResident(residentId)
-    setAwardForm({
-      ...awardForm,
-      residentId,
-      pickupRequestId: residentPickups.some((p) => p.id === awardForm.pickupRequestId)
-        ? awardForm.pickupRequestId
-        : '',
-    })
-  }
-
-  async function handleAward(e) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    setSuccess(null)
-    try {
-      await apiRequest('/rewards', {
-        method: 'POST',
-        body: JSON.stringify(awardForm),
-      })
-      setSuccess('Reward points awarded.')
-      setAwardForm({ ...awardForm, reason: '', pickupRequestId: '' })
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function handleValidate(e) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    setValidationResult(null)
-    try {
-      const result = await apiRequest(`/rewards/validate/${validatePickupId}`, { method: 'POST' })
-      setValidationResult(result)
-      if (result.isValid) setSuccess('Pickup passed reward validation rules.')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function handleLoadHistory(e) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      const data = await apiRequest(`/rewards/${historyResidentId}/history?pageSize=20`)
-      setHistory(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
+  const pending = counts.pending
 
   return (
     <PageShell
       title="Rewards"
-      description="Points awarded and the current leaderboard"
+      description="Points, the reward catalog and redemption requests"
       showBell
     >
-      <AcAlert message={error || catalog.error} onClose={() => setError(null)} />
+      <AcAlert message={catalog.error} />
 
       <div className="ac-grid ac-g3">
         <AcKpi
@@ -182,140 +110,55 @@ export default function RewardsPage() {
         )}
       </AcCard>
 
-      <button
-        type="button"
-        className="ac-btn ac-btn-ghost"
-        onClick={() => setShowTools((v) => !v)}
-        aria-expanded={showTools}
-      >
-        {showTools ? 'Hide admin tools' : 'Show admin tools (award, validate, history)'}
-      </button>
-
-      {showTools && (
-        <>
-          <AcCard title="Validate pickup" subtitle="Run reward rules against a classified pickup">
-            <form className="ac-form" onSubmit={handleValidate}>
-              <div className="ac-field">
-                <EntitySelect
-                  id="validate-pickup"
-                  label="Classified pickup"
-                  value={validatePickupId}
-                  onChange={setValidatePickupId}
-                  options={classifiedOptions}
-                  placeholder="Select classified pickup"
-                  required
-                />
-              </div>
-              <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
-                Run validation
-              </button>
-            </form>
-            {validationResult && (
-              <div className="ac-insight">
-                <h4>{validationResult.isValid ? 'Passed' : 'Did not pass'}</h4>
-                {validationResult.violatedRules?.length > 0 && (
-                  <p>Violated rules: {validationResult.violatedRules.join(', ')}</p>
-                )}
-              </div>
-            )}
-          </AcCard>
-
-          <AcCard title="Award reward points" subtitle="Credit a resident for a completed pickup">
-            <form className="ac-form" onSubmit={handleAward}>
-              <div className="ac-two">
-                <div className="ac-field">
-                  <EntitySelect
-                    id="award-resident"
-                    label="Resident"
-                    value={awardForm.residentId}
-                    onChange={handleResidentChange}
-                    options={catalog.residentOptions}
-                    placeholder="Select resident"
-                    required
-                  />
-                </div>
-                <div className="ac-field">
-                  <EntitySelect
-                    id="award-pickup"
-                    label="Pickup request"
-                    value={awardForm.pickupRequestId}
-                    onChange={(value) => setAwardForm({ ...awardForm, pickupRequestId: value })}
-                    options={residentPickupOptions}
-                    placeholder={awardForm.residentId ? 'Select pickup' : 'Select a resident first'}
-                    required
-                    disabled={!awardForm.residentId}
-                  />
-                </div>
-              </div>
-              <div className="ac-two">
-                <div className="ac-field">
-                  <label htmlFor="award-points">Points</label>
-                  <input
-                    id="award-points"
-                    type="number"
-                    min="1"
-                    value={awardForm.pointsEarned}
-                    onChange={(e) => setAwardForm({ ...awardForm, pointsEarned: Number(e.target.value) })}
-                    required
-                  />
-                </div>
-                <div className="ac-field">
-                  <label htmlFor="award-reason">Reason</label>
-                  <input
-                    id="award-reason"
-                    value={awardForm.reason}
-                    onChange={(e) => setAwardForm({ ...awardForm, reason: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-              <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
-                Award points
-              </button>
-            </form>
-          </AcCard>
-
-          <AcCard title="Resident reward history">
-            <form className="ac-form" onSubmit={handleLoadHistory}>
-              <div className="ac-field">
-                <EntitySelect
-                  id="history-resident"
-                  label="Resident"
-                  value={historyResidentId}
-                  onChange={setHistoryResidentId}
-                  options={catalog.residentOptions}
-                  placeholder="Select resident"
-                  required
-                />
-              </div>
-              <button type="submit" className="ac-btn ac-btn-ghost" disabled={busy || catalog.loading}>
-                Load history
-              </button>
-            </form>
-            {history && (
-              <div className="ac-table-wrap">
-                <table className="ac-table">
-                  <thead>
-                    <tr><th>Date</th><th>Points</th><th>Reason</th><th>Pickup</th></tr>
-                  </thead>
-                  <tbody>
-                    {history.items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{formatDate(item.createdAt)}</td>
-                        <td>{item.pointsEarned}</td>
-                        <td>{item.reason}</td>
-                        <td>{item.pickupRequestId ? shortId(item.pickupRequestId) : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </AcCard>
-        </>
-      )}
-
-      <AcToast message={success} />
+      <h2 className="ac-section-title">Manage rewards</h2>
+      <div className="ac-hub">
+        <AcHubCard
+          to="/admin/rewards/catalog"
+          icon={<Gift size={28} strokeWidth={1.8} />}
+          eyebrow="Catalog"
+          title="Reward items"
+          description="Add, price and stock what residents can spend their points on."
+          meta={counts.items == null ? ' ' : `${counts.items} items · ${counts.activeItems} available`}
+          action="Open catalog"
+        />
+        <AcHubCard
+          to="/admin/rewards/requests"
+          icon={<Inbox size={28} strokeWidth={1.8} />}
+          eyebrow="Requests"
+          title="Redemptions"
+          description="Residents ask to spend points. Approve to deduct them, or decline with a note."
+          meta={pending == null ? ' ' : pending === 0 ? 'Nothing waiting' : `${pending} waiting for review`}
+          action="Review requests"
+          attention={pending > 0}
+        />
+        <AcHubCard
+          to="/admin/rewards/history"
+          icon={<History size={28} strokeWidth={1.8} />}
+          eyebrow="Ledger"
+          title="Points history"
+          description="Look up a resident's points, then correct or reverse an entry."
+          meta="Edit · reverse"
+          action="Open history"
+        />
+        <AcHubCard
+          to="/admin/rewards/award"
+          icon={<Wand2 size={28} strokeWidth={1.8} />}
+          eyebrow="Bonus"
+          title="Give points"
+          description="Points are added automatically when a pickup is collected. Use this for goodwill."
+          meta="Manual award"
+          action="Award points"
+        />
+        <AcHubCard
+          to="/admin/rewards/check"
+          icon={<ListChecks size={28} strokeWidth={1.8} />}
+          eyebrow="Rules"
+          title="Check a pickup"
+          description="Test a classified pickup against the reward rules: hazardous waste and the bulk limit."
+          meta="Dry run, changes nothing"
+          action="Run a check"
+        />
+      </div>
     </PageShell>
   )
 }

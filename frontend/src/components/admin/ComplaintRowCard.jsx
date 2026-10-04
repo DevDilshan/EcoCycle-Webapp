@@ -10,7 +10,7 @@ const TYPE_LABELS = {
 }
 
 function inferType(description = '') {
-  const text = description.toLowerCase()
+  const text = (description || '').toLowerCase()
   if (/miss/.test(text)) return 'missed'
   if (/late|delay/.test(text)) return 'late'
   if (/damage|broken|bin/.test(text)) return 'damage'

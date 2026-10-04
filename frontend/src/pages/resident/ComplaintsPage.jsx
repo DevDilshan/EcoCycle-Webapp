@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import PageShell from '../../components/PageShell'
-import AdminAlert from '../../components/admin/AdminAlert'
-import AdminCard from '../../components/admin/AdminCard'
+import { MessageSquare, Plus, Search } from 'lucide-react'
+import PageShell from '../../components/admin/AdminPageShell'
+import { AcAlert, AcCard, AcChips, AcModal, AcToast } from '../../components/admin/AcUi'
 import ResidentComplaintList from '../../components/resident/ResidentComplaintList'
 import { useAuth } from '../../context/AuthContext'
 import { resolveComplaintLookupId } from '../../lib/complaintLookup'
 import { pickupLabel } from '../../lib/catalog'
 import { apiRequest } from '../../lib/api'
+import {
+  COMPLAINT_DESCRIPTION_MAX,
+  COMPLAINT_DESCRIPTION_MIN,
+  mapComplaintBackendErrors,
+  validateComplaintForm,
+} from '../../lib/residentComplaint'
 
 const STORAGE_KEY = 'ecocycle-resident-complaints'
 
@@ -33,6 +39,8 @@ export default function ResidentComplaintsPage() {
   const [showForm, setShowForm] = useState(false)
   const [lookupId, setLookupId] = useState('')
   const [form, setForm] = useState({ pickupRequestId: '', description: '' })
+  const [formErrors, setFormErrors] = useState({})
+  const [filter, setFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
@@ -44,10 +52,26 @@ export default function ResidentComplaintsPage() {
   )
 
   const counts = useMemo(() => ({
+    total: complaints.length,
     open: complaints.filter((c) => c.status === 'Open').length,
     inReview: complaints.filter((c) => c.status === 'InProgress').length,
     resolved: complaints.filter((c) => c.status === 'Resolved').length,
   }), [complaints])
+
+  // The counts were only ever readable as three static labels in the header.
+  // As chips they do the same job and also filter, which is what someone
+  // clicking "Open 2" expects to happen.
+  const filters = [
+    { key: '', label: 'All', count: counts.total },
+    { key: 'Open', label: 'Open', count: counts.open },
+    { key: 'InProgress', label: 'In review', count: counts.inReview },
+    { key: 'Resolved', label: 'Resolved', count: counts.resolved },
+  ]
+
+  const visible = useMemo(
+    () => (filter ? complaints.filter((c) => c.status === filter) : complaints),
+    [complaints, filter],
+  )
 
   const loadComplaints = useCallback(async () => {
     const ids = loadStoredIds()
@@ -79,23 +103,38 @@ export default function ResidentComplaintsPage() {
 
   useEffect(() => { load() }, [load])
 
+  function openComplaintForm() {
+    setFormErrors({})
+    setError(null)
+    setShowForm(true)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
+    const errs = validateComplaintForm(form, { pickups, complaints })
+    setFormErrors(errs)
+    if (Object.keys(errs).length > 0) return
+
     setBusy(true)
     setError(null)
-    setSuccess(null)
     try {
       const created = await apiRequest('/complaints', {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          pickupRequestId: form.pickupRequestId,
+          description: form.description.trim(),
+        }),
       })
       storeComplaintId(created.id)
-      setSuccess('Complaint filed successfully.')
+      setSuccess('Complaint filed. Support will pick it up from here.')
       setForm({ pickupRequestId: '', description: '' })
+      setFormErrors({})
       setShowForm(false)
       await loadComplaints()
     } catch (err) {
-      setError(err.message)
+      const fieldErrors = mapComplaintBackendErrors(err.details)
+      if (fieldErrors) setFormErrors(fieldErrors)
+      else setError(err.message)
     } finally {
       setBusy(false)
     }
@@ -106,13 +145,15 @@ export default function ResidentComplaintsPage() {
     if (!lookupId.trim()) return
     setBusy(true)
     setError(null)
-    setSuccess(null)
     try {
       const id = resolveComplaintLookupId(lookupId, complaints)
-      if (!id) return
+      if (!id) {
+        setError('That does not look like a complaint reference. Try CMP-4490 or the full ID.')
+        return
+      }
       const complaint = await apiRequest(`/complaints/${id}`)
       storeComplaintId(complaint.id)
-      setSuccess('Complaint loaded.')
+      setSuccess('Complaint added to your list.')
       await loadComplaints()
       setLookupId('')
     } catch (err) {
@@ -125,86 +166,168 @@ export default function ResidentComplaintsPage() {
   return (
     <PageShell
       title="Complaints"
-      eyebrow={null}
-      description={`${counts.open} open · track issues with your pickups`}
+      description="Issues you have raised about a pickup"
       actions={(
-        <div className="admin-header-tabs">
-          <span className="admin-header-tab header-tab-open">Open {counts.open}</span>
-          <span className="admin-header-tab header-tab-review">In review {counts.inReview}</span>
-          <span className="admin-header-tab header-tab-resolved">Resolved {counts.resolved}</span>
-        </div>
+        <button
+          type="button"
+          className="ac-btn ac-btn-primary ac-btn-sm"
+          onClick={openComplaintForm}
+          disabled={role !== 'resident'}
+        >
+          <Plus size={15} strokeWidth={2.4} aria-hidden="true" />
+          File a complaint
+        </button>
       )}
+      filterBar={complaints.length > 0 ? (
+        <div className="ac-toolbar">
+          <AcChips options={filters} value={filter} onChange={setFilter} label="Filter complaints by status" />
+          <span className="ac-toolbar-meta">{visible.length} of {counts.total}</span>
+        </div>
+      ) : null}
     >
       {role !== 'resident' && (
-        <AdminAlert type="error" message="Filing complaints requires the resident role." />
+        <AcAlert message="Filing complaints requires the resident role." />
       )}
-      <AdminAlert type="error" message={error} onClose={() => setError(null)} />
-      <AdminAlert type="success" message={success} onClose={() => setSuccess(null)} />
-
-      <button type="button" className="resident-cta-card resident-cta-card-button" onClick={() => setShowForm((v) => !v)}>
-        <span className="resident-cta-icon">💬</span>
-        <span className="resident-cta-text">
-          <strong>File a complaint</strong>
-          <small>Report a missed pickup, damage, or service issue</small>
-        </span>
-        <span className="resident-cta-arrow">›</span>
-      </button>
-
-      {showForm && (
-        <AdminCard title="New complaint">
-          <form className="admin-form" onSubmit={handleSubmit}>
-            <div>
-              <label>Related pickup</label>
-              <select className="admin-select" value={form.pickupRequestId} onChange={(e) => setForm({ ...form, pickupRequestId: e.target.value })} required>
-                <option value="">Select a pickup request…</option>
-                {pickups.map((pickup) => (
-                  <option key={pickup.id} value={pickup.id}>{pickupLabel(pickup)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label>Description</label>
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the issue with this pickup…" required />
-            </div>
-            <div className="admin-actions">
-              <button type="submit" className="btn-primary btn-sm" disabled={busy || role !== 'resident'}>Submit complaint</button>
-              <button type="button" className="btn-secondary btn-sm" onClick={() => setShowForm(false)}>Cancel</button>
-            </div>
-          </form>
-        </AdminCard>
-      )}
+      <AcAlert message={error} onClose={() => setError(null)} />
 
       {loading ? (
-        <p className="admin-loading">Loading complaints…</p>
+        <p className="ac-loading">Loading complaints…</p>
       ) : (
-        <section className="resident-complaints-panel">
-          <div className="resident-complaint-lookup">
-            <div className="resident-complaint-lookup-copy">
-              <strong>Track another complaint</strong>
-              <p>Paste the reference from your confirmation (e.g. CMP-4490) or the full ID.</p>
-            </div>
-            <form className="resident-complaint-lookup-form" onSubmit={handleLookup}>
-              <input
-                value={lookupId}
-                onChange={(e) => setLookupId(e.target.value)}
-                placeholder="CMP-4490 or complaint UUID"
-                aria-label="Complaint reference"
-              />
-              <button type="submit" className="btn-primary btn-sm" disabled={busy || !lookupId.trim()}>
-                Add to list
-              </button>
-            </form>
-          </div>
+        <>
+          <AcCard
+            title="Your complaints"
+            subtitle="Kept on this device, so a reference from elsewhere needs adding below"
+          >
+            {complaints.length === 0 ? (
+              <p className="ac-empty">
+                Nothing raised yet. File one above, or add a reference you were given.
+              </p>
+            ) : visible.length === 0 ? (
+              <p className="ac-empty">No complaints match that filter.</p>
+            ) : (
+              <ResidentComplaintList complaints={visible} pickupById={pickupById} />
+            )}
+          </AcCard>
 
-          {complaints.length === 0 ? (
-            <p className="admin-empty resident-complaints-empty">
-              No complaints on this device yet. File one above or add a reference you were given.
-            </p>
-          ) : (
-            <ResidentComplaintList complaints={complaints} pickupById={pickupById} />
-          )}
-        </section>
+          <AcCard
+            title="Track another complaint"
+            subtitle="Paste the reference from your confirmation, or the full ID"
+          >
+            <form className="ac-form" onSubmit={handleLookup}>
+              <div className="ac-field">
+                <label htmlFor="complaint-lookup">Complaint reference</label>
+                <input
+                  id="complaint-lookup"
+                  value={lookupId}
+                  onChange={(e) => setLookupId(e.target.value)}
+                  placeholder="CMP-4490 or the full ID"
+                />
+              </div>
+              <div className="ac-actions">
+                <button
+                  type="submit"
+                  className="ac-btn ac-btn-primary"
+                  disabled={busy || !lookupId.trim()}
+                >
+                  <Search size={15} strokeWidth={2.2} aria-hidden="true" />
+                  Add to my list
+                </button>
+              </div>
+            </form>
+          </AcCard>
+        </>
       )}
+
+      <AcModal
+        open={showForm}
+        onClose={() => { setShowForm(false); setFormErrors({}) }}
+        title="File a complaint"
+      >
+        <p className="ac-sub">
+          Report a missed pickup, damage, or anything else that went wrong.
+        </p>
+        <form className="ac-form" onSubmit={handleSubmit}>
+          <div className="ac-field">
+            <label htmlFor="complaint-pickup">Which pickup is it about?</label>
+            <select
+              id="complaint-pickup"
+              value={form.pickupRequestId}
+              onChange={(e) => {
+                setForm({ ...form, pickupRequestId: e.target.value })
+                setFormErrors((prev) => {
+                  const next = { ...prev }
+                  delete next.pickupRequestId
+                  return next
+                })
+              }}
+              aria-invalid={Boolean(formErrors.pickupRequestId)}
+              aria-describedby={formErrors.pickupRequestId ? 'complaint-pickup-error' : undefined}
+            >
+              <option value="">Select a pickup request…</option>
+              {pickups.map((pickup) => (
+                <option key={pickup.id} value={pickup.id}>{pickupLabel(pickup)}</option>
+              ))}
+            </select>
+            {pickups.length === 0 && (
+              <p className="ac-field-hint">You need at least one pickup request before filing a complaint.</p>
+            )}
+            {formErrors.pickupRequestId && (
+              <p id="complaint-pickup-error" className="ac-field-error" role="alert">
+                {formErrors.pickupRequestId}
+              </p>
+            )}
+          </div>
+          <div className="ac-field">
+            <label htmlFor="complaint-description">What happened?</label>
+            <textarea
+              id="complaint-description"
+              rows={4}
+              value={form.description}
+              maxLength={COMPLAINT_DESCRIPTION_MAX}
+              onChange={(e) => {
+                setForm({ ...form, description: e.target.value })
+                setFormErrors((prev) => {
+                  const next = { ...prev }
+                  delete next.description
+                  return next
+                })
+              }}
+              placeholder="Describe the issue with this pickup…"
+              aria-invalid={Boolean(formErrors.description)}
+              aria-describedby="complaint-description-hint complaint-description-error"
+            />
+            <p id="complaint-description-hint" className="ac-field-hint">
+              {COMPLAINT_DESCRIPTION_MIN}–{COMPLAINT_DESCRIPTION_MAX} characters (
+              {form.description.trim().length}/{COMPLAINT_DESCRIPTION_MAX})
+            </p>
+            {formErrors.description && (
+              <p id="complaint-description-error" className="ac-field-error" role="alert">
+                {formErrors.description}
+              </p>
+            )}
+          </div>
+          <div className="ac-actions">
+            <button
+              type="submit"
+              className="ac-btn ac-btn-primary"
+              disabled={busy || role !== 'resident' || pickups.length === 0}
+            >
+              <MessageSquare size={16} strokeWidth={2.2} aria-hidden="true" />
+              Submit complaint
+            </button>
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost"
+              onClick={() => setShowForm(false)}
+              disabled={busy}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </AcModal>
+
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }

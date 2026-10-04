@@ -16,6 +16,18 @@ async function getAccessToken() {
   return session.access_token
 }
 
+// Pick the first human-readable message out of an ASP.NET ValidationProblemDetails
+// `errors` object ({ field: ["msg", ...] }), so callers that only read error.message
+// still see the actual reason instead of the generic "One or more validation errors…".
+function firstErrorMessage(errors) {
+  if (!errors || typeof errors !== 'object') return null
+  for (const value of Object.values(errors)) {
+    if (Array.isArray(value) && value.length > 0) return value[0]
+    if (typeof value === 'string' && value) return value
+  }
+  return null
+}
+
 export async function apiRequest(path, options = {}) {
   const token = await getAccessToken()
   const headers = {
@@ -32,10 +44,13 @@ export async function apiRequest(path, options = {}) {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
     const message = body.message
-      || (body.errors && JSON.stringify(body.errors))
+      || firstErrorMessage(body.errors)
       || body.title
       || `Request failed (${response.status})`
-    throw new Error(message)
+    const error = new Error(message)
+    error.status = response.status
+    error.details = body.errors || null   // ASP.NET ValidationProblemDetails field errors
+    throw error
   }
 
   if (response.status === 204) return null

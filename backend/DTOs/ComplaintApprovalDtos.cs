@@ -6,11 +6,12 @@ namespace backend.DTOs;
 
 public class CreateComplaintDto
 {
-    [Required]
+    [Required(ErrorMessage = "Pickup request is required.")]
     public Guid PickupRequestId { get; set; }
 
-    [Required]
-    [MaxLength(2000)]
+    [Required(ErrorMessage = "Description is required.")]
+    [MinLength(10, ErrorMessage = "Description must be at least 10 characters.")]
+    [MaxLength(2000, ErrorMessage = "Description must be 2000 characters or fewer.")]
     public string Description { get; set; } = string.Empty;
 }
 
@@ -80,6 +81,13 @@ public class ApproveApprovalDto
 {
     [MaxLength(2000)]
     public string? Notes { get; set; }
+}
+
+public class RequestRevisionDto
+{
+    [Required]
+    [MaxLength(2000)]
+    public string Message { get; set; } = string.Empty;
 }
 
 /// <summary>

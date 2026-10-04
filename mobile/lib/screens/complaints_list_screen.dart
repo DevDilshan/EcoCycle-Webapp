@@ -25,9 +25,11 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
 
   Future<void> _load() async {
     try {
-      final json = await _api.get('/complaints');
+      // The list is paged: the complaints are under "items".
+      final json = await _api.get('/complaints', query: {'sortDir': 'desc', 'pageSize': '50'});
+      final items = json is Map ? json['items'] : json;
       setState(() {
-        _items = (json as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _items = (items as List?)?.cast<Map<String, dynamic>>() ?? [];
       });
     } catch (_) {}
     if (mounted) setState(() => _loading = false);

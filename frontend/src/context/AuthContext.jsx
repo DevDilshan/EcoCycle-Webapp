@@ -43,6 +43,12 @@ export function AuthProvider({ children }) {
       return result
     })
 
+  const signInWithGoogle = () =>
+    supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/login` },
+    })
+
   const signUp = (email, password, role = 'resident') =>
     supabase.auth.signUp({
       email,
@@ -56,7 +62,7 @@ export function AuthProvider({ children }) {
 
   const sendPasswordResetEmail = (email) =>
     supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/reset-password`,
     })
 
   const user = session?.user ?? null
@@ -70,6 +76,7 @@ export function AuthProvider({ children }) {
         role,
         loading,
         signIn,
+        signInWithGoogle,
         signUp,
         signOut,
         updatePassword,

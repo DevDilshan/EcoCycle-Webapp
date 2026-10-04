@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/api.dart';
 import '../../theme/eco_theme.dart';
+import '../../utils/network_errors.dart';
 import '../../utils/user_helpers.dart';
 import '../complaints_list_screen.dart';
 
@@ -10,6 +12,43 @@ class ProfileTab extends StatelessWidget {
 
   Future<void> _signOut(BuildContext context) async {
     await Supabase.instance.client.auth.signOut();
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your account and all associated data. '
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: EcoColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await Api().delete('/account');
+      // Clearing the session makes AuthGate swap back to the login screen.
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyNetworkMessage(e))),
+        );
+      }
+    }
   }
 
   @override
@@ -72,16 +111,32 @@ class ProfileTab extends StatelessWidget {
           label: 'Sign out',
           onTap: () => _signOut(context),
         ),
+        const SizedBox(height: 4),
+        _ProfileTile(
+          icon: Icons.delete_outline,
+          label: 'Delete account',
+          color: EcoColors.danger,
+          titleColor: EcoColors.danger,
+          onTap: () => _deleteAccount(context),
+        ),
       ],
     );
   }
 }
 
 class _ProfileTile extends StatelessWidget {
-  const _ProfileTile({required this.icon, required this.label, required this.onTap});
+  const _ProfileTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color = EcoColors.primary,
+    this.titleColor,
+  });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final Color color;
+  final Color? titleColor;
 
   @override
   Widget build(BuildContext context) {
@@ -93,8 +148,8 @@ class _ProfileTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
       ),
       child: ListTile(
-        leading: Icon(icon, color: EcoColors.primary),
-        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+        leading: Icon(icon, color: color),
+        title: Text(label, style: TextStyle(fontWeight: FontWeight.w600, color: titleColor)),
         trailing: const Icon(Icons.chevron_right, color: EcoColors.muted),
         onTap: onTap,
       ),

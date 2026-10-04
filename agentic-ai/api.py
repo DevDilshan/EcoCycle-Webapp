@@ -22,6 +22,8 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from agents.notifier_agent import explain_decision, explain_missed_collection
+from agents.routing_agent import route_pickup
 from orchestrator import route_approved_pickup, run_pipeline
 
 load_dotenv()
@@ -71,21 +73,21 @@ class RunPipelineRequest(BaseModel):
 
     description: str
     resident_zone_id: str
-    collector_loads: dict[str, int]
+    routing_context: dict
     photo_url: str | None = None
     resident_history: list[dict] | None = None
     complaint_description: str | None = None
 
 
 class RouteApprovedRequest(BaseModel):
-    """A flagged pickup an admin has approved, plus the loads as they are now."""
+    """A flagged pickup an admin has approved, plus the slots as they are now."""
 
     pickup_request: dict
     pipeline_result: dict
-    collector_loads: dict[str, int] = Field(
+    routing_context: dict = Field(
         ...,
         description=(
-            "CURRENT collector loads, not the snapshot taken at submission. "
+            "CURRENT routing slots, not the snapshot taken at submission. "
             "Routing was deferred precisely so this could be fresh."
         ),
     )
@@ -112,17 +114,89 @@ def post_run_pipeline(request: RunPipelineRequest) -> dict:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+class ChooseSlotRequest(BaseModel):
+    """Slots to choose between, for a pickup that is already classified."""
+
+    routing_context: dict
+
+
+@app.post("/choose-slot", dependencies=[Depends(require_internal_key)])
+def post_choose_slot(request: ChooseSlotRequest) -> dict:
+    """Pick a collector and day for a pickup that already has a category.
+
+    Used when a pickup needs scheduling again rather than classifying again: a
+    stop the collector missed, a resident asking for a second attempt, or the
+    next occurrence of a recurring collection. Re-running the whole pipeline for
+    those would re-classify a photo that has not changed, and cost a vision call
+    to learn what is already known.
+    """
+    try:
+        return route_pickup(request.routing_context)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+class ExplainMissedRequest(BaseModel):
+    """A collection that could not be made, in the collector's own words."""
+
+    reason: str
+    description: str = ""
+    next_visit: str | None = None
+
+
+@app.post("/explain-missed", dependencies=[Depends(require_internal_key)])
+def post_explain_missed(request: ExplainMissedRequest) -> dict:
+    """Turn a collector's shorthand into a message the resident can read.
+
+    "Gate locked" is true and useful to the office, but shown to a household
+    unchanged it reads as an accusation. This writes the version they see.
+    """
+    try:
+        return explain_missed_collection(
+            reason=request.reason,
+            description=request.description,
+            next_visit=request.next_visit,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+class ExplainDecisionRequest(BaseModel):
+    """An admin's decision on a flagged pickup, in their own words."""
+
+    approved: bool
+    reason: str
+    description: str = ""
+
+
+@app.post("/explain-decision", dependencies=[Depends(require_internal_key)])
+def post_explain_decision(request: ExplainDecisionRequest) -> dict:
+    """Write the message a resident sees after their pickup is decided.
+
+    "Exceeds bulky limit" is written for the office. A household needs to be
+    told the outcome, the reason in ordinary words, and what to do next.
+    """
+    try:
+        return explain_decision(
+            approved=request.approved,
+            reason=request.reason,
+            description=request.description,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.post("/route-approved-pickup", dependencies=[Depends(require_internal_key)])
 def post_route_approved_pickup(request: RouteApprovedRequest) -> dict:
     """Assign a collector to a flagged pickup that an admin has approved.
 
-    The supplied collector_loads overwrite whatever the stored pickup_request
+    The supplied routing_context overwrites whatever the stored pickup_request
     carried, so a stale snapshot replayed from the database cannot quietly win
-    over the fresh loads the caller just fetched.
+    over the fresh slots the caller just fetched.
     """
     pickup_request = {
         **request.pickup_request,
-        "collector_loads": request.collector_loads,
+        "routing_context": request.routing_context,
     }
     try:
         return route_approved_pickup(pickup_request, request.pipeline_result)

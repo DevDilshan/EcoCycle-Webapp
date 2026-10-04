@@ -29,6 +29,18 @@ public class ZonesController : ControllerBase
         return Ok(zones);
     }
 
+    // GET /api/zones/selectable - id + name of active zones, for the resident's
+    // pickup form. Any signed-in user, not just admins: a resident has to choose
+    // their zone, and /zones itself leaks collector ids and activity flags.
+    [HttpGet("selectable")]
+    [Authorize]
+    [ProducesResponseType(typeof(List<ZoneOptionDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<ZoneOptionDto>>> GetSelectable()
+    {
+        var zones = await _zoneService.GetSelectableZonesAsync();
+        return Ok(zones);
+    }
+
     [HttpPost]
     [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(ZoneDto), StatusCodes.Status201Created)]
@@ -38,7 +50,10 @@ public class ZonesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = zone.Id }, zone);
     }
 
+    // Admin only: ZoneDto carries the assigned collector's id. Residents pick
+    // from /zones/selectable and the public map reads /zones/public.
     [HttpGet]
+    [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(List<ZoneDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<ZoneDto>>> GetAll()
     {
@@ -47,6 +62,7 @@ public class ZonesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = "admin")]
     [ProducesResponseType(typeof(ZoneDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ZoneDto>> GetById(Guid id)
@@ -68,13 +84,51 @@ public class ZonesController : ControllerBase
     // Deactivates the zone rather than removing the row: pickups and route
     // assignments reference it, and their history has to stay readable. See
     // ZoneService.DeleteZoneAsync.
+    //
+    // Uncollected pickups in the zone have to go somewhere: routing only offers
+    // active zones, so one left behind can never be booked again. Called without
+    // moveTo, this reports how many there are and refuses, so the admin chooses
+    // the replacement rather than having one picked for them.
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "admin")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(Guid id)
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Delete(Guid id, [FromQuery] Guid? moveTo)
     {
-        var deleted = await _zoneService.DeleteZoneAsync(id);
-        return deleted ? NoContent() : NotFound();
+        var result = await _zoneService.DeleteZoneAsync(id, moveTo);
+
+        return result.Outcome switch
+        {
+            ZoneRetirementOutcome.NotFound => NotFound(),
+
+            ZoneRetirementOutcome.NeedsDestination => Conflict(new
+            {
+                needsDestination = true,
+                openRequests = result.OpenRequests,
+                message = $"This zone still has {result.OpenRequests} uncollected "
+                    + (result.OpenRequests == 1 ? "pickup" : "pickups")
+                    + ". Choose an active zone to move them to.",
+            }),
+
+            ZoneRetirementOutcome.BadDestination => Conflict(new
+            {
+                message = "Pick a different zone that is still active to move them to.",
+            }),
+
+            _ => Ok(new
+            {
+                moved = result.Moved,
+                unscheduled = result.Unscheduled,
+                message = result.Moved == 0
+                    ? "Zone deactivated."
+                    : $"Zone deactivated and {result.Moved} open "
+                        + (result.Moved == 1 ? "request" : "requests")
+                        + " moved."
+                        + (result.Unscheduled > 0
+                            ? $" {result.Unscheduled} could not be booked onto a round and need placing by hand."
+                            : string.Empty),
+            }),
+        };
     }
 }

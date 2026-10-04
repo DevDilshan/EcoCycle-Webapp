@@ -18,6 +18,10 @@ class Api {
     return _send('POST', path, body: body);
   }
 
+  Future<dynamic> put(String path, {Object? body}) async {
+    return _send('PUT', path, body: body);
+  }
+
   Future<dynamic> delete(String path) async {
     return _send('DELETE', path);
   }
@@ -50,6 +54,12 @@ class Api {
           headers: headers,
           body: body != null ? jsonEncode(body) : null,
         );
+      case 'PUT':
+        response = await _client.put(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
       case 'DELETE':
         response = await _client.delete(uri, headers: headers);
       default:
@@ -61,11 +71,18 @@ class Api {
       return jsonDecode(response.body);
     }
 
+    String? serverMessage;
     try {
       final err = jsonDecode(response.body) as Map<String, dynamic>;
-      throw Exception(err['message'] ?? err['title'] ?? 'Request failed');
+      serverMessage = (err['message'] ?? err['title']) as String?;
+      final errors = err['errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        final first = errors.values.first;
+        if (first is List && first.isNotEmpty) serverMessage = first.first.toString();
+      }
     } catch (_) {
-      throw Exception('Request failed (${response.statusCode})');
+      // Body was not JSON; fall through to the generic message.
     }
+    throw Exception(serverMessage ?? 'Request failed (${response.statusCode})');
   }
 }

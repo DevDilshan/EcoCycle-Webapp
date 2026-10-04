@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using backend.Data;
@@ -16,8 +17,13 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionStringSupabase = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING")
     ?? throw new InvalidOperationException("SUPABASE_CONNECTION_STRING not found in environment/.env file");
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionStringSupabase));
+// One data source for EF and for the raw health check, so the app holds a
+// single connection pool. Supabase's pooler counts every client against a small
+// limit, and two pools reach it twice as fast.
+builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionStringSupabase));
+
+builder.Services.AddDbContext<ApplicationDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlDataSource>()));
 
 builder.Services.AddScoped<ZoneService>();
 builder.Services.AddScoped<RouteAssignmentService>();
@@ -49,12 +55,16 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
 
 // Pickup requests
 builder.Services.AddScoped<backend.Services.IPickupRequestService, backend.Services.PickupRequestService>();
 
 // Recycling rewards
 builder.Services.AddScoped<backend.Services.IRewardService, backend.Services.RewardService>();
+builder.Services.AddScoped<backend.Services.IRedemptionService, backend.Services.RedemptionService>();
+builder.Services.AddScoped<backend.Services.IRewardItemService, backend.Services.RewardItemService>();
 builder.Services.AddScoped<backend.Services.IValidationService, backend.Services.ValidationService>();
 
 // Complaints & approvals
@@ -66,7 +76,8 @@ builder.Services.AddScoped<backend.Services.IApprovalService, backend.Services.A
 // resident submitting a pickup must not wait on them indefinitely. If it is
 // exceeded the client returns null and the caller degrades to Pending.
 var agentServiceUrl = Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
-    ?? "http://localhost:8000";
+    ?? "http://127.0.0.1:8000"; // not "localhost": uvicorn listens on IPv4 only, and
+                                // Windows spends ~2s trying ::1 first
 var agentServiceKey = Environment.GetEnvironmentVariable("INTERNAL_API_KEY");
 
 if (string.IsNullOrWhiteSpace(agentServiceKey))
@@ -83,6 +94,9 @@ builder.Services.AddHttpClient<backend.Services.IAgentPipelineClient, backend.Se
 
 // Compliance & classification (Student 3 rules → auto-create approval tasks)
 builder.Services.AddScoped<backend.Services.IComplianceService, backend.Services.ComplianceService>();
+builder.Services.AddScoped<backend.Services.CollectorSettingService>();
+builder.Services.AddScoped<backend.Services.RoutingOptionBuilder>();
+builder.Services.AddScoped<backend.Services.PickupSchedulingService>();
 
 var corsOriginsEnv = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
 var corsOrigins = string.IsNullOrWhiteSpace(corsOriginsEnv)
@@ -97,19 +111,6 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod());
 });
 
-var connectionString = builder.Configuration.GetConnectionString("Supabase");
-if (string.IsNullOrWhiteSpace(connectionString))
-    connectionString = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
-
-if (string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException(
-        "Supabase connection string is missing. Copy .env.example to .env in the project root " +
-        "and set SUPABASE_CONNECTION_STRING (or ConnectionStrings:Supabase in appsettings.Development.json).");
-}
-
-builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
-
 var supabaseUrl = builder.Configuration["Supabase:Url"];
 if (string.IsNullOrWhiteSpace(supabaseUrl))
     supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
@@ -121,7 +122,7 @@ if (string.IsNullOrWhiteSpace(jwtSecret))
 if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(jwtSecret))
 {
     throw new InvalidOperationException(
-        "Supabase auth config is missing. Set SUPABASE_URL and SUPABASE_JWT_SECRET in .env " +
+        "Supabase auth config is missing. Set SUPABASE_URL and SUPABASE_JWT_SECRET in backend/.env " +
         "(or Supabase:Url and Supabase:JwtSecret in appsettings.Development.json).");
 }
 
@@ -160,20 +161,35 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.Events = new JwtBearerEvents
         {
-            OnTokenValidated = context =>
+            OnTokenValidated = async context =>
             {
-                if (context.Principal is null) return Task.CompletedTask;
+                if (context.Principal?.Identity is not ClaimsIdentity identity) return;
 
-                var identity = context.Principal.Identity as ClaimsIdentity;
-                if (identity is null) return Task.CompletedTask;
-
-                var role = ExtractRole(context.Principal);
-                if (!string.IsNullOrEmpty(role))
+                // The role comes from the profiles table, not from the token.
+                // A token's user_metadata is written by the user -- at sign-up
+                // or later through updateUser -- so trusting its "role" let any
+                // account call itself an admin. A profile's role can only be
+                // changed by an admin (row-level security on profiles).
+                var role = "resident";
+                if (Guid.TryParse(context.Principal.FindFirst("sub")?.Value, out var userId))
                 {
-                    identity.AddClaim(new Claim(ClaimTypes.Role, role.ToLowerInvariant()));
+                    var services = context.HttpContext.RequestServices;
+                    var cache = services.GetRequiredService<IMemoryCache>();
+                    role = await cache.GetOrCreateAsync($"role:{userId}", async entry =>
+                    {
+                        // Short-lived: saves a database round trip on every
+                        // request, and a role change still lands within a minute.
+                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60);
+
+                        var db = services.GetRequiredService<NpgsqlDataSource>();
+                        await using var command = db.CreateCommand(
+                            "SELECT role::text FROM public.profiles WHERE id = $1");
+                        command.Parameters.AddWithValue(userId);
+                        return NormalizeRole(await command.ExecuteScalarAsync() as string);
+                    }) ?? "resident";
                 }
 
-                return Task.CompletedTask;
+                identity.AddClaim(new Claim(ClaimTypes.Role, role));
             },
         };
     });
@@ -245,28 +261,6 @@ static void LoadEnvFile(string path)
     }
 }
 
-static string ExtractRole(ClaimsPrincipal principal)
-{
-    var roleClaim = principal.FindFirst("role")?.Value;
-    if (IsAppRole(roleClaim)) return NormalizeRole(roleClaim);
-
-    var appMetadata = principal.FindFirst("app_metadata")?.Value;
-    if (!string.IsNullOrEmpty(appMetadata))
-    {
-        var role = ParseRoleFromJson(appMetadata);
-        if (IsAppRole(role)) return NormalizeRole(role);
-    }
-
-    var userMetadata = principal.FindFirst("user_metadata")?.Value;
-    if (!string.IsNullOrEmpty(userMetadata))
-    {
-        var role = ParseRoleFromJson(userMetadata);
-        if (IsAppRole(role)) return NormalizeRole(role);
-    }
-
-    return "resident";
-}
-
 static string NormalizeRole(string? role) =>
     role?.ToLowerInvariant() switch
     {
@@ -276,19 +270,3 @@ static string NormalizeRole(string? role) =>
         "user" => "resident",
         _ => "resident",
     };
-
-static string? ParseRoleFromJson(string json)
-{
-    try
-    {
-        using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.TryGetProperty("role", out var role))
-            return role.GetString();
-    }
-    catch (JsonException) { }
-
-    return null;
-}
-
-static bool IsAppRole(string? role) =>
-    role?.ToLowerInvariant() is "admin" or "resident" or "collector" or "user";

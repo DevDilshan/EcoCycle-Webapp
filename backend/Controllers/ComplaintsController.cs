@@ -34,10 +34,21 @@ public class ComplaintsController : ControllerBase
     [Authorize(Roles = "resident")]
     public async Task<IActionResult> Create([FromBody] CreateComplaintDto dto)
     {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
         try
         {
             var created = await _service.CreateAsync(CurrentUserId, dto);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {
@@ -45,11 +56,12 @@ public class ComplaintsController : ControllerBase
         }
     }
 
-    // GET /api/complaints — admin views all, filterable by status
+    // GET /api/complaints — an admin sees all, a resident sees their own;
+    // filterable by status
     [HttpGet]
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,resident")]
     public async Task<IActionResult> GetList([FromQuery] ComplaintQueryParams query) =>
-        Ok(await _service.GetListAsync(query));
+        Ok(await _service.GetListAsync(CurrentUserId, IsAdmin, query));
 
     // GET /api/complaints/{id} — view one complaint
     [HttpGet("{id:guid}")]

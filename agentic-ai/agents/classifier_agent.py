@@ -1,10 +1,9 @@
 """Classifier Agent: decides what kind of waste a pickup request contains.
 
-Two models cooperate:
-  * Gemini (vision) 'looks' at the photo and describes the items -- image
-    recognition the local text model cannot do itself.
-  * The local Ollama model makes the actual category judgement, using the
-    resident's description plus (when available) Gemini's visual description.
+Two OpenAI calls cooperate:
+  * A vision call 'looks' at the photo and describes the items.
+  * A text call makes the actual category judgement, using the resident's
+    description plus (when available) that visual description.
 
 If image recognition is unavailable for any reason, the agent falls back to
 classifying from the resident's text alone. The category is always validated
@@ -36,7 +35,7 @@ def classify_waste(photo_url: str, description: str) -> dict:
         category:   one of VALID_CATEGORIES (validated)
         confidence: float in 0.0..1.0 (clamped)
         reasoning:  short explanation
-        image_used: True if Gemini's visual description was included, else False
+        image_used: True if the photo's visual description was included, else False
 
     Raises:
         ValueError: if `description` is empty, or the local model never returns
@@ -45,7 +44,7 @@ def classify_waste(photo_url: str, description: str) -> dict:
     if not description or not description.strip():
         raise ValueError("description must not be empty")
 
-    # Image recognition (Gemini). None on any failure -> description-only.
+    # Image recognition (OpenAI vision). None on any failure -> description-only.
     visual_description = describe_image(photo_url) if photo_url else None
 
     prompt = _build_prompt(description, visual_description)
@@ -63,14 +62,25 @@ def _build_prompt(description: str, visual_description) -> str:
     categories_text = ", ".join(VALID_CATEGORIES)
 
     if visual_description:
+        # The photo leads. A resident describes what they think they are getting
+        # rid of ("old TV stand") while the photo shows what is actually there
+        # (a TV stand with the TV still on it). The description stays as
+        # context -- it carries what a photo cannot show, such as the contents of
+        # a sealed box or that the paint tins are full -- but where the two
+        # disagree about the item itself, the photo is the evidence.
         evidence = (
-            f"Resident's description: {description}\n"
-            f"What the photo shows (image recognition): {visual_description}"
+            f"PRIMARY EVIDENCE -- what the photo shows: {visual_description}\n"
+            f"Supporting context -- what the resident wrote: {description}\n"
+            f"\n"
+            f"Classify from the photo. Use the resident's words only to fill in what the "
+            f"photo cannot show. Where the two disagree about what the item is, trust the "
+            f"photo and say so in your reasoning."
         )
     else:
         evidence = (
             f"Resident's description: {description}\n"
-            f"(No photo analysis available -- classify from the description alone.)"
+            f"(No photo analysis available -- classify from the description alone, and keep "
+            f"confidence lower than you would with a photo.)"
         )
 
     return f"""You are the Classifier Agent for a waste pickup system.

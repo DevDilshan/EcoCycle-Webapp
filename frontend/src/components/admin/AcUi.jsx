@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { CircleCheckBig, TriangleAlert, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { CircleCheckBig, Trash2, TriangleAlert, X } from 'lucide-react'
 
 export function AcCard({ title, subtitle, action, children, className = '' }) {
   return (
@@ -140,14 +140,105 @@ export function AcDrawer({ open, onClose, title, children, headAction }) {
   )
 }
 
-export function AcToast({ message }) {
+/**
+ * Centred modal, for a form too long to read in the drawer's narrow column.
+ *
+ * Closes on Escape and on a click outside the panel, the same two ways
+ * AcDrawer does. Unlike the drawer it is not rendered while closed, because a
+ * long form in the middle of the screen has nothing to slide in from.
+ */
+export function AcModal({ open, onClose, title, children, headAction }) {
+  useEffect(() => {
+    if (!open) return undefined
+    function onKeyDown(event) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onClose])
+
+  if (!open) return null
+
   return (
-    <div className={`ac-toast${message ? ' is-on' : ''}`} role="status">
-      {message && (
-        <>
-          <CircleCheckBig size={18} strokeWidth={2} aria-hidden="true" />
-          {message}
-        </>
+    <>
+      <div className="ac-scrim is-open" onClick={onClose} aria-hidden="true" />
+      <div
+        className="ac-modal-wrap"
+        // A click that both starts and ends on the backdrop closes it. Checking
+        // the target is the wrapper itself keeps a drag that began inside the
+        // panel -- selecting text, for instance -- from closing the form.
+        onClick={(event) => { if (event.target === event.currentTarget) onClose() }}
+      >
+        <div className="ac-modal" role="dialog" aria-modal="true" aria-label={title}>
+          <div className="ac-modal-head">
+            <h2>{title}</h2>
+            <div className="ac-drawer-head-actions">
+              {headAction}
+              <button type="button" className="ac-icon-btn" onClick={onClose} aria-label="Close">
+                <X size={18} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          {children}
+        </div>
+      </div>
+    </>
+  )
+}
+
+const TOAST_ICONS = { success: CircleCheckBig, danger: Trash2, warning: TriangleAlert }
+const TOAST_LIFETIME = { success: 4500, danger: 4500, warning: 8000 }
+
+/**
+ * A notification that appears at the top right and dismisses itself.
+ *
+ * `message` is a string (a success) or `{ text, tone }` where tone is
+ * 'success' (green), 'danger' (red, for deletions) or 'warning' (amber, for
+ * problems). Pages keep it in state and `onDone` lets them clear it when the
+ * toast goes away, so the same message can appear again next time. Without
+ * `onDone` the toast still hides itself.
+ */
+export function AcToast({ message, onDone, duration }) {
+  const [hiddenFor, setHiddenFor] = useState(null)
+  const doneRef = useRef(onDone)
+  const visible = Boolean(message) && message !== hiddenFor
+
+  const text = typeof message === 'object' && message ? message.text : message
+  const tone = (typeof message === 'object' && message?.tone) || 'success'
+  const lifetime = duration ?? TOAST_LIFETIME[tone] ?? 4500
+
+  useEffect(() => {
+    doneRef.current = onDone
+  })
+
+  function dismiss() {
+    if (doneRef.current) doneRef.current()
+    else setHiddenFor(message)
+  }
+
+  useEffect(() => {
+    if (!visible) return undefined
+    const timer = setTimeout(() => {
+      if (doneRef.current) doneRef.current()
+      else setHiddenFor(message)
+    }, lifetime)
+    return () => clearTimeout(timer)
+  }, [visible, message, lifetime])
+
+  const Icon = TOAST_ICONS[tone] ?? CircleCheckBig
+
+  return (
+    <div className="ac-toast-region" aria-live="polite">
+      {visible && (
+        <div className={`ac-toast is-${tone}`} role={tone === 'warning' ? 'alert' : 'status'}>
+          <span className="ac-toast-icon" aria-hidden="true">
+            <Icon size={18} strokeWidth={2.2} />
+          </span>
+          <span className="ac-toast-text">{text}</span>
+          <button type="button" className="ac-toast-close" onClick={dismiss} aria-label="Dismiss notification">
+            <X size={16} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        </div>
       )}
     </div>
   )

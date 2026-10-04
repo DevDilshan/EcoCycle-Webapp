@@ -49,7 +49,8 @@ export const STATUS_PILLS = {
   Approved: { label: 'Pending appr.', className: 'pill-status-danger' },
   Scheduled: { label: 'Scheduled', className: 'pill-status-scheduled' },
   Completed: { label: 'Completed', className: 'pill-status-completed' },
-  Rejected: { label: 'Rejected', className: 'pill-status-danger' },
+  Rejected: { label: 'Not approved', className: 'pill-status-danger' },
+  'In review': { label: 'In review', className: 'pill-status-pending' },
   RevisionRequested: { label: 'Revision', className: 'pill-status-pending' },
 }
 
@@ -69,7 +70,7 @@ export const FILTER_PILL_STYLES = {
 // appliances are tested before the bulky-item keywords. Loose chemicals are
 // hazardous; a device containing them is not.
 export function inferCategory(description = '') {
-  const text = description.toLowerCase()
+  const text = (description || '').toLowerCase()
   if (/e-waste|ewaste|electronic|appliance|fridge|refrigerator|freezer|washing machine|microwave|oven|tv|television|monitor|laptop|computer|phone|printer|cable/.test(text)) return 'EWaste'
   if (/paint|solvent|hazard|battery|chemical/.test(text)) return 'Hazardous'
   if (/garden|organic|compost|leaf/.test(text)) return 'Organic'

@@ -1,21 +1,31 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import PageShell from '../../components/admin/AdminPageShell'
-import { AcAlert, AcCard, AcToast } from '../../components/admin/AcUi'
+import { AcAlert, AcCard, AcChips, AcToast } from '../../components/admin/AcUi'
 import EntitySelect from '../../components/admin/EntitySelect'
 import FlaggedApprovalCard from '../../components/admin/FlaggedApprovalCard'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
-import { shortProfileName } from '../../lib/adminUi'
+import { formatRequestId, shortProfileName } from '../../lib/adminUi'
+import { APPROVALS_UPDATED_EVENT, notifyApprovalsUpdated } from '../../lib/approvalEvents'
 import { apiRequest } from '../../lib/api'
+import { pagedTotalCount } from '../../lib/paging'
+
+const STATUS_TABS = [
+  { key: 'Pending', label: 'Pending review' },
+  { key: 'Approved', label: 'Approved' },
+  { key: 'Rejected', label: 'Rejected' },
+]
 
 export default function ApprovalsPage() {
   const catalog = useAdminCatalog()
-  // Pickup Requests links here as /admin/approvals?approval=<id> so an admin can
-  // jump straight from a flagged pickup to the request that flagged it.
   const [searchParams] = useSearchParams()
   const targetId = searchParams.get('approval') || null
   const cardRefs = useRef(new Map())
   const hasScrolledToTarget = useRef(false)
+  const resolvedTargetTab = useRef(false)
+
+  const [statusFilter, setStatusFilter] = useState('Pending')
+  const [counts, setCounts] = useState({ Pending: 0, Approved: 0, Rejected: 0 })
   const [approvals, setApprovals] = useState([])
   const [details, setDetails] = useState({})
   const [loading, setLoading] = useState(true)
@@ -26,27 +36,22 @@ export default function ApprovalsPage() {
   const [approvalForm, setApprovalForm] = useState({ approvalId: '', notes: '', reason: '' })
   const [busy, setBusy] = useState(false)
 
-  // The pending queue now comes from the API rather than from localStorage, so
-  // an admin sees every flagged request -- including ones raised on another
-  // machine, or by a resident's submission rather than by this browser.
-  async function refreshApprovals() {
-    setLoading(true)
-    try {
-      const page = await apiRequest('/approvals?status=Pending&pageSize=50')
-      const items = page.items ?? []
-      setApprovals(items)
-      loadDetails(items)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+  const loadCounts = useCallback(async () => {
+    const [pending, approved, rejected] = await Promise.all([
+      apiRequest('/approvals?status=Pending&pageSize=1'),
+      apiRequest('/approvals?status=Approved&pageSize=1'),
+      apiRequest('/approvals?status=Rejected&pageSize=1'),
+    ])
+    const next = {
+      Pending: pagedTotalCount(pending),
+      Approved: pagedTotalCount(approved),
+      Rejected: pagedTotalCount(rejected),
     }
-  }
+    setCounts(next)
+    return next
+  }, [])
 
-  // Each card needs the agent's reasoning, which only the detail endpoint
-  // returns. The pending queue is small, so fetching them together is simpler
-  // than making the admin expand each card to find out what the AI thought.
-  async function loadDetails(items) {
+  const loadDetails = useCallback(async (items) => {
     if (items.length === 0) return
     setDetailsLoading(true)
     try {
@@ -59,21 +64,60 @@ export default function ApprovalsPage() {
       items.forEach((item, index) => {
         if (loaded[index]) next[item.id] = loaded[index]
       })
-      setDetails(next)
+      setDetails((prev) => ({ ...prev, ...next }))
     } finally {
       setDetailsLoading(false)
     }
-  }
+  }, [])
+
+  const refreshApprovals = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const query = new URLSearchParams({ pageSize: '50', status: statusFilter })
+      const page = await apiRequest(`/approvals?${query}`)
+      const items = page.items ?? []
+      setApprovals(items)
+      const counts = await loadCounts()
+      loadDetails(items)
+      return counts
+    } catch (err) {
+      setError(err.message)
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, loadCounts, loadDetails])
 
   useEffect(() => {
     refreshApprovals()
-    window.addEventListener('ecocycle-approvals-updated', refreshApprovals)
-    return () => window.removeEventListener('ecocycle-approvals-updated', refreshApprovals)
-  }, [])
+  }, [refreshApprovals])
 
-  // Scroll to the linked request once the queue has rendered. Guarded so that
-  // approving something -- which reloads the list -- does not yank the page back
-  // to where the admin arrived.
+  useEffect(() => {
+    const onUpdate = () => refreshApprovals()
+    window.addEventListener(APPROVALS_UPDATED_EVENT, onUpdate)
+    return () => window.removeEventListener(APPROVALS_UPDATED_EVENT, onUpdate)
+  }, [refreshApprovals])
+
+  // Deep link from pickup requests: open the tab that contains this approval.
+  useEffect(() => {
+    if (!targetId || resolvedTargetTab.current) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const detail = await apiRequest(`/approvals/${targetId}`)
+        if (cancelled || !detail?.status) return
+        resolvedTargetTab.current = true
+        if (detail.status !== statusFilter && STATUS_TABS.some((t) => t.key === detail.status)) {
+          setStatusFilter(detail.status)
+        }
+      } catch {
+        resolvedTargetTab.current = true
+      }
+    })()
+    return () => { cancelled = true }
+  }, [targetId, statusFilter])
+
   useEffect(() => {
     if (!targetId || hasScrolledToTarget.current) return
     const node = cardRefs.current.get(targetId)
@@ -82,15 +126,72 @@ export default function ApprovalsPage() {
     node.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [targetId, approvals])
 
-  // A linked request that is not in the pending queue was already dealt with;
-  // say so rather than showing an apparently unrelated list.
-  const targetMissing =
-    Boolean(targetId) && !loading && !approvals.some((item) => item.id === targetId)
+  const tabs = useMemo(
+    () => STATUS_TABS.map((tab) => ({
+      ...tab,
+      count: counts[tab.key] ?? 0,
+    })),
+    [counts],
+  )
 
-  const approvalOptions = approvals.map((item) => ({
-    value: item.id,
-    label: `${item.flagReason}`,
-  }))
+  const isPendingView = statusFilter === 'Pending'
+
+  const approvalOptions = useMemo(
+    () => (isPendingView ? approvals : []).map((item) => {
+      const pickup = catalog.pickups.find((p) => p.id === item.pickupRequestId)
+      const pickupRef = formatRequestId(item.pickupRequestId, 'PR')
+      const reason = item.flagReason?.trim() || 'Manual review required'
+      const reasonShort = reason.length > 48 ? `${reason.slice(0, 48)}…` : reason
+      const resident = pickup
+        ? shortProfileName(catalog.profileMap.get(pickup.residentId))
+        : null
+      const label = resident
+        ? `${pickupRef} · ${resident} — ${reasonShort}`
+        : `${pickupRef} — ${reasonShort}`
+      return { value: item.id, label, approvalRef: formatRequestId(item.id, 'APR'), reason }
+    }),
+    [approvals, catalog.pickups, catalog.profileMap, isPendingView],
+  )
+
+  const selectedApproval = approvalOptions.find((o) => o.value === approvalForm.approvalId)
+
+  useEffect(() => {
+    if (!isPendingView || loading) return
+    setApprovalForm((form) => {
+      if (targetId && approvals.some((a) => a.id === targetId)) {
+        return form.approvalId === targetId ? form : { ...form, approvalId: targetId }
+      }
+      if (form.approvalId && approvals.some((a) => a.id === form.approvalId)) {
+        return form
+      }
+      if (approvals.length === 1) {
+        return { ...form, approvalId: approvals[0].id }
+      }
+      if (form.approvalId) {
+        return { ...form, approvalId: '' }
+      }
+      return form
+    })
+  }, [loading, approvals, targetId, isPendingView])
+
+  const targetMissing =
+    Boolean(targetId)
+    && isPendingView
+    && !loading
+    && resolvedTargetTab.current
+    && !approvals.some((item) => item.id === targetId)
+
+  const pageDescription = isPendingView
+    ? `${counts.Pending} request${counts.Pending === 1 ? '' : 's'} awaiting your decision`
+    : statusFilter === 'Approved'
+      ? `${counts.Approved} approved decision${counts.Approved === 1 ? '' : 's'} on record`
+      : `${counts.Rejected} rejected decision${counts.Rejected === 1 ? '' : 's'} on record`
+
+  const emptyMessage = isPendingView
+    ? 'Nothing is waiting for review. Flagged pickups appear here automatically.'
+    : statusFilter === 'Approved'
+      ? 'No approved approvals yet.'
+      : 'No rejected approvals yet.'
 
   async function approveById(id, notes = '') {
     setBusy(true)
@@ -100,26 +201,21 @@ export default function ApprovalsPage() {
     try {
       const result = await apiRequest(`/approvals/${id}/approve`, {
         method: 'POST',
-        body: JSON.stringify({ notes: notify(notes) }),
+        body: JSON.stringify({ notes: notes || undefined }),
       })
-      // routingWarning is null when the pickup was scheduled. When it is set the
-      // approval saved but no collector was assigned, and the admin has to act.
       if (result?.routingWarning) {
         setWarning(`Approved, but not scheduled: ${result.routingWarning}`)
       } else {
         setSuccess('Approved and assigned to a collector.')
       }
       setApprovalForm({ approvalId: '', notes: '', reason: '' })
-      await refreshApprovals()
+      const counts = await refreshApprovals()
+      if (counts) notifyApprovalsUpdated(counts.Pending)
     } catch (err) {
       setError(err.message)
     } finally {
       setBusy(false)
     }
-  }
-
-  function notify(notes) {
-    return notes || undefined
   }
 
   async function rejectById(id, reason) {
@@ -137,7 +233,8 @@ export default function ApprovalsPage() {
       })
       setSuccess('Approval request rejected.')
       setApprovalForm({ approvalId: '', notes: '', reason: '' })
-      await refreshApprovals()
+      const counts = await refreshApprovals()
+      if (counts) notifyApprovalsUpdated(counts.Pending)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -155,16 +252,6 @@ export default function ApprovalsPage() {
     await rejectById(approvalForm.approvalId, approvalForm.reason)
   }
 
-  async function handleCardApprove(id) {
-    await approveById(id)
-  }
-
-  // The reason now comes from the field on the card itself rather than from a
-  // browser prompt, so the admin can still see the flag while typing it.
-  async function handleCardReject(id, reason) {
-    await rejectById(id, reason)
-  }
-
   function getPickup(approval) {
     return catalog.pickups.find((p) => p.id === approval.pickupRequestId)
   }
@@ -176,27 +263,35 @@ export default function ApprovalsPage() {
 
   return (
     <PageShell
-      title="Approval queue"
-      description={`${approvals.length} request${approvals.length === 1 ? '' : 's'} flagged by the Validator, awaiting your decision`}
+      title="Approvals"
+      description={pageDescription}
       showBell
-      hasAlerts={approvals.length > 0}
+      hasAlerts={counts.Pending > 0}
+      filterBar={(
+        <div className="ac-toolbar">
+          <AcChips
+            options={tabs}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            label="Show approvals"
+          />
+        </div>
+      )}
     >
       <AcAlert message={error || catalog.error} onClose={() => setError(null)} />
       <AcAlert message={warning} onClose={() => setWarning(null)} />
 
       {targetMissing && (
         <p className="ac-empty">
-          The request you followed here is no longer pending — it has already been reviewed.
+          The linked approval is no longer pending — check the Approved or Rejected tab for history.
         </p>
       )}
 
       {loading ? (
-        <p className="ac-empty">Loading flagged requests…</p>
+        <p className="ac-empty">Loading approvals…</p>
       ) : approvals.length === 0 ? (
         <AcCard>
-          <p className="ac-empty">
-            Nothing is waiting for review. Flagged pickups appear here automatically.
-          </p>
+          <p className="ac-empty">{emptyMessage}</p>
         </AcCard>
       ) : (
         <div className="ac-grid">
@@ -219,11 +314,11 @@ export default function ApprovalsPage() {
                   residentLabel={profile ? shortProfileName(profile) : 'Resident'}
                   zoneLabel={zoneLabelFor(pickup)}
                   busy={busy}
+                  readOnly={!isPendingView}
                   detail={details[approval.id]}
                   detailLoading={detailsLoading && !details[approval.id]}
-                  onApprove={handleCardApprove}
-                  onReject={handleCardReject}
-                  onRevision={() => setError('Request revision is not yet implemented on the backend.')}
+                  onApprove={approveById}
+                  onReject={rejectById}
                 />
               </div>
             )
@@ -231,70 +326,73 @@ export default function ApprovalsPage() {
         </div>
       )}
 
-      <AcCard title="Review by ID" subtitle="Select a recent flagged pickup or paste an approval ID">
-        <div className="ac-form">
-          <div className="ac-two">
-            {approvalOptions.length > 0 && (
+      {isPendingView && (
+        <AcCard title="Quick review" subtitle="Choose a pending approval, then approve or reject">
+          {approvalOptions.length === 0 ? (
+            <p className="ac-empty" style={{ margin: 0 }}>No pending items in the queue.</p>
+          ) : (
+            <div className="ac-form">
               <div className="ac-field">
                 <EntitySelect
                   id="approval-select"
-                  label="Recent flagged approvals"
+                  label="Pending approval"
                   value={approvalForm.approvalId}
                   onChange={(value) => setApprovalForm({ ...approvalForm, approvalId: value })}
                   options={approvalOptions}
-                  placeholder="Select approval from recent flags"
+                  placeholder="Select an approval request…"
                 />
+                {selectedApproval && (
+                  <p className="ac-field-hint">
+                    <span className="ac-id">{selectedApproval.approvalRef}</span>
+                    {' · '}
+                    {selectedApproval.reason}
+                  </p>
+                )}
               </div>
-            )}
-            <div className="ac-field">
-              <label htmlFor="approval-id">Approval request ID</label>
-              <input
-                id="approval-id"
-                value={approvalForm.approvalId}
-                onChange={(e) => setApprovalForm({ ...approvalForm, approvalId: e.target.value })}
-                placeholder="From classify-evaluate response"
-              />
+              <div className="ac-two">
+                <div className="ac-field">
+                  <label htmlFor="approval-notes">Approve notes (optional)</label>
+                  <input
+                    id="approval-notes"
+                    value={approvalForm.notes}
+                    onChange={(e) => setApprovalForm({ ...approvalForm, notes: e.target.value })}
+                  />
+                </div>
+                <div className="ac-field">
+                  <label htmlFor="approval-reason">Reject reason</label>
+                  <input
+                    id="approval-reason"
+                    value={approvalForm.reason}
+                    onChange={(e) => setApprovalForm({ ...approvalForm, reason: e.target.value })}
+                    placeholder="Required when rejecting"
+                  />
+                </div>
+              </div>
+              <div className="ac-actions">
+                <button
+                  type="button"
+                  className="ac-btn ac-btn-primary"
+                  disabled={busy || !approvalForm.approvalId}
+                  onClick={handleApprove}
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  className="ac-btn ac-btn-danger"
+                  disabled={busy || !approvalForm.approvalId}
+                  onClick={handleReject}
+                >
+                  Reject
+                </button>
+                <Link to="/admin/pickup-requests" className="ac-btn ac-btn-ghost">Go to pickups</Link>
+              </div>
             </div>
-            <div className="ac-field">
-              <label htmlFor="approval-notes">Approve notes (optional)</label>
-              <input
-                id="approval-notes"
-                value={approvalForm.notes}
-                onChange={(e) => setApprovalForm({ ...approvalForm, notes: e.target.value })}
-              />
-            </div>
-            <div className="ac-field">
-              <label htmlFor="approval-reason">Reject reason</label>
-              <input
-                id="approval-reason"
-                value={approvalForm.reason}
-                onChange={(e) => setApprovalForm({ ...approvalForm, reason: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="ac-actions">
-            <button
-              type="button"
-              className="ac-btn ac-btn-primary"
-              disabled={busy || !approvalForm.approvalId}
-              onClick={handleApprove}
-            >
-              Approve
-            </button>
-            <button
-              type="button"
-              className="ac-btn ac-btn-danger"
-              disabled={busy || !approvalForm.approvalId}
-              onClick={handleReject}
-            >
-              Reject
-            </button>
-            <Link to="/admin/pickup-requests" className="ac-btn ac-btn-ghost">Go to pickups</Link>
-          </div>
-        </div>
-      </AcCard>
+          )}
+        </AcCard>
+      )}
 
-      <AcToast message={success} />
+      <AcToast message={success} onDone={() => setSuccess(null)} />
     </PageShell>
   )
 }

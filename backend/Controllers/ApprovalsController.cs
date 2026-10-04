@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using backend.DTOs;
+using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -31,8 +32,21 @@ public class ApprovalsController : ControllerBase
     // Filter with ?status=Pending and page with ?page=&pageSize= (see ApprovalQueryParams).
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<ApprovalResponseDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetList([FromQuery] ApprovalQueryParams query) =>
-        Ok(await _service.GetListAsync(query));
+    public async Task<IActionResult> GetList([FromQuery] ApprovalQueryParams query)
+    {
+        // Enum query binding can fail on some hosts; always honor ?status=Pending.
+        if (!query.Status.HasValue)
+        {
+            var raw = Request.Query["status"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(raw)
+                && Enum.TryParse<ApprovalStatus>(raw, ignoreCase: true, out var parsed))
+            {
+                query.Status = parsed;
+            }
+        }
+
+        return Ok(await _service.GetListAsync(query));
+    }
 
     // GET /api/approvals/{id} - one approval with the agent's classification and
     // recommendation, for the admin review screen.
@@ -67,6 +81,21 @@ public class ApprovalsController : ControllerBase
         try
         {
             var result = await _service.RejectAsync(id, CurrentUserId, dto);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    // POST /api/approvals/{id}/request-revision — admin asks resident to update and resubmit
+    [HttpPost("{id:guid}/request-revision")]
+    public async Task<IActionResult> RequestRevision(Guid id, [FromBody] RequestRevisionDto dto)
+    {
+        try
+        {
+            var result = await _service.RequestRevisionAsync(id, CurrentUserId, dto);
             return result is null ? NotFound() : Ok(result);
         }
         catch (InvalidOperationException ex)

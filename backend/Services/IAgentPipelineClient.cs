@@ -18,4 +18,21 @@ public interface IAgentPipelineClient
 
     Task<RoutingDto?> RouteApprovedPickupAsync(
         RouteApprovedPickupRequestDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Picks a collector and day for a pickup that is already classified -- a
+    /// missed stop, a second attempt, or the next recurring collection.
+    /// </summary>
+    Task<RoutingDto?> ChooseSlotAsync(
+        RoutingContextDto context, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rewrites a collector's shorthand as a message a resident can read.
+    /// </summary>
+    Task<MissedExplanationDto?> ExplainMissedAsync(
+        ExplainMissedRequestDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>Words an admin's approve or reject decision for the resident.</summary>
+    Task<DecisionExplanationDto?> ExplainDecisionAsync(
+        ExplainDecisionRequestDto request, CancellationToken cancellationToken = default);
 }

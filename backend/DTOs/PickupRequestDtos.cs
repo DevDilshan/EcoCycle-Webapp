@@ -1,36 +1,70 @@
 using System.ComponentModel.DataAnnotations;
 using backend.Models;
+using backend.Validation;
 
 namespace backend.DTOs;
 
 // What the resident sends to CREATE a request
-public class CreatePickupRequestDto
+public class CreatePickupRequestDto : IValidatableObject
 {
+    [StringLength(2048, ErrorMessage = "Photo URL is too long.")]
+    [Url(ErrorMessage = "Photo URL must be a valid URL.")]
     public string? PhotoUrl { get; set; }
 
-    [MaxLength(1000)]
     public string? Description { get; set; }
 
-    [Required]
+    /// <summary>
+    /// House number and street. Required: the zone is a whole suburb, so
+    /// without this a collector has nowhere to go.
+    /// </summary>
+    [Required(ErrorMessage = "Address is required so the collector can find you.")]
+    [StringLength(300, MinimumLength = 5, ErrorMessage = "Please give a full address.")]
+    public string Address { get; set; } = string.Empty;
+
     public DateTime PreferredDate { get; set; }
+
+    /// <summary>
+    /// The zone the pickup is in, chosen by the resident.
+    /// </summary>
+    /// <remarks>
+    /// Required. Every pickup used to land in the oldest active zone regardless
+    /// of where the resident was, which made zone-based routing meaningless.
+    /// </remarks>
+    [Required(ErrorMessage = "Zone is required.")]
+    public Guid ZoneId { get; set; }
+
+    /// <summary>
+    /// The resident is booking a bulky-waste collection, which draws on their
+    /// monthly allowance. Enforced on this declaration, not on the classifier.
+    /// </summary>
+    public bool IsBulkRequest { get; set; } = false;
 
     public bool IsRecurring { get; set; } = false;
     public string? RecurrenceInterval { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        => PickupRequestValidation.Validate(Description, PreferredDate, IsRecurring, RecurrenceInterval);
 }
 
 // What the resident sends to EDIT a pending request
-public class UpdatePickupRequestDto
+public class UpdatePickupRequestDto : IValidatableObject
 {
+    [StringLength(2048, ErrorMessage = "Photo URL is too long.")]
+    [Url(ErrorMessage = "Photo URL must be a valid URL.")]
     public string? PhotoUrl { get; set; }
 
-    [MaxLength(1000)]
     public string? Description { get; set; }
 
-    [Required]
+    [StringLength(300, MinimumLength = 5, ErrorMessage = "Please give a full address.")]
+    public string? Address { get; set; }
+
     public DateTime PreferredDate { get; set; }
 
     public bool IsRecurring { get; set; } = false;
     public string? RecurrenceInterval { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        => PickupRequestValidation.Validate(Description, PreferredDate, IsRecurring, RecurrenceInterval);
 }
 
 // What the API RETURNS for a request (full detail)
@@ -40,8 +74,39 @@ public class PickupRequestResponseDto
     public Guid ResidentId { get; set; }
     public string? PhotoUrl { get; set; }
     public string? Description { get; set; }
+    public string? Address { get; set; }
+
     public DateTime PreferredDate { get; set; }
     public string Status { get; set; } = string.Empty;   // enum as string
+    /// <summary>
+    /// What happened at the most recent attempt: "Pending", "Completed" or
+    /// "Missed". Null when nothing has been scheduled yet.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the pickup rather than sent as a notification. There is no
+    /// inbox in this app, and a status cannot go stale the way a stored message
+    /// can -- "we missed you on the 2nd" would still be sitting there after it
+    /// had been collected.
+    /// </remarks>
+    public string? LastAttemptStatus { get; set; }
+
+    /// <summary>The collector's own words about why it could not be collected.</summary>
+    public string? LastAttemptNote { get; set; }
+
+    /// <summary>When that attempt was.</summary>
+    public DateTime? LastAttemptDate { get; set; }
+
+    /// <summary>The next booked visit, when one exists.</summary>
+    public DateTime? NextVisitDate { get; set; }
+
+    /// <summary>
+    /// The message written for the resident after a failed attempt, in plain
+    /// language rather than the collector's shorthand.
+    /// </summary>
+    public string? ResidentMessage { get; set; }
+
+    public bool IsBulkRequest { get; set; }
+
     public bool IsRecurring { get; set; }
     public string? RecurrenceInterval { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -78,6 +143,12 @@ public class PickupRequestResponseDto
 
     /// <summary>The approval row's id, so the UI can link straight to the review screen.</summary>
     public Guid? ApprovalRequestId { get; set; }
+
+    /// <summary>Admin notes or rejection reason from the latest approval review.</summary>
+    public string? ApprovalReviewNotes { get; set; }
+
+    /// <summary>When the latest approval was approved or rejected.</summary>
+    public DateTime? ApprovalReviewedAt { get; set; }
 }
 
 // Lightweight shape for the status-check endpoint
@@ -94,4 +165,14 @@ public class ClassifyResponseDto
     public string Category { get; set; } = string.Empty;   // e.g. "Recyclable"
     public double Confidence { get; set; }
     public string Status { get; set; } = string.Empty;     // new pickup status, e.g. "Classified"
+}
+/// <summary>
+/// A resident's bulky-waste allowance for the current calendar month, so the
+/// submit form can show it before they book rather than refusing afterwards.
+/// </summary>
+public class BulkAllowanceDto
+{
+    public int Limit { get; set; }
+    public int Used { get; set; }
+    public int Remaining { get; set; }
 }
