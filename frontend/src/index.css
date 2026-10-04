@@ -3493,3 +3493,13 @@ a:hover {
 }
 
 .resident-note p { margin: 0; font-size: 13px; }
+
+/* Edge and Chrome add their own reveal button to every password field, which
+   sat next to the app's own show/hide toggle -- two eyes side by side, one of
+   them not matching the design and not keyboard-labelled. The app's toggle is
+   kept because it is the one that is styled, has an aria-label and reports its
+   state; the browser's is suppressed. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}

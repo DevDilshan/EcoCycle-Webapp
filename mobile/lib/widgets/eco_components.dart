@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/eco_theme.dart';
 
@@ -250,6 +251,9 @@ class EcoTextField extends StatelessWidget {
     this.suffix,
     this.textInputAction,
     this.onSubmitted,
+    this.onChanged,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   final TextEditingController? controller;
@@ -263,6 +267,9 @@ class EcoTextField extends StatelessWidget {
   final Widget? suffix;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -282,6 +289,9 @@ class EcoTextField extends StatelessWidget {
         onTap: onTap,
         textInputAction: textInputAction,
         onSubmitted: onSubmitted,
+        onChanged: onChanged,
+        maxLength: maxLength,
+        inputFormatters: inputFormatters,
         style: const TextStyle(fontSize: 14, color: EcoColors.ink),
         decoration: InputDecoration(
           hintText: hint,
@@ -290,6 +300,7 @@ class EcoTextField extends StatelessWidget {
             color: EcoColors.body,
             letterSpacing: obscure ? 3 : 0,
           ),
+          counterText: '',
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,

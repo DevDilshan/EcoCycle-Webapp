@@ -24,7 +24,13 @@ String? pickupApprovalStatus(Map<String, dynamic> pickup) {
 bool showResidentApprovalBanner(Map<String, dynamic> pickup) {
   if (pickup['hasApprovalRequest'] != true) return false;
   final approval = pickupApprovalStatus(pickup)?.toLowerCase();
-  return approval == 'rejected' || approval == 'pending' || approval == 'approved';
+  if (approval == 'rejected' || approval == 'pending') return true;
+  // An approval with nothing written on it says no more than the badge already
+  // does, so it is not shown -- as on web, where the notice needs reviewNotes.
+  if (approval == 'approved') {
+    return (pickup['approvalReviewNotes'] as String?)?.trim().isNotEmpty == true;
+  }
+  return false;
 }
 
 String residentApprovalBannerTitle(Map<String, dynamic> pickup) {

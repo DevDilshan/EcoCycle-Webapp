@@ -408,6 +408,89 @@
   font-weight: 600;
 }
 
+/* A bulky box that cannot be ticked, because the month's allowance is spent.
+   Greyed rather than left at full strength: a dead control that still reads as
+   active looks broken, and the allowance line beneath it says why. */
+.admin-console .r-bulk-check span.is-off {
+  color: var(--faint);
+  opacity: 0.7;
+}
+
+/* ---------- Collection day calendar ---------- */
+
+/* `.admin-console .ac-field > div` sets display:grid on any div directly inside
+   a field, as it does for .r-toggle above, so the columns are named here. */
+.admin-console .ac-field > .r-cal,
+.admin-console .r-cal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  justify-self: start;
+  width: min(320px, 100%);
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.admin-console .r-cal-head {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: center;
+}
+
+.admin-console .r-cal-head strong {
+  text-align: center;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.admin-console .r-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.admin-console .r-cal-wd {
+  padding-bottom: 4px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.admin-console .r-cal-day {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+
+.admin-console .r-cal-day:hover:not(:disabled) {
+  background: var(--neutral-bg);
+}
+
+/* Shown, not hidden: a resident reads the pattern of their zone's collection
+   days off the greyed-out ones as much as off the available ones. */
+.admin-console .r-cal-day:disabled {
+  color: var(--faint);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.admin-console .r-cal-day.is-on {
+  background: var(--green);
+  color: #fff;
+}
+
 /* ---------- One-off / recurring toggle ---------- */
 
 /* Two columns rather than inline-flex. `.admin-console .ac-field > div` is the
