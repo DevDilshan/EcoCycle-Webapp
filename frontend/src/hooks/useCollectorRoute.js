@@ -9,32 +9,22 @@ async function fetchToday(collectorId) {
 }
 
 /**
+ * How far ahead the preview looks, in days from tomorrow.
+ *
+ * Fourteen rather than seven: a fortnight covers the recurring pickups that
+ * repeat every other week, which a seven-day window showed on one refresh and
+ * hid on the next. The endpoint clamps to 30.
+ */
+export const UPCOMING_DAYS = 14
+
+/**
  * Stops after today. Separate from the round itself: a failure here costs the
  * collector the preview, not the work in front of them.
  */
 async function fetchUpcoming(collectorId) {
   try {
-    const data = await apiRequest(`/routes/${collectorId}/upcoming?days=7`)
+    const data = await apiRequest(`/routes/${collectorId}/upcoming?days=${UPCOMING_DAYS}`)
     return Array.isArray(data) ? data : data?.items ?? []
-  } catch {
-    return []
-  }
-}
-
-/**
- * The pickups behind today's stops.
- *
- * A stop carries only ids, so the description, category, confidence and zone
- * name have to come from the pickup. `GET /api/pickuprequests/{id}` is
- * admin/resident only, so the list is fetched once and matched locally.
- *
- * A failure here is swallowed: the round is still drivable with less detail on
- * each card, so it must not blank the page or read as a route error.
- */
-async function fetchPickups() {
-  try {
-    const page = await apiRequest('/pickuprequests?pageSize=100')
-    return page?.items ?? []
   } catch {
     return []
   }
@@ -84,7 +74,6 @@ export function useCollectorRoute() {
   const day = useServiceDay()
   const [routes, setRoutes] = useState([])
   const [upcomingRoutes, setUpcomingRoutes] = useState([])
-  const [pickups, setPickups] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -97,12 +86,6 @@ export function useCollectorRoute() {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [collectorId, day])
-
-  useEffect(() => {
-    let cancelled = false
-    fetchPickups().then((items) => { if (!cancelled) setPickups(items) })
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     if (!collectorId) return undefined
@@ -130,28 +113,50 @@ export function useCollectorRoute() {
     setUpcomingRoutes(ahead)
   }, [collectorId])
 
-  /** Stops in timeline order, each with its pickup attached when one matched. */
+  /**
+   * The stop's own detail, under the `pickup` key the screens already read.
+   *
+   * The API now sends this on the stop itself, so there is nothing to match up.
+   * The shape is kept because the alternative was renaming every read of it
+   * across two pages and a sidebar for no gain.
+   */
+  const decorate = useCallback((route) => ({
+    ...route,
+    status: formatCompletionStatus(route.completionStatus),
+    pending: isRoutePending(route.completionStatus),
+    pickup: {
+      residentName: route.residentName,
+      residentPhone: route.residentPhone,
+      address: route.address,
+      description: route.description,
+      category: route.category,
+      confidence: route.confidence,
+      zoneName: route.zoneName,
+      isBulkRequest: route.isBulkRequest,
+      photoUrl: route.photoUrl,
+      requestedAt: route.requestedAt,
+    },
+  }), [])
+
+  /** Stops in timeline order, each marked if it was carried from an earlier day. */
   const stops = useMemo(() => {
-    const byId = new Map(pickups.map((pickup) => [pickup.id, pickup]))
+    // Today's round also carries anything older still pending, which is
+    // deliberate -- but a stop from three days ago must not read as today's.
+    const startOfToday = new Date(day)
+    startOfToday.setHours(0, 0, 0, 0)
+
     return routes
       .map((route) => ({
-        ...route,
-        status: formatCompletionStatus(route.completionStatus),
-        pending: isRoutePending(route.completionStatus),
-        pickup: byId.get(route.pickupRequestId) ?? null,
+        ...decorate(route),
+        carriedOver: new Date(route.scheduledDate) < startOfToday,
       }))
       .sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate))
-  }, [routes, pickups])
+  }, [routes, decorate, day])
 
-  /** Stops after today, joined to their pickups and grouped by day. */
+  /** Stops after today, grouped by day. */
   const upcoming = useMemo(() => {
-    const byId = new Map(pickups.map((pickup) => [pickup.id, pickup]))
     const rows = upcomingRoutes
-      .map((route) => ({
-        ...route,
-        status: formatCompletionStatus(route.completionStatus),
-        pickup: byId.get(route.pickupRequestId) ?? null,
-      }))
+      .map(decorate)
       .sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate))
 
     const days = new Map()
@@ -162,13 +167,18 @@ export function useCollectorRoute() {
       days.set(key, day)
     })
     return [...days.values()]
-  }, [upcomingRoutes, pickups])
+  }, [upcomingRoutes, decorate])
 
   const upcomingCount = upcomingRoutes.length
 
   const counts = useMemo(() => ({
     total: stops.length,
     pending: stops.filter((s) => s.status === 'Pending').length,
+    // Pending splits in two, because they are not the same job: one is today's
+    // work, the other is a stop an earlier round never got to and which is now
+    // the most overdue thing on the list.
+    notCollected: stops.filter((s) => s.status === 'Pending' && s.carriedOver).length,
+    toDo: stops.filter((s) => s.status === 'Pending' && !s.carriedOver).length,
     completed: stops.filter((s) => s.status === 'Completed').length,
     missed: stops.filter((s) => s.status === 'Missed').length,
   }), [stops])
@@ -200,7 +210,7 @@ export function useCollectorRoute() {
     return [...map.values()].sort((a, b) => b.total - a.total)
   }, [stops])
 
-  /** Categories on board, counted from the matched pickups only. */
+  /** Categories on board, counted from the stops that carry one. */
   const categories = useMemo(() => {
     const map = new Map()
     stops.forEach((stop) => {
@@ -212,6 +222,35 @@ export function useCollectorRoute() {
   }, [stops])
 
   const zoneNames = useMemo(() => zones.map((zone) => zone.name), [zones])
+
+  /**
+   * The collector's own zones as points, for the map's zone markers.
+   *
+   * Derived from the round rather than fetched: the stops already carry their
+   * zone's id, name and centre, and a collector's zones are by definition the
+   * ones their stops are in. A separate /zones request would ask the server for
+   * something it has already sent, and could disagree with it.
+   */
+  const zonePoints = useMemo(() => {
+    const byId = new Map()
+    stops.forEach((stop) => {
+      if (!stop.zoneId || stop.zoneLatitude == null || stop.zoneLongitude == null) return
+      if (byId.has(stop.zoneId)) return
+      byId.set(stop.zoneId, {
+        id: stop.zoneId,
+        name: stop.zoneName || 'Your zone',
+        latitude: stop.zoneLatitude,
+        longitude: stop.zoneLongitude,
+      })
+    })
+    return [...byId.values()]
+  }, [stops])
+
+  /** Stops that cannot be drawn, because their zone was never placed on a map. */
+  const unmappedCount = useMemo(
+    () => stops.filter((s) => s.zoneLatitude == null || s.zoneLongitude == null).length,
+    [stops],
+  )
 
   /// Report a stop as not collected. A reason is required: "missed" with no
   /// explanation tells the admin nothing and cannot be answered to a resident.
@@ -241,6 +280,8 @@ export function useCollectorRoute() {
     nextStop,
     zones,
     zoneNames,
+    zonePoints,
+    unmappedCount,
     categories,
     loading,
     error,

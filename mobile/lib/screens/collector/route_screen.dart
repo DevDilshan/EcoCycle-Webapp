@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../app/eco_app_scope.dart';
 import '../../services/api.dart';
+import '../../services/pickup_photo_service.dart';
 import '../../theme/eco_theme.dart';
 import '../../utils/user_helpers.dart';
 import '../../widgets/eco_components.dart';
@@ -18,17 +19,30 @@ String stopCompletion(Object? value) => switch (value) {
   _ => 'Pending',
 };
 
-/// One stop as the screens show it. A route assignment carries only ids, so
-/// the address, items and photo are taken from the pickup it points at. The
-/// stop's `id` stays the route id, which is what complete and missed act on.
-Map<String, dynamic> collectorStop(
-  Map<String, dynamic> route,
-  Map<String, dynamic>? pickup,
-) => {
-  ...?pickup,
+/// One stop as the screens show it.
+///
+/// The route assignment now carries the resident, the address, the category and
+/// the photo itself, so nothing has to be merged in. It used to carry only ids,
+/// and this screen fetched /pickuprequests?pageSize=100 to match them up --
+/// which quietly lost every detail past the hundredth row and pulled requests
+/// belonging to other collectors.
+///
+/// The stop's `id` stays the route id, which is what complete and missed act on.
+Map<String, dynamic> collectorStop(Map<String, dynamic> route) => {
   ...route,
   'completion': stopCompletion(route['completionStatus']),
+  // True when an earlier round never got to this stop. Today's round carries
+  // anything still pending from before, deliberately, but it must not read as
+  // booked for this morning.
+  'carriedOver': _isCarriedOver(route['scheduledDate']),
 };
+
+bool _isCarriedOver(Object? scheduledDate) {
+  final parsed = DateTime.tryParse(scheduledDate as String? ?? '');
+  if (parsed == null) return false;
+  final now = DateTime.now();
+  return parsed.toLocal().isBefore(DateTime(now.year, now.month, now.day));
+}
 
 class CollectorRouteScreen extends StatefulWidget {
   const CollectorRouteScreen({
@@ -47,8 +61,32 @@ class CollectorRouteScreen extends StatefulWidget {
 class CollectorRouteScreenState extends State<CollectorRouteScreen> {
   late final Api _api = EcoAppScope.apiOf(context);
   List<Map<String, dynamic>> _stops = [];
+  List<Map<String, dynamic>> _upcoming = [];
   bool _loading = true;
   bool _failed = false;
+
+  /// Which stops the list is showing. The order matches the web console's chips,
+  /// so a collector moving between the two reads the same five choices.
+  ///
+  /// Pending is split in two because they are not the same job: one is today's
+  /// work, the other is a stop an earlier round never got to and which is now the
+  /// most overdue thing on the list.
+  int _filter = 0;
+
+  static const _filterLabels = [
+    'All',
+    'Not collected',
+    'To do',
+    'Collected',
+    'Missed',
+  ];
+
+  /// How far ahead the preview looks, in days from tomorrow.
+  ///
+  /// Fourteen rather than seven: a fortnight covers the recurring pickups that
+  /// repeat every other week, which a seven-day window showed on one refresh
+  /// and hid on the next. The endpoint clamps to 30.
+  static const _upcomingDays = 14;
 
   @override
   void initState() {
@@ -69,28 +107,33 @@ class CollectorRouteScreenState extends State<CollectorRouteScreen> {
           (routes is List ? routes : (routes?['items'] as List?) ?? const [])
               .cast<Map<String, dynamic>>();
 
-      // Losing the pickup details costs the cards their address, not the
-      // round, so a failure here is not a route error.
-      final pickups = <String, Map<String, dynamic>>{};
-      try {
-        final page = await _api.get(
-          '/pickuprequests',
-          query: {'pageSize': '100'},
-        );
-        for (final p
-            in (page?['items'] as List? ?? const [])
-                .cast<Map<String, dynamic>>()) {
-          pickups[p['id'] as String] = p;
-        }
-      } catch (_) {}
-
       if (!mounted) return;
       setState(() {
-        _stops = [
-          for (final route in list)
-            collectorStop(route, pickups[route['pickupRequestId']]),
-        ];
+        _stops = [for (final route in list) collectorStop(route)];
       });
+
+      // Separate from the round itself: a failure here costs the collector the
+      // preview, not the work in front of them, so it is not a route error.
+      try {
+        final ahead = await _api.get(
+          '/routes/${widget.collectorId}/upcoming',
+          query: {'days': '$_upcomingDays'},
+        );
+        final aheadList =
+            (ahead is List ? ahead : (ahead?['items'] as List?) ?? const [])
+                .cast<Map<String, dynamic>>();
+        if (!mounted) return;
+        setState(() {
+          _upcoming = [for (final route in aheadList) collectorStop(route)]
+            ..sort(
+              (a, b) => (a['scheduledDate'] as String? ?? '').compareTo(
+                b['scheduledDate'] as String? ?? '',
+              ),
+            );
+        });
+      } catch (_) {
+        if (mounted) setState(() => _upcoming = []);
+      }
     } catch (_) {
       if (mounted) setState(() => _failed = true);
     } finally {
@@ -107,6 +150,35 @@ class CollectorRouteScreenState extends State<CollectorRouteScreen> {
     if (changed == true && mounted) reload();
   }
 
+  /// The preview grouped by day, in order, so a fortnight reads as a calendar
+  /// rather than as one long list.
+  List<_UpcomingDay> get _groupedUpcoming {
+    final days = <String, _UpcomingDay>{};
+    for (final stop in _upcoming) {
+      final parsed = DateTime.tryParse(stop['scheduledDate'] as String? ?? '');
+      if (parsed == null) continue;
+      final local = parsed.toLocal();
+      final key = DateFormat('yyyy-MM-dd').format(local);
+      days.putIfAbsent(key, () => _UpcomingDay(local, [])).stops.add(stop);
+    }
+    return days.values.toList()..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  /// Whether a stop belongs under a given chip. Takes the filter rather than
+  /// reading the field, so the counts on the chips can be worked out without
+  /// touching state during a build.
+  static bool _matches(Map<String, dynamic> stop, int filter) {
+    final pending = stop['completion'] == 'Pending';
+    final carried = stop['carriedOver'] == true;
+    return switch (filter) {
+      1 => pending && carried,
+      2 => pending && !carried,
+      3 => stop['completion'] == 'Completed',
+      4 => stop['completion'] == 'Missed',
+      _ => true,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = EcoAppScope.userOf(context);
@@ -114,6 +186,15 @@ class CollectorRouteScreenState extends State<CollectorRouteScreen> {
     final missed = _stops.where((s) => s['completion'] == 'Missed').length;
     final left = _stops.length - done - missed;
     final nextIndex = _stops.indexWhere((s) => s['completion'] == 'Pending');
+
+    // Numbered against the whole round before filtering, so a card keeps its
+    // place in the shift however the list is narrowed.
+    final visible = <({Map<String, dynamic> stop, int number})>[];
+    for (var i = 0; i < _stops.length; i++) {
+      if (_matches(_stops[i], _filter)) {
+        visible.add((stop: _stops[i], number: i + 1));
+      }
+    }
 
     return RefreshIndicator(
       onRefresh: reload,
@@ -188,16 +269,182 @@ class CollectorRouteScreenState extends State<CollectorRouteScreen> {
                     missed: missed,
                   ),
                   const EcoSectionHeading('Stops'),
-                  for (var i = 0; i < _stops.length; i++)
+                  // The same five chips the web console shows, with counts, so a
+                  // collector reads the same choices on either.
+                  FilterPills(
+                    labels: [
+                      for (var f = 0; f < _filterLabels.length; f++)
+                        '${_filterLabels[f]} '
+                            '(${_stops.where((s) => _matches(s, f)).length})',
+                    ],
+                    selected: _filter,
+                    onSelect: (i) => setState(() => _filter = i),
+                  ),
+                  const SizedBox(height: 14),
+                  if (visible.isEmpty)
+                    const EcoEmptyState(
+                      icon: Icons.filter_list_rounded,
+                      title: 'Nothing here',
+                      message: 'No stops match that filter.',
+                    )
+                  else
+                    // The number is the stop's place in the whole round, not in
+                    // the filtered view, so it still matches the map and the
+                    // detail screen after filtering.
+                    for (final entry in visible)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _StopCard(
+                          stop: entry.stop,
+                          number: entry.number,
+                          isNext: entry.number - 1 == nextIndex,
+                          onTap: () => _openStop(entry.stop, entry.number),
+                        ),
+                      ),
+                ],
+                // Beyond today. Read-only: a stop can only be completed on its
+                // own day, so these carry no actions -- they are here to plan
+                // around, and to show a round building up before it arrives.
+                if (_upcoming.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  EcoSectionHeading(
+                    'Next $_upcomingDays days · ${_upcoming.length} stop'
+                    '${_upcoming.length == 1 ? '' : 's'}',
+                  ),
+                  for (final day in _groupedUpcoming) ...[
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _StopCard(
-                        stop: _stops[i],
-                        number: i + 1,
-                        isNext: i == nextIndex,
-                        onTap: () => _openStop(_stops[i], i + 1),
+                      padding: const EdgeInsets.only(top: 6, bottom: 8),
+                      child: Text(
+                        DateFormat('EEEE, d MMMM').format(day.date),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: EcoColors.body,
+                        ),
                       ),
                     ),
+                    for (final stop in day.stops)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _UpcomingCard(stop: stop),
+                      ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One day of the preview, with the stops booked on it.
+class _UpcomingDay {
+  _UpcomingDay(this.date, this.stops);
+  final DateTime date;
+  final List<Map<String, dynamic>> stops;
+}
+
+/// An upcoming stop: the photo, who it is for, where, and a number to ring.
+/// No tap target, because nothing can be done to it until its own day.
+class _UpcomingCard extends StatelessWidget {
+  const _UpcomingCard({required this.stop});
+  final Map<String, dynamic> stop;
+
+  @override
+  Widget build(BuildContext context) {
+    final resident = (stop['residentName'] as String?)?.trim();
+    final address = (stop['address'] as String?)?.trim();
+    final description = (stop['description'] as String?)?.trim();
+    final phone = (stop['residentPhone'] as String?)?.trim();
+    final photo = pickupPhotoUrl(stop);
+    final category = (stop['category'] as String?)?.trim();
+
+    final title = resident?.isNotEmpty == true
+        ? resident!
+        : (address?.isNotEmpty == true
+              ? address!
+              : (description?.isNotEmpty == true ? description! : 'Pickup stop'));
+    final detail = [
+      if (resident?.isNotEmpty == true) address,
+      category,
+      stop['zoneName'] as String?,
+    ].whereType<String>().where((p) => p.isNotEmpty).join(' · ');
+
+    return EcoCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Square and cropped, so a tall photo cannot change the row's height.
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: photo != null
+                  ? Image.network(
+                      photo,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const ColoredBox(
+                        color: EcoColors.honeydew,
+                        child: Icon(
+                          Icons.recycling_rounded,
+                          size: 22,
+                          color: EcoColors.green,
+                        ),
+                      ),
+                    )
+                  : const ColoredBox(
+                      color: EcoColors.honeydew,
+                      child: Icon(
+                        Icons.recycling_rounded,
+                        size: 22,
+                        color: EcoColors.green,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                    color: EcoColors.ink,
+                  ),
+                ),
+                if (detail.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    detail,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: EcoColors.body),
+                  ),
+                ],
+                if (phone?.isNotEmpty == true) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    phone!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: EcoColors.green,
+                    ),
+                  ),
+                ],
+                if (stop['isBulkRequest'] == true) ...[
+                  const SizedBox(height: 6),
+                  const StatusBadge(label: 'Bulky', tone: BadgeTone.next),
                 ],
               ],
             ),
@@ -317,14 +564,22 @@ class _StopCard extends StatelessWidget {
     final completion = stop['completion'] as String;
     final completed = completion == 'Completed';
     final missed = completion == 'Missed';
+    final carriedOver = stop['carriedOver'] == true && !completed && !missed;
     final address = (stop['address'] as String?)?.trim();
     final description = (stop['description'] as String?)?.trim();
-    final title = address?.isNotEmpty == true
-        ? address!
-        : (description?.isNotEmpty == true ? description! : 'Stop $number');
+    final resident = (stop['residentName'] as String?)?.trim();
+    final phone = (stop['residentPhone'] as String?)?.trim();
+    // Who, then where. The crew asks for a person at the door, and the office
+    // rings about a resident by name rather than by reference.
+    final title = resident?.isNotEmpty == true
+        ? resident!
+        : (address?.isNotEmpty == true
+              ? address!
+              : (description?.isNotEmpty == true ? description! : 'Stop $number'));
     final details = [
+      if (resident?.isNotEmpty == true) address,
       stop['category'] as String?,
-      if (address?.isNotEmpty == true) description,
+      description,
     ].whereType<String>().where((part) => part.isNotEmpty).join(' · ');
 
     return EcoCard(
@@ -382,9 +637,27 @@ class _StopCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     details,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 12, color: EcoColors.body),
+                  ),
+                ],
+                if (phone?.isNotEmpty == true) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    phone!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: EcoColors.green,
+                    ),
+                  ),
+                ],
+                if (carriedOver) ...[
+                  const SizedBox(height: 6),
+                  const StatusBadge(
+                    label: 'Not collected earlier',
+                    tone: BadgeTone.inReview,
                   ),
                 ],
               ],

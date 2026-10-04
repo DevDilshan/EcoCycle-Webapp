@@ -351,3 +351,113 @@
 }
 
 .admin-console .c-upcoming-day .ac-row .ac-pill { flex: none; }
+
+/* The resident's number on a stop, as a dialling link rather than text. Styled
+   like the other meta items so the row still reads as one line of detail, but
+   underlined on hover because it is the one part of it that does something. */
+.admin-console .c-stop-tel {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--green);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.admin-console .c-stop-tel:hover { text-decoration: underline; }
+
+/* The resident's photo on an upcoming row, in the slot the category icon used
+   to hold. Square and cropped so a tall or wide photo cannot change the row's
+   height and break the rhythm of the list. */
+.admin-console .c-up-thumb {
+  overflow: hidden;
+  padding: 0;
+}
+
+.admin-console .c-up-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ---------- Route map markers ---------- */
+
+/* Leaflet gives a divIcon a white box and a border by default, which would
+   frame every marker. */
+.admin-console .c-map-marker { background: none; border: 0; }
+
+/* A numbered stop, matching the numbered dots in the list beside it so the two
+   can be read against each other rather than matched up by address. */
+.admin-console .c-map-stop {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2.5px solid var(--surface);
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: var(--sh-sm);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* A round half done should look half done, so a collector can see what is left
+   without opening each pin.
+
+   A collected stop is pale with a dark tick rather than another dark green disc:
+   --green and --ok-ink are a shade apart, which is no difference on a phone in
+   daylight and none at all to anyone who cannot separate the hues. */
+.admin-console .c-map-stop.is-next { background: var(--info-ink); transform: scale(1.15); }
+.admin-console .c-map-stop.is-missed { background: var(--bad-ink); }
+
+.admin-console .c-map-stop.is-done {
+  background: var(--celadon-strong);
+  color: var(--green);
+}
+
+/* The zone centre: a ringed dot, deliberately nothing like a numbered stop. It
+   is an area, not somewhere to drive to, and a collector must never set off
+   towards it thinking it is a pickup. */
+.admin-console .c-map-zone {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--green);
+  border-radius: 50%;
+  background: rgba(0, 86, 59, 0.14);
+  box-shadow: var(--sh-sm);
+}
+
+.admin-console .c-map-stop,
+.admin-console .c-map-zone { box-sizing: border-box; }
+
+/* The tick and the bang take the disc's text colour, so a pale "collected" disc
+   gets a dark glyph and a red "not collected" one a white glyph. */
+.admin-console .c-map-stop svg { display: block; }
+
+/* The legend's swatches, each matching its marker. */
+.admin-console .ac-map-legend i.c-lg-next { background: var(--info-ink); }
+.admin-console .ac-map-legend i.c-lg-todo { background: var(--green); }
+.admin-console .ac-map-legend i.c-lg-done { background: var(--celadon-strong); }
+.admin-console .ac-map-legend i.c-lg-missed { background: var(--bad-ink); }
+
+.admin-console .ac-map-legend i.c-lg-zone {
+  border: 3px solid var(--green);
+  background: rgba(0, 86, 59, 0.14);
+}
+
+/* The legend wraps on a phone: five items in one row overflowed the canvas. */
+@media (max-width: 720px) {
+  .admin-console .ac-map-legend { flex-wrap: wrap; max-width: calc(100% - 24px); gap: 8px 12px; }
+}
+
+/* The map given its own screen: taller than the Overview's preview, because a
+   map is only useful at a size you can read street names off. Capped against the
+   viewport so the legend and the cards below it stay reachable. */
+.admin-console .c-map-tall .ac-map-canvas,
+.admin-console .c-map-tall .leaflet-container {
+  height: min(620px, calc(100vh - 260px));
+  min-height: 380px;
+}

@@ -984,33 +984,46 @@ class FilterPills extends StatelessWidget {
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onSelect;
+  /// Wrapped onto as many lines as the chips need, rather than scrolled
+  /// sideways.
+  ///
+  /// This was a horizontal SingleChildScrollView, which worked while there were
+  /// three short labels and nothing ran off the screen. With five -- and counts
+  /// on each -- the last chips sat beyond the edge, and dragging to reach them is
+  /// unreliable: every chip claims the touch for its own tap, so the swipe is as
+  /// likely to select a filter as to scroll past it. A filter nobody can reach is
+  /// a filter that does not exist.
+  ///
+  /// Wrapping also means every option is visible at once, which is the point of
+  /// showing counts beside them.
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: List.generate(
-        labels.length,
-        (i) => Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: ChoiceChip(
-            label: Text(labels[i]),
-            selected: i == selected,
-            showCheckmark: false,
-            onSelected: (_) => onSelect(i),
-            selectedColor: EcoColors.green,
-            backgroundColor: EcoColors.surface,
-            labelStyle: TextStyle(
-              fontFamily: 'Manrope',
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: i == selected ? Colors.white : EcoColors.body,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            side: const BorderSide(color: EcoColors.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
+  Widget build(BuildContext context) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: List.generate(
+      labels.length,
+      (i) => ChoiceChip(
+        label: Text(labels[i]),
+        selected: i == selected,
+        showCheckmark: false,
+        onSelected: (_) => onSelect(i),
+        selectedColor: EcoColors.green,
+        backgroundColor: EcoColors.surface,
+        labelStyle: TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: i == selected ? Colors.white : EcoColors.body,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        // The default chip reserves room for a Material tap target that makes
+        // each one noticeably taller than it looks; with two rows of them that
+        // added a visible band of dead space.
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        side: const BorderSide(color: EcoColors.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
         ),
       ),
     ),

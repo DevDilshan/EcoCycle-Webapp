@@ -39,11 +39,32 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
       _error = null;
     });
     try {
-      await _api.patch(
+      final result = await _api.patch(
         '/routes/$_routeId/$action',
         body: {'issueNotes': notes},
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (!mounted) return;
+
+      // Reporting a stop as not collected books the pickup again. Saying nothing
+      // about that left the collector unsure whether the resident would be
+      // visited, and a rebooking that failed looked exactly like one that
+      // worked. The snackbar is shown before the pop on purpose: the messenger
+      // lives above this route, so it survives the screen closing.
+      if (action == 'missed') {
+        final map = result is Map ? result : const {};
+        final rescheduled = map['rescheduled'] == true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              rescheduled
+                  ? 'Reported. It has been booked onto a later round.'
+                  : 'Reported. The office will arrange another visit.',
+            ),
+          ),
+        );
+      }
+
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -72,6 +93,11 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
     final address = (stop['address'] as String?)?.trim();
     final description = (stop['description'] as String?)?.trim();
     final category = stop['category'] as String?;
+    final resident = (stop['residentName'] as String?)?.trim();
+    final phone = (stop['residentPhone'] as String?)?.trim();
+    final confidence = (stop['confidence'] as num?)?.toDouble();
+    final requestedAt = DateTime.tryParse(stop['requestedAt'] as String? ?? '');
+    final carriedOver = stop['carriedOver'] == true;
     final scheduled = DateTime.tryParse(stop['scheduledDate'] as String? ?? '');
     final notes = (stop['issueNotes'] as String?)?.trim();
 
@@ -96,9 +122,11 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    address?.isNotEmpty == true
-                        ? address!
-                        : 'Address not provided',
+                    resident?.isNotEmpty == true
+                        ? resident!
+                        : (address?.isNotEmpty == true
+                              ? address!
+                              : 'Address not provided'),
                     style: const TextStyle(
                       fontSize: 24,
                       height: 1.25,
@@ -107,6 +135,18 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
                       color: EcoColors.green,
                     ),
                   ),
+                  if (resident?.isNotEmpty == true &&
+                      address?.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      address!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.4,
+                        color: EcoColors.body,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -115,6 +155,18 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
                       StatusBadge(label: statusLabel, tone: statusTone),
                       if (category != null && category.isNotEmpty)
                         StatusBadge(label: category, tone: BadgeTone.category),
+                      if (stop['isBulkRequest'] == true)
+                        const StatusBadge(
+                          label: 'Bulky — needs a lift',
+                          tone: BadgeTone.next,
+                        ),
+                      // An earlier round never got to this one, which is why it
+                      // is on today's list at all.
+                      if (carriedOver)
+                        const StatusBadge(
+                          label: 'Not collected earlier',
+                          tone: BadgeTone.inReview,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 18),
@@ -127,6 +179,14 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
                   EcoCard(
                     child: Column(
                       children: [
+                        if (phone?.isNotEmpty == true) ...[
+                          _Detail(
+                            icon: Icons.phone_outlined,
+                            label: 'Phone',
+                            value: phone!,
+                          ),
+                          const Divider(height: 24, color: EcoColors.border),
+                        ],
                         _Detail(
                           icon: Icons.inventory_2_outlined,
                           label: 'Items',
@@ -134,6 +194,28 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
                               ? description!
                               : 'Not described',
                         ),
+                        if (category != null && category.isNotEmpty) ...[
+                          const Divider(height: 24, color: EcoColors.border),
+                          _Detail(
+                            icon: Icons.category_outlined,
+                            label: 'Category',
+                            value: confidence != null
+                                ? '$category · ${(confidence.clamp(0, 1) * 100).round()}% sure'
+                                : category,
+                          ),
+                        ],
+                        if (requestedAt != null) ...[
+                          const Divider(height: 24, color: EcoColors.border),
+                          _Detail(
+                            icon: Icons.schedule_outlined,
+                            label: 'Requested',
+                            // How long it has waited, which is what a resident
+                            // asks about when they ring.
+                            value: DateFormat(
+                              'EEE, d MMM yyyy',
+                            ).format(requestedAt.toLocal()),
+                          ),
+                        ],
                         if (stop['zoneName'] is String) ...[
                           const Divider(height: 24, color: EcoColors.border),
                           _Detail(

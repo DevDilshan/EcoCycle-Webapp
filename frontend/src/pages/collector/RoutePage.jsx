@@ -7,6 +7,7 @@ import {
   MapPin,
   Navigation,
   Package,
+  Phone,
   TriangleAlert,
   X,
 } from 'lucide-react'
@@ -19,6 +20,7 @@ import { useCollectorData } from '../../components/collector/collectorShell'
 import { useAuth } from '../../context/AuthContext'
 import { formatRequestId } from '../../lib/adminUi'
 import { formatShiftDate, formatStopDay, formatStopTime, formatStopWhen } from '../../lib/collectorUi'
+import { UPCOMING_DAYS } from '../../hooks/useCollectorRoute'
 
 export default function CollectorRoutePage() {
   const { role } = useAuth()
@@ -35,9 +37,13 @@ export default function CollectorRoutePage() {
   const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState(null)
 
+  // Five, not four. "Pending" used to mean both a stop booked for this morning
+  // and one an earlier round never got to, which are the two things a collector
+  // most needs to tell apart.
   const filters = [
     { key: '', label: 'All', count: counts.total },
-    { key: 'Pending', label: 'Pending', count: counts.pending },
+    { key: 'NotCollected', label: 'Not collected', count: counts.notCollected },
+    { key: 'ToDo', label: 'To do', count: counts.toDo },
     { key: 'Completed', label: 'Completed', count: counts.completed },
     { key: 'Missed', label: 'Missed', count: counts.missed },
   ]
@@ -45,9 +51,16 @@ export default function CollectorRoutePage() {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
     return stops.filter((stop) => {
-      if (filter && stop.status !== filter) return false
+      if (filter === 'NotCollected' && !(stop.status === 'Pending' && stop.carriedOver)) return false
+      if (filter === 'ToDo' && !(stop.status === 'Pending' && !stop.carriedOver)) return false
+      if ((filter === 'Completed' || filter === 'Missed') && stop.status !== filter) return false
       if (!q) return true
-      const text = `${stop.pickup?.description ?? ''} ${stop.pickup?.zoneName ?? ''} ${stop.pickup?.category ?? ''}`
+      // The resident and the address are what a collector actually searches by
+      // when the office rings about one stop on the round.
+      const text = [
+        stop.pickup?.description, stop.pickup?.zoneName, stop.pickup?.category,
+        stop.pickup?.residentName, stop.pickup?.address, stop.pickup?.residentPhone,
+      ].filter(Boolean).join(' ')
       return text.toLowerCase().includes(q)
     })
   }, [stops, filter, search])
@@ -145,7 +158,7 @@ export default function CollectorRoutePage() {
 
                 <div className="c-stop-card">
                   <div className="c-stop-head">
-                    <strong>{pickup?.description || formatRequestId(stop.pickupRequestId)}</strong>
+                    <strong>{pickup?.residentName || pickup?.description || formatRequestId(stop.pickupRequestId)}</strong>
                     {tone === 'current' ? (
                       <span className="ac-pill ac-s-info">
                         <Navigation size={13} strokeWidth={2.4} aria-hidden="true" />
@@ -157,6 +170,16 @@ export default function CollectorRoutePage() {
                   </div>
 
                   <div className="c-meta">
+                    {/* A stop an earlier round never got to. Marked rather than
+                        moved to its own section: it keeps its place in the
+                        timeline, but it cannot read as booked for this morning.
+                        First in the row, because it changes how the rest reads. */}
+                    {stop.carriedOver && stop.status === 'Pending' && (
+                      <span className="ac-pill ac-s-warn">
+                        <TriangleAlert size={13} strokeWidth={2.4} aria-hidden="true" />
+                        Not collected {formatStopDay(stop.scheduledDate)}
+                      </span>
+                    )}
                     <span>
                       <Clock size={15} strokeWidth={2} aria-hidden="true" />
                       {/* The day and the service's hours, not a time of
@@ -174,6 +197,15 @@ export default function CollectorRoutePage() {
                         zone only says which round this belongs to. */}
                     {pickup?.address && (
                       <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{pickup.address}</span>
+                    )}
+                    {/* A real tel: link. A collector at the kerb taps to call;
+                        reading digits off a screen and retyping them is how a
+                        stop gets written off instead. */}
+                    {pickup?.residentPhone && (
+                      <a className="c-stop-tel" href={`tel:${pickup.residentPhone}`}>
+                        <Phone size={15} strokeWidth={2} aria-hidden="true" />
+                        {pickup.residentPhone}
+                      </a>
                     )}
                     {pickup?.zoneName && <span>{pickup.zoneName}</span>}
                     {/* The crew needs to know before they arrive: a bulky
@@ -208,6 +240,60 @@ export default function CollectorRoutePage() {
                           <span className="ac-sub">Scheduled {formatStopWhen(stop.scheduledDate)}</span>
                         </div>
                       </div>
+
+                      {/* Everything the request carries, so the crew does not
+                          have to ring the office to find out who they are
+                          visiting or what they are collecting. */}
+                      <dl className="ac-kv">
+                        {pickup?.residentName && (
+                          <>
+                            <dt>Resident</dt>
+                            <dd>{pickup.residentName}</dd>
+                          </>
+                        )}
+                        {pickup?.residentPhone && (
+                          <>
+                            <dt>Phone</dt>
+                            <dd><a href={`tel:${pickup.residentPhone}`}>{pickup.residentPhone}</a></dd>
+                          </>
+                        )}
+                        {pickup?.address && (
+                          <>
+                            <dt>Address</dt>
+                            <dd>{pickup.address}</dd>
+                          </>
+                        )}
+                        {pickup?.zoneName && (
+                          <>
+                            <dt>Zone</dt>
+                            <dd>{pickup.zoneName}</dd>
+                          </>
+                        )}
+                        {pickup?.category && (
+                          <>
+                            <dt>Category</dt>
+                            <dd>
+                              {CATEGORY_LABELS[pickup.category] || pickup.category}
+                              {typeof pickup.confidence === 'number'
+                                && ` · ${Math.round(pickup.confidence * 100)}% sure`}
+                            </dd>
+                          </>
+                        )}
+                        {pickup?.isBulkRequest && (
+                          <>
+                            <dt>Vehicle</dt>
+                            <dd>Bulky collection — needs a lift</dd>
+                          </>
+                        )}
+                        {pickup?.requestedAt && (
+                          <>
+                            <dt>Requested</dt>
+                            {/* How long it has waited, which is the thing a
+                                resident asks about when they ring. */}
+                            <dd>{formatStopDay(pickup.requestedAt)}</dd>
+                          </>
+                        )}
+                      </dl>
 
                       {/* The resident's own words in full. The list above cuts
                           them short, and the detail that matters -- "round the
@@ -275,7 +361,7 @@ export default function CollectorRoutePage() {
       {upcoming.length > 0 && (
         <AcCard
           title="Upcoming"
-          subtitle={`${upcomingCount} stop${upcomingCount === 1 ? '' : 's'} scheduled over the next 7 days`}
+          subtitle={`${upcomingCount} stop${upcomingCount === 1 ? '' : 's'} scheduled over the next ${UPCOMING_DAYS} days`}
         >
           {upcoming.map((day) => (
             <div className="c-upcoming-day" key={day.key}>
@@ -283,13 +369,23 @@ export default function CollectorRoutePage() {
               <ul className="ac-list">
                 {day.stops.map((stop) => (
                   <li className="ac-row" key={stop.id}>
-                    <span className="ac-ic">
-                      <AcCategoryIcon category={stop.pickup?.category} size={18} />
+                    {/* The resident's photo where the category icon was: it says
+                        what is actually waiting at the kerb, which the icon only
+                        approximates. The icon stays as the fallback. */}
+                    <span className="ac-ic c-up-thumb">
+                      {stop.pickup?.photoUrl
+                        ? <img src={stop.pickup.photoUrl} alt={`Photo for ${stop.pickup?.address || 'this pickup'}`} />
+                        : <AcCategoryIcon category={stop.pickup?.category} size={18} />}
                     </span>
                     <span className="ac-grow">
-                      <strong>{stop.pickup?.description || formatRequestId(stop.pickupRequestId)}</strong>
-                      {/* The address belongs here too: a round cannot be planned
-                          from a category and a suburb. */}
+                      {/* Who, then where, then what. A round cannot be planned
+                          from a category and a suburb, and the office rings
+                          about a resident by name rather than by reference. */}
+                      <strong>
+                        {stop.pickup?.residentName
+                          || stop.pickup?.description
+                          || formatRequestId(stop.pickupRequestId)}
+                      </strong>
                       <span className="ac-sub">
                         {[
                           stop.pickup?.address,
@@ -297,6 +393,15 @@ export default function CollectorRoutePage() {
                           stop.pickup?.zoneName,
                         ].filter(Boolean).join(' · ') || 'No details available'}
                       </span>
+                      {stop.pickup?.description && stop.pickup?.residentName && (
+                        <span className="ac-sub">{stop.pickup.description}</span>
+                      )}
+                      {stop.pickup?.residentPhone && (
+                        <a className="c-stop-tel" href={`tel:${stop.pickup.residentPhone}`}>
+                          <Phone size={13} strokeWidth={2.2} aria-hidden="true" />
+                          {stop.pickup.residentPhone}
+                        </a>
+                      )}
                       {stop.pickup?.isBulkRequest && (
                         <span className="ac-pill ac-s-info">
                           <Package size={13} strokeWidth={2.4} aria-hidden="true" />

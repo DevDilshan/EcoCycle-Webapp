@@ -32,6 +32,7 @@ const ResidentRewardsPage = lazy(() => import('./pages/resident/RewardsPage'))
 const ResidentComplaintsPage = lazy(() => import('./pages/resident/ComplaintsPage'))
 const CollectorDashboardPage = lazy(() => import('./pages/collector/DashboardPage'))
 const CollectorRoutePage = lazy(() => import('./pages/collector/RoutePage'))
+const CollectorMapPage = lazy(() => import('./pages/collector/MapPage'))
 
 export default function App() {
   return (
@@ -93,6 +94,7 @@ export default function App() {
           >
             <Route index element={<CollectorDashboardPage />} />
             <Route path="route" element={<CollectorRoutePage />} />
+            <Route path="map" element={<CollectorMapPage />} />
             {/* The console-styled account screen, shared with /admin/account:
                 it is role-agnostic, so the collector side reuses it rather than
                 keeping a second copy of the same profile and password forms. */}
