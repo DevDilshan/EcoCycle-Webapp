@@ -151,13 +151,18 @@ def _require_public_https_url(photo_url: str) -> None:
 
 _VALIDATE_PROMPT = (
     "You are the upload gatekeeper for a household waste-pickup app. A resident "
-    "uploaded this photo to request a waste collection. Judge two things:\n"
-    "1. is_clear: is the photo in focus and well-lit enough to recognise what the "
-    "items are? Set false if it is blurry, too dark, or unrecognisable.\n"
-    "2. is_waste: does it actually show discarded waste, trash, recycling, or "
-    "bulky/hazardous items to be collected? Set false if it shows something that "
-    "is not waste (a person or selfie, a pet, a plain room or street, food being "
-    "eaten, a document, etc.).\n"
+    "uploaded this photo to request a waste collection. Judge two SEPARATE and "
+    "INDEPENDENT things:\n"
+    "1. is_clear: purely about image QUALITY. Can you make out what the photo "
+    "shows? Set true if it is in focus and well-lit, EVEN IF the subject is not "
+    "waste (a sharp selfie, a clear photo of a room, etc. are all is_clear=true). "
+    "Set false ONLY when the image itself is unusable -- blurry, badly out of "
+    "focus, too dark, overexposed, or just noise. Do NOT set false merely because "
+    "the photo does not contain waste; that is the job of is_waste below.\n"
+    "2. is_waste: purely about CONTENT. Does it show discarded waste, trash, "
+    "recycling, or bulky/hazardous items to be collected? Set false if the main "
+    "subject is something else (a person or selfie, a pet, a plain room or street, "
+    "food being eaten, a document, etc.), regardless of how clear the photo is.\n"
     "Reply with ONLY a JSON object using exactly these keys:\n"
     '{"is_clear": true/false, "is_waste": true/false, "reason": "<one short sentence>"}'
 )
