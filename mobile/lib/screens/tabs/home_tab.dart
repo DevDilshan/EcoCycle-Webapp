@@ -203,7 +203,7 @@ class HomeTabState extends State<HomeTab> {
                         const Text(
                           'YOUR IMPACT',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 11,
                             letterSpacing: 1.2,
                             fontWeight: FontWeight.w800,
                             color: EcoColors.body,

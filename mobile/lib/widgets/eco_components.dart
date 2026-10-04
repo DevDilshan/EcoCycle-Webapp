@@ -286,7 +286,8 @@ class EcoTextField extends StatelessWidget {
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
-            color: obscure ? EcoColors.muted : EcoColors.body,
+            fontWeight: FontWeight.w500,
+            color: EcoColors.body,
             letterSpacing: obscure ? 3 : 0,
           ),
           border: InputBorder.none,
@@ -295,7 +296,7 @@ class EcoTextField extends StatelessWidget {
             vertical: 12,
           ),
           prefixIcon: prefixIcon != null
-              ? Icon(prefixIcon, size: 20, color: EcoColors.body)
+              ? Icon(prefixIcon, size: 20, color: EcoColors.green)
               : null,
           prefixIconConstraints: const BoxConstraints(minWidth: 44),
           suffixIcon: suffix,
@@ -848,7 +849,7 @@ class _EcoNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (outline, filled, label) = destination;
-    final color = selected ? EcoColors.green : EcoColors.muted;
+    final color = selected ? EcoColors.green : EcoColors.body;
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 180);
@@ -871,7 +872,7 @@ class _EcoNavItem extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
                   height: 1.3,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   color: selected ? EcoColors.green : EcoColors.body,

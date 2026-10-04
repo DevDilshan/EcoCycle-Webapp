@@ -339,7 +339,7 @@ class _PipelineStep extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
-                    color: done ? EcoColors.ink : EcoColors.muted,
+                    color: done ? EcoColors.ink : EcoColors.body,
                   ),
                 ),
                 Text(

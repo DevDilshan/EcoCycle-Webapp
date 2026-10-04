@@ -116,7 +116,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         _showPassword
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined,
-                        color: EcoColors.body,
+                        color: EcoColors.green,
                         size: 21,
                       ),
                     ),

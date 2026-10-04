@@ -413,7 +413,7 @@ class _CatalogCard extends StatelessWidget {
                     description,
                     style: const TextStyle(
                       fontSize: 12,
-                      color: EcoColors.muted,
+                      color: EcoColors.body,
                     ),
                   ),
               ],
