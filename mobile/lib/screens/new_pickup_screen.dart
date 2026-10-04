@@ -1,11 +1,12 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../config/app_config.dart';
+import '../app/eco_app_scope.dart';
 import '../services/api.dart';
 import '../services/pickup_photo_service.dart';
 import '../theme/eco_theme.dart';
@@ -26,7 +27,7 @@ class NewPickupScreen extends StatefulWidget {
 }
 
 class _NewPickupScreenState extends State<NewPickupScreen> {
-  final _api = Api();
+  late final Api _api;
   final _description = TextEditingController();
   DateTime _date = DateTime.now().add(const Duration(days: 1));
   late final TextEditingController _dateLabel;
@@ -46,17 +47,24 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   @override
   void initState() {
     super.initState();
+    _api = EcoAppScope.apiOf(context);
     final existing = widget.existing;
     if (existing != null) {
       _description.text = (existing['description'] as String?) ?? '';
-      final parsed = DateTime.tryParse(existing['preferredDate'] as String? ?? '');
+      final parsed = DateTime.tryParse(
+        existing['preferredDate'] as String? ?? '',
+      );
       if (parsed != null) _date = parsed.toLocal();
       _recurring = existing['isRecurring'] == true;
       final interval = existing['recurrenceInterval'] as String?;
-      if (interval != null && _allowedIntervals.contains(interval)) _interval = interval;
+      if (interval != null && _allowedIntervals.contains(interval)) {
+        _interval = interval;
+      }
       _existingPhotoUrl = existing['photoUrl'] as String?;
     }
-    _dateLabel = TextEditingController(text: DateFormat('EEE, d MMM yyyy').format(_date));
+    _dateLabel = TextEditingController(
+      text: DateFormat('EEE, d MMM yyyy').format(_date),
+    );
   }
 
   @override
@@ -69,7 +77,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   Future<void> _pickPhoto(ImageSource source) async {
     final picker = ImagePicker();
     final file = await picker.pickImage(source: source, imageQuality: 85);
-    if (file != null) setState(() => _photo = file);
+    if (file != null && mounted) setState(() => _photo = file);
   }
 
   Future<void> _choosePhotoSource() async {
@@ -132,15 +140,30 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   }
 
   Widget _fieldError(String text) => Padding(
-        padding: const EdgeInsets.only(top: 6, left: 4),
-        child: Text(
-          text,
-          style: const TextStyle(color: Color(0xFFB42318), fontSize: 12.5, fontWeight: FontWeight.w500),
-        ),
-      );
+    padding: const EdgeInsets.only(top: 6, left: 4),
+    child: Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFFB42318),
+        fontSize: 12.5,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  );
 
   Future<void> _submit() async {
-    if (!_validate()) return;
+    if (_loading || !_validate()) return;
+    if (EcoAppScope.isPreview(context)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Design preview is read-only. Log in to send a pickup request.',
+          ),
+        ),
+      );
+      return;
+    }
+    FocusScope.of(context).unfocus();
     setState(() => _loading = true);
     try {
       String? photoUrl = _existingPhotoUrl;
@@ -180,16 +203,16 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
           SnackBar(
             content: Text(
               'Photo upload failed: ${e.message}. '
-              'If this mentions row-level security, run supabase/pickup-photos-storage.sql '
-              'in the Supabase SQL Editor. Otherwise create a public '
-              '"${AppConfig.pickupPhotoBucket}" bucket.',
+              'Please try another photo or send your request without one.',
             ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -205,6 +228,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
           EcoBackHeader(title: _isEditing ? 'Edit pickup' : 'New pickup'),
           Expanded(
             child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -216,19 +240,60 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                     child: _photo != null
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(20),
-                            child: Image.file(File(_photo!.path), fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+                            child: kIsWeb
+                                ? Image.network(
+                                    _photo!.path,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                  )
+                                : Image.file(
+                                    File(_photo!.path),
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                  ),
                           )
-                        : (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty)
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: Image.network(_existingPhotoUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
-                              )
-                            : null,
+                        : (_existingPhotoUrl != null &&
+                              _existingPhotoUrl!.isNotEmpty)
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.network(
+                              _existingPhotoUrl!,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                            ),
+                          )
+                        : null,
                   ),
                   const SizedBox(height: 20),
+                  const Text(
+                    'Ready for a fresh start?',
+                    style: TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.w800,
+                      color: EcoColors.green,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Add a photo if you can, tell us what you’re recycling, and choose your preferred day.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.6,
+                      color: EcoColors.body,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   const EcoFieldLabel('Description'),
-                  EcoTextField(controller: _description, maxLines: 3),
-                  if (_descriptionError != null) _fieldError(_descriptionError!),
+                  EcoTextField(
+                    controller: _description,
+                    hint: 'e.g. Clean bottles and flattened cardboard',
+                    maxLines: 3,
+                  ),
+                  if (_descriptionError != null)
+                    _fieldError(_descriptionError!),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Preferred date'),
                   EcoTextField(
@@ -238,26 +303,46 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                         context: context,
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
-                        initialDate: _date.isBefore(DateTime.now()) ? DateTime.now() : _date,
+                        initialDate: _date.isBefore(DateTime.now())
+                            ? DateTime.now()
+                            : _date,
                       );
                       if (picked != null) {
                         setState(() {
                           _date = picked;
-                          _dateLabel.text = DateFormat('EEE, d MMM yyyy').format(picked);
+                          _dateLabel.text = DateFormat(
+                            'EEE, d MMM yyyy',
+                          ).format(picked);
                         });
                       }
                     },
                     controller: _dateLabel,
-                    suffix: const Icon(Icons.calendar_today, color: EcoColors.primary, size: 20),
+                    suffix: const Icon(
+                      Icons.calendar_today,
+                      color: EcoColors.primary,
+                      size: 20,
+                    ),
                   ),
                   if (_dateError != null) _fieldError(_dateError!),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('Pickup type'),
                   Row(
                     children: [
-                      Expanded(child: _TypeChip(label: 'One-off', selected: !_recurring, onTap: () => setState(() => _recurring = false))),
+                      Expanded(
+                        child: _TypeChip(
+                          label: 'One-off',
+                          selected: !_recurring,
+                          onTap: () => setState(() => _recurring = false),
+                        ),
+                      ),
                       const SizedBox(width: 10),
-                      Expanded(child: _TypeChip(label: 'Recurring', selected: _recurring, onTap: () => setState(() => _recurring = true))),
+                      Expanded(
+                        child: _TypeChip(
+                          label: 'Recurring',
+                          selected: _recurring,
+                          onTap: () => setState(() => _recurring = true),
+                        ),
+                      ),
                     ],
                   ),
                   if (_recurring) ...[
@@ -270,11 +355,16 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                         return GestureDetector(
                           onTap: () => setState(() => _interval = label),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: active ? EcoColors.mintBg : Colors.white,
                               border: Border.all(
-                                color: active ? EcoColors.primary : EcoColors.border,
+                                color: active
+                                    ? EcoColors.primary
+                                    : EcoColors.border,
                                 width: active ? 1.5 : 1,
                               ),
                               borderRadius: BorderRadius.circular(999),
@@ -284,7 +374,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: active ? EcoColors.primary : EcoColors.body,
+                                color: active
+                                    ? EcoColors.primary
+                                    : EcoColors.body,
                               ),
                             ),
                           ),
@@ -299,7 +391,11 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
-            child: EcoPrimaryButton(label: _isEditing ? 'Save changes' : 'Submit request', loading: _loading, onPressed: _submit),
+            child: EcoPrimaryButton(
+              label: _isEditing ? 'Save changes' : 'Submit request',
+              loading: _loading,
+              onPressed: _submit,
+            ),
           ),
         ],
       ),
@@ -308,7 +404,11 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
 }
 
 class _TypeChip extends StatelessWidget {
-  const _TypeChip({required this.label, required this.selected, required this.onTap});
+  const _TypeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -321,7 +421,10 @@ class _TypeChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: selected ? EcoColors.mintBg : Colors.white,
-          border: Border.all(color: selected ? EcoColors.primary : EcoColors.border, width: selected ? 1.5 : 1),
+          border: Border.all(
+            color: selected ? EcoColors.primary : EcoColors.border,
+            width: selected ? 1.5 : 1,
+          ),
           borderRadius: BorderRadius.circular(14),
         ),
         alignment: Alignment.center,

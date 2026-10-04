@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -107,3 +108,37 @@ TextStyle ecoMono({double size = 11, Color? color}) =>
       fontWeight: FontWeight.w500,
       color: color ?? EcoColors.monoMuted,
     );
+
+/// How every list in the app behaves at its ends.
+///
+/// Android's default stretches the whole page when it is pulled past the top
+/// or bottom, which squeezes and distorts the text for as long as the finger
+/// is down. Lists here stop firmly at their ends and show a soft green glow
+/// instead, the same on every platform.
+class EcoScrollBehavior extends MaterialScrollBehavior {
+  const EcoScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const ClampingScrollPhysics();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => GlowingOverscrollIndicator(
+    axisDirection: details.direction,
+    color: EcoColors.celadon,
+    child: child,
+  );
+
+  // Lets a mouse or trackpad drag a list, so the web preview scrolls the way
+  // a finger does on a phone.
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    ...super.dragDevices,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+  };
+}

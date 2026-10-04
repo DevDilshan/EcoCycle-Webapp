@@ -6,6 +6,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/auth_gate.dart';
+import 'app/eco_app_scope.dart';
+import 'app/resident_shell.dart';
+import 'app/collector_shell.dart';
+import 'debug/mobile_preview.dart';
 import 'app/eco_startup.dart';
 import 'config/app_config.dart';
 import 'screens/login_screen.dart';
@@ -51,15 +55,19 @@ class EcoCycleApp extends StatelessWidget {
         ? Uri.base.queryParameters['preview']
         : null;
     final Widget home = switch (preview) {
+      'resident' => const ResidentShell(),
+      'collector' => const CollectorShell(),
       'login' => const LoginScreen(),
       'register' => const RegisterScreen(),
       'forgot-password' => const ForgotPasswordScreen(),
       _ => const AuthGate(),
     };
+    final designPreview = preview == 'resident' || preview == 'collector';
     return MaterialApp(
       title: 'EcoCycle',
       debugShowCheckedModeBanner: false,
       theme: buildEcoTheme(),
+      scrollBehavior: const EcoScrollBehavior(),
       // On a phone this changes nothing. On a tablet or a browser window the
       // app stays phone-width and centred instead of stretching edge to edge.
       builder: (context, child) => ColoredBox(
@@ -68,7 +76,41 @@ class EcoCycleApp extends StatelessWidget {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
-            child: child,
+            child: designPreview
+                ? EcoAppScope(
+                    api: MobilePreviewApi(),
+                    user: MobilePreviewApi.user(
+                      collector: preview == 'collector',
+                    ),
+                    preview: true,
+                    child: Column(
+                      children: [
+                        const SafeArea(
+                          bottom: false,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              vertical: 5,
+                              horizontal: 12,
+                            ),
+                            child: Text(
+                              'Design preview · sample data',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: EcoColors.body,
+                                // Sits above the Navigator, so there is no
+                                // Material to supply a default text style.
+                                decoration: TextDecoration.none,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textDirection: TextDirection.ltr,
+                            ),
+                          ),
+                        ),
+                        Expanded(child: child!),
+                      ],
+                    ),
+                  )
+                : child,
           ),
         ),
       ),
