@@ -24,6 +24,25 @@ public class RunPipelineRequestDto
     public string? ComplaintDescription { get; set; }
 }
 
+/// <summary>Request to the agent service's /validate-image endpoint.</summary>
+public class ValidateImageRequestDto
+{
+    public string PhotoUrl { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Result of checking an uploaded photo before a pickup is created/edited.
+/// Checked is false when the agent service could not actually verify it (no key,
+/// unreachable image, model error) -- callers should not block the resident then.
+/// </summary>
+public class ImageValidationDto
+{
+    public bool Checked { get; set; }
+    public bool IsClear { get; set; } = true;
+    public bool IsWaste { get; set; } = true;
+    public string? Reason { get; set; }
+}
+
 public class ResidentHistoryEntryDto
 {
     public string Category { get; set; } = string.Empty;

@@ -298,6 +298,7 @@ export default function ResidentPickupsPage() {
 
   function setCreatePhoto(file) {
     setCreatePhotoFile(file)
+    setCreateErrors((prev) => ({ ...prev, photo: undefined }))
     setCreatePhotoPreview((prev) => {
       revokeBlobPreview(prev)
       return file ? URL.createObjectURL(file) : ''
@@ -314,6 +315,7 @@ export default function ResidentPickupsPage() {
 
   function setEditPhoto(file) {
     setEditPhotoFile(file)
+    setEditErrors((prev) => ({ ...prev, photo: undefined }))
     setEditPhotoPreview((prev) => {
       revokeBlobPreview(prev)
       return file ? URL.createObjectURL(file) : ''
@@ -353,7 +355,9 @@ export default function ResidentPickupsPage() {
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
-    setError(null)
+    // A silent reload runs from an error handler to refresh the list; it must
+    // not wipe the error message that was just shown to the user.
+    if (!silent) setError(null)
     try {
       const query = new URLSearchParams({ page: String(page), pageSize: '20' })
       if (statusFilter) query.set('status', statusFilter)
@@ -421,6 +425,28 @@ export default function ResidentPickupsPage() {
     }
   }
 
+  // After a photo is uploaded, ask the backend (OpenAI vision) whether it is a
+  // clear photo of actual waste. Throws a user-facing message when it is not.
+  // Fail-open: if the check could not run, it does not block the submission.
+  // Returns an inline error message if the uploaded photo is not a clear image
+  // of waste, or null to proceed. Fail-open: an unavailable check returns null.
+  async function photoValidationMessage(photoUrl) {
+    if (!photoUrl) return null
+    let result
+    try {
+      result = await apiRequest('/pickuprequests/validate-photo', {
+        method: 'POST',
+        body: JSON.stringify({ photoUrl }),
+      })
+    } catch {
+      return null // validation service unavailable -- do not block the submission
+    }
+    if (!result?.checked) return null
+    if (!result.isClear) return 'The photo is not clear. Please upload a clearer photo of the waste.'
+    if (!result.isWaste) return 'The photo is not waste. Please upload a photo of the waste to collect.'
+    return null
+  }
+
   async function handleCreate(e) {
     e.preventDefault()
     const errs = validatePickupForm(createForm, {
@@ -438,6 +464,13 @@ export default function ResidentPickupsPage() {
       let photoUrl
       if (createPhotoFile) {
         photoUrl = await uploadPickupPhoto(createPhotoFile)
+        setCreateFlowPhase('checking-photo')
+        const photoMsg = await photoValidationMessage(photoUrl)
+        if (photoMsg) {
+          setCreateErrors((prev) => ({ ...prev, photo: photoMsg }))
+          return
+        }
+        setCreateFlowPhase('submitting')
       }
       const created = await apiRequest('/pickuprequests', {
         method: 'POST',
@@ -510,6 +543,11 @@ export default function ResidentPickupsPage() {
       let photoUrl = editForm.photoUrl?.trim() || undefined
       if (editPhotoFile) {
         photoUrl = await uploadPickupPhoto(editPhotoFile)
+        const photoMsg = await photoValidationMessage(photoUrl)
+        if (photoMsg) {
+          setEditErrors((prev) => ({ ...prev, photo: photoMsg }))
+          return
+        }
       }
       await apiRequest(`/pickuprequests/${id}`, {
         method: 'PUT',
@@ -619,7 +657,9 @@ export default function ResidentPickupsPage() {
           {createFormBusy && (
             <div className="r-pickup-form-loading" role="status" aria-live="polite">
               <p>
-                {createFlowPhase === 'submitting'
+                {createFlowPhase === 'checking-photo'
+                  ? 'Checking your photo looks like waste…'
+                  : createFlowPhase === 'submitting'
                   ? 'Uploading photo & saving your request…'
                   : 'Classifying your waste…'}
               </p>
@@ -633,6 +673,7 @@ export default function ResidentPickupsPage() {
             disabled={createFormBusy || role !== 'resident'}
           />
           {createErrors.photoUrl && <p className="ac-field-error">{createErrors.photoUrl}</p>}
+          {createErrors.photo && <p className="ac-field-error">{createErrors.photo}</p>}
 
           <div className="ac-field">
             <label htmlFor="pickup-zone">Your zone</label>
@@ -1126,6 +1167,7 @@ export default function ResidentPickupsPage() {
               onClear={clearEditPhoto}
               disabled={busyId === editingId}
             />
+            {editErrors.photo && <p className="ac-field-error">{editErrors.photo}</p>}
 
             <div className="ac-field">
               <label htmlFor="edit-date">Collect on or after</label>

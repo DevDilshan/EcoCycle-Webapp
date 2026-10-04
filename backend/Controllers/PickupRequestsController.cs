@@ -14,15 +14,18 @@ public class PickupRequestsController : ControllerBase
     private readonly IPickupRequestService _service;
     private readonly PickupSchedulingService _scheduling;
     private readonly IComplianceService _complianceService;
+    private readonly IAgentPipelineClient _agent;
 
     public PickupRequestsController(
         IPickupRequestService service,
         IComplianceService complianceService,
-        PickupSchedulingService scheduling)
+        PickupSchedulingService scheduling,
+        IAgentPipelineClient agent)
     {
         _service = service;
         _complianceService = complianceService;
         _scheduling = scheduling;
+        _agent = agent;
     }
 
    // "sub" gets remapped to NameIdentifier by default; check both to be safe
@@ -39,6 +42,22 @@ private Guid CurrentUserId
 }
     private bool IsAdmin => User.IsInRole("admin");
     private bool IsCollector => User.IsInRole("collector");
+
+    // POST /api/pickuprequests/validate-photo — check an uploaded photo is clear
+    // and actually shows waste, before a request is created/edited. Fail-open:
+    // if the agent service is unavailable, it reports the check as not run so the
+    // resident is never blocked by an outage.
+    [HttpPost("validate-photo")]
+    [Authorize(Roles = "resident")]
+    [ProducesResponseType(typeof(ImageValidationDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ValidatePhoto([FromBody] ValidateImageRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PhotoUrl))
+            return BadRequest(new { message = "photoUrl is required." });
+
+        var result = await _agent.ValidateImageAsync(request);
+        return Ok(result ?? new ImageValidationDto { Checked = false, IsClear = true, IsWaste = true });
+    }
 
     // POST /api/pickuprequests/{id}/request-again — the resident says the
     // collection did not happen, so book it onto a round again.

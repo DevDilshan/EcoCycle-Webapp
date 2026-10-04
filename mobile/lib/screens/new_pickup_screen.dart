@@ -98,6 +98,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   bool _classifying = false;
   XFile? _photo;
   String? _existingPhotoUrl;
+  bool _validatingPhoto = false;
 
   bool get _isEditing => widget.existing != null;
 
@@ -230,6 +231,31 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
         _photo = file;
         _photoError = null;
       });
+    }
+  }
+
+  // After upload, ask the backend (OpenAI vision) whether the photo is a clear
+  // image of actual waste. Returns a user-facing message when it is not, or null
+  // to proceed. Fail-open: an unavailable check returns null (does not block).
+  Future<String?> _photoValidationError(String photoUrl) async {
+    try {
+      final res = await _api.post(
+        '/pickuprequests/validate-photo',
+        body: {'photoUrl': photoUrl},
+      );
+      final map = res as Map<String, dynamic>?;
+      if (map == null || map['checked'] != true) return null;
+      if (map['isClear'] == false) {
+        return 'The photo is not clear. '
+            'Please upload a clearer photo of the waste.';
+      }
+      if (map['isWaste'] == false) {
+        return 'The photo is not waste. '
+            'Please upload a photo of the waste to collect.';
+      }
+      return null;
+    } catch (_) {
+      return null; // validation unavailable -> do not block the submission
     }
   }
 
@@ -390,11 +416,26 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       return;
     }
     FocusScope.of(context).unfocus();
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _photoError = null;
+    });
     try {
       String? photoUrl = _existingPhotoUrl;
       if (_photo != null) {
         photoUrl = await PickupPhotoService.upload(_photo!);
+        if (mounted) setState(() => _validatingPhoto = true);
+        final photoErr = await _photoValidationError(photoUrl);
+        if (mounted) setState(() => _validatingPhoto = false);
+        if (photoErr != null) {
+          if (mounted) {
+            setState(() {
+              _photoError = photoErr;
+              _loading = false;
+            });
+          }
+          return;
+        }
       }
       final phone = _contactPhone.text.trim();
       final body = {
@@ -486,7 +527,12 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
         ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _validatingPhoto = false;
+        });
+      }
     }
   }
 
@@ -845,15 +891,46 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
-            child: EcoPrimaryButton(
-              // Named while the agents run, as the web form does: the pickup is
-              // already saved by then, and a bare spinner reads as if the
-              // submission itself were still in doubt.
-              label: _classifying
-                  ? 'Classifying your waste…'
-                  : (_isEditing ? 'Save changes' : 'Submit request'),
-              loading: _loading,
-              onPressed: _submit,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_validatingPhoto)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: EcoColors.primary,
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Checking your photo looks like waste…',
+                          style: TextStyle(
+                            color: EcoColors.body,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                EcoPrimaryButton(
+                  // Named while the agents run, as the web form does: the pickup
+                  // is already saved by then, and a bare spinner reads as if the
+                  // submission itself were still in doubt.
+                  label: _classifying
+                      ? 'Classifying your waste…'
+                      : (_isEditing ? 'Save changes' : 'Submit request'),
+                  loading: _loading,
+                  onPressed: _submit,
+                ),
+              ],
             ),
           ),
         ],

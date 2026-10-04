@@ -35,4 +35,11 @@ public interface IAgentPipelineClient
     /// <summary>Words an admin's approve or reject decision for the resident.</summary>
     Task<DecisionExplanationDto?> ExplainDecisionAsync(
         ExplainDecisionRequestDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks an uploaded photo is clear and shows actual waste. Returns null
+    /// when the service is unreachable (the caller lets the submission through).
+    /// </summary>
+    Task<ImageValidationDto?> ValidateImageAsync(
+        ValidateImageRequestDto request, CancellationToken cancellationToken = default);
 }
