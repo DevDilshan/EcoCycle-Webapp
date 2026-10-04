@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_loading.dart';
 import 'new_complaint_screen.dart';
 
 class ComplaintsListScreen extends StatefulWidget {
@@ -61,7 +62,7 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
           const SizedBox(height: 12),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: EcoColors.primary))
+                ? const EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true)
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
                     itemCount: _items.length,

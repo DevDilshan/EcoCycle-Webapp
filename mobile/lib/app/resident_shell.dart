@@ -15,6 +15,8 @@ class ResidentShell extends StatefulWidget {
 }
 
 class _ResidentShellState extends State<ResidentShell> {
+  static const _profileTab = 3;
+
   int _tab = 0;
   final _requestsKey = GlobalKey<RequestsTabState>();
 
@@ -39,7 +41,12 @@ class _ResidentShellState extends State<ResidentShell> {
       child: IndexedStack(
         index: _tab,
         children: [
-          HomeTab(onRequestPickup: _openNewPickup),
+          HomeTab(
+            onRequestPickup: _openNewPickup,
+            // The avatar is a shortcut to the Profile tab, not a new page, so
+            // the bottom bar stays in step with what is on screen.
+            onOpenProfile: () => setState(() => _tab = _profileTab),
+          ),
           RequestsTab(key: _requestsKey),
           const RewardsTab(),
           const ProfileTab(),

@@ -6,11 +6,17 @@ import '../../services/api.dart';
 import '../../theme/eco_theme.dart';
 import '../../utils/user_helpers.dart';
 import '../../widgets/eco_components.dart';
+import '../../widgets/eco_loading.dart';
 
 class HomeTab extends StatefulWidget {
-  const HomeTab({super.key, required this.onRequestPickup});
+  const HomeTab({
+    super.key,
+    required this.onRequestPickup,
+    required this.onOpenProfile,
+  });
 
   final VoidCallback onRequestPickup;
+  final VoidCallback onOpenProfile;
 
   @override
   State<HomeTab> createState() => _HomeTabState();
@@ -84,9 +90,7 @@ class _HomeTabState extends State<HomeTab> {
     final next = _nextPickup;
 
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: EcoColors.primary),
-      );
+      return const EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true);
     }
 
     return RefreshIndicator(
@@ -117,19 +121,30 @@ class _HomeTabState extends State<HomeTab> {
                     ],
                   ),
                 ),
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
+                Semantics(
+                  button: true,
+                  label: 'Open profile',
+                  child: Material(
                     color: EcoColors.avatarBg,
                     borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    initials(user),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: EcoColors.primary,
+                    child: InkWell(
+                      onTap: widget.onOpenProfile,
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        width: 42,
+                        height: 42,
+                        child: Center(
+                          child: ExcludeSemantics(
+                            child: Text(
+                              initials(user),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: EcoColors.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),

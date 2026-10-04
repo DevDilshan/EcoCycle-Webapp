@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../services/api.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_loading.dart';
 
 /// Reward catalog and the resident's own redemption requests.
 ///
@@ -178,7 +179,7 @@ class _RedeemScreenState extends State<RedeemScreen> {
                   if (_loading)
                     const Padding(
                       padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator(color: EcoColors.primary)),
+                      child: EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true),
                     )
                   else if (_error != null)
                     _Notice(text: _error!, onRetry: _load)
