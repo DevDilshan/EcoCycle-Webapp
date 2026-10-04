@@ -201,6 +201,8 @@ export default function ResidentPickupsPage() {
   const [editErrors, setEditErrors] = useState({})
   const [zones, setZones] = useState([])
   const [bulkAllowance, setBulkAllowance] = useState(null)
+  /** null | 'submitting' (photo + save) | 'classifying' (agent pipeline) */
+  const [createFlowPhase, setCreateFlowPhase] = useState(null)
 
   // The actual dates the chosen zone is collected on, for the next few weeks.
   // A free date box let a resident pick a Wednesday in a Tue/Fri zone and then
@@ -310,8 +312,8 @@ export default function ResidentPickupsPage() {
     setStatusCounts(counts)
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     setError(null)
     try {
       const query = new URLSearchParams({ page: String(page), pageSize: '20' })
@@ -322,9 +324,23 @@ export default function ResidentPickupsPage() {
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [page, statusFilter])
+
+  const awaitingClassification = useMemo(
+    () => items.some((item) => item.status === 'Pending' && !item.category),
+    [items],
+  )
+
+  useEffect(() => {
+    if (!awaitingClassification) return undefined
+    const timer = setInterval(() => {
+      load({ silent: true })
+      loadCounts()
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [awaitingClassification, load, loadCounts])
 
   useEffect(() => { loadCounts() }, [loadCounts])
   useEffect(() => { load() }, [load])
@@ -372,14 +388,14 @@ export default function ResidentPickupsPage() {
     setCreateErrors(errs)
     if (Object.keys(errs).length > 0) return      // client-side gate
 
-    setBusyId('create')
+    setCreateFlowPhase('submitting')
     setError(null)
     try {
       let photoUrl
       if (createPhotoFile) {
         photoUrl = await uploadPickupPhoto(createPhotoFile)
       }
-      await apiRequest('/pickuprequests', {
+      const created = await apiRequest('/pickuprequests', {
         method: 'POST',
         body: JSON.stringify({
           description: createForm.description || undefined,
@@ -392,23 +408,35 @@ export default function ResidentPickupsPage() {
           recurrenceInterval: createForm.isRecurring ? createForm.recurrenceInterval || undefined : undefined,
         }),
       })
-      setSuccess('Pickup request submitted.')
-      loadBulkAllowance()
+
+      setCreateFlowPhase('classifying')
+      const pipeline = await apiRequest(`/pickuprequests/${created.id}/run-agent-pipeline`, {
+        method: 'POST',
+      })
+
+      const category = pipeline?.pickup?.category
+      if (!pipeline?.success || !category) {
+        throw new Error(pipeline?.message || 'Classification did not complete. You can try again from admin or resubmit.')
+      }
+
+      setSuccess(`Classified as ${category}.`)
       setCreateForm(emptyForm)
       setCreateErrors({})
       clearCreatePhoto()
       setShowForm(false)
       setPage(1)
-      load()
-      loadCounts()
+      await Promise.all([load(), loadCounts(), loadBulkAllowance()])
     } catch (err) {
       const fieldErrors = mapBackendErrors(err.details)
       if (fieldErrors) setCreateErrors(fieldErrors)
       else setError(err.message)
+      await load({ silent: true })
     } finally {
-      setBusyId(null)
+      setCreateFlowPhase(null)
     }
   }
+
+  const createFormBusy = createFlowPhase !== null
 
   function startEdit(item) {
     setEditingId(item.id)
@@ -495,7 +523,7 @@ export default function ResidentPickupsPage() {
           type="button"
           className="ac-btn ac-btn-primary ac-btn-sm"
           onClick={() => setShowForm((open) => !open)}
-          disabled={role !== 'resident'}
+          disabled={role !== 'resident' || createFormBusy}
           aria-expanded={showForm}
         >
           <Plus size={15} strokeWidth={2.4} aria-hidden="true" />
@@ -536,18 +564,29 @@ export default function ResidentPickupsPage() {
               type="button"
               className="ac-icon-btn"
               onClick={() => setShowForm(false)}
+              disabled={createFormBusy}
               aria-label="Close the new pickup form"
             >
               <X size={18} strokeWidth={2} aria-hidden="true" />
             </button>
           )}
         >
-        <form className="ac-form" onSubmit={handleCreate}>
+        <div className="r-pickup-form-wrap">
+          {createFormBusy && (
+            <div className="r-pickup-form-loading" role="status" aria-live="polite">
+              <p>
+                {createFlowPhase === 'submitting'
+                  ? 'Uploading photo & saving your request…'
+                  : 'Classifying your waste…'}
+              </p>
+            </div>
+          )}
+        <form className="ac-form" onSubmit={handleCreate} aria-busy={createFormBusy}>
           <PickupPhotoField
             previewUrl={createPhotoPreview}
             onFileChange={setCreatePhoto}
             onClear={clearCreatePhoto}
-            disabled={busyId === 'create' || role !== 'resident'}
+            disabled={createFormBusy || role !== 'resident'}
           />
 
           <div className="ac-field">
@@ -720,7 +759,7 @@ export default function ResidentPickupsPage() {
             <button
               type="submit"
               className="ac-btn ac-btn-primary"
-              disabled={busyId === 'create' || role !== 'resident'}
+              disabled={createFormBusy || role !== 'resident'}
             >
               <Send size={16} strokeWidth={2.2} aria-hidden="true" />
               Submit request
@@ -729,12 +768,13 @@ export default function ResidentPickupsPage() {
               type="button"
               className="ac-btn ac-btn-ghost"
               onClick={() => setShowForm(false)}
-              disabled={busyId === 'create'}
+              disabled={createFormBusy}
             >
               Cancel
             </button>
           </div>
         </form>
+        </div>
         </AcCard>
       )}
 

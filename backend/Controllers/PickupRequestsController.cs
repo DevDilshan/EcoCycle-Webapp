@@ -85,6 +85,26 @@ private Guid CurrentUserId
         }
     }
 
+    // POST /api/pickuprequests/{id}/run-agent-pipeline — re-run AI classification (Pending only)
+    [HttpPost("{id:guid}/run-agent-pipeline")]
+    [Authorize(Roles = "admin,resident")]
+    public async Task<IActionResult> RunAgentPipeline(Guid id)
+    {
+        var existing = await _service.GetByIdAsync(id, CurrentUserId, isAdmin: IsAdmin);
+        if (existing is null) return NotFound();
+        if (existing.Status != "Pending")
+            return Conflict(new { message = "Only pending pickups can be sent through the agent pipeline." });
+
+        var (pickup, error) = await _service.RunAgentPipelineNowAsync(id);
+        if (pickup is null)
+            return NotFound();
+
+        if (!string.IsNullOrEmpty(error))
+            return Ok(new { pickup, message = error, success = false });
+
+        return Ok(new { pickup, message = "Classification complete.", success = true });
+    }
+
     // POST /api/pickuprequests/{id}/classify — stub classifier: sets category + moves Pending -> Classified
     [HttpPost("{id:guid}/classify")]
     [Authorize(Roles = "admin")]
