@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../theme/eco_theme.dart';
 import '../services/pickup_photo_service.dart';
+import '../utils/pickup_approval_ui.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/resident_approval_banner.dart';
 import '../widgets/waste_photo_preview.dart';
 
 class PickupSubmittedScreen extends StatelessWidget {
@@ -23,6 +25,10 @@ class PickupSubmittedScreen extends StatelessWidget {
     final reasoning =
         pickup['reasoning'] as String? ??
         'Your request is queued for AI classification.';
+
+    // A flagged pickup is not routed to a collector until an admin decides, so
+    // the heading and the next-step line below cannot promise that it will be.
+    final needsReview = showResidentApprovalBanner(pickup);
 
     return EcoScreen(
       child: Column(
@@ -47,11 +53,15 @@ class PickupSubmittedScreen extends StatelessWidget {
                     'Request submitted',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                   ),
-                  const Text(
-                    'The Classifier Agent analysed your photo',
-                    style: TextStyle(fontSize: 13, color: EcoColors.body),
+                  Text(
+                    needsReview
+                        ? 'Classified, and sent to the team for a decision'
+                        : 'The Classifier Agent analysed your photo',
+                    style: const TextStyle(fontSize: 13, color: EcoColors.body),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
+                  ResidentApprovalBanner(pickup: pickup),
                   WastePhotoPreview(
                     height: 120,
                     subtitle: 'waste photo',
@@ -154,9 +164,13 @@ class PickupSubmittedScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Next: routing agent assigns a collector',
-                        style: ecoMono(),
+                      Expanded(
+                        child: Text(
+                          needsReview
+                              ? 'Next: an admin reviews this request'
+                              : 'Next: routing agent assigns a collector',
+                          style: ecoMono(),
+                        ),
                       ),
                     ],
                   ),

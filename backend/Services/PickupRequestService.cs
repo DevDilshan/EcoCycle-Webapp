@@ -53,6 +53,7 @@ public class PickupRequestService : IPickupRequestService
             Description = dto.Description,
             PreferredDate = NormalizeToUtc(dto.PreferredDate),
             Address = dto.Address?.Trim(),
+            ContactPhone = dto.ContactPhone?.Trim(),
             IsBulkRequest = dto.IsBulkRequest,
             IsRecurring = dto.IsRecurring,
             RecurrenceInterval = dto.RecurrenceInterval,
@@ -618,6 +619,15 @@ public class PickupRequestService : IPickupRequestService
         entity.PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl);
         entity.Description = dto.Description;
         entity.PreferredDate = NormalizeToUtc(dto.PreferredDate);
+        // Both only when supplied. An edit that leaves them out keeps what is
+        // stored rather than wiping the two things the crew needs to find the
+        // stop. UpdatePickupRequestDto has carried Address since it was added
+        // but nothing ever assigned it, so an edited address was silently
+        // discarded.
+        if (!string.IsNullOrWhiteSpace(dto.Address))
+            entity.Address = dto.Address.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.ContactPhone))
+            entity.ContactPhone = dto.ContactPhone.Trim();
         entity.IsRecurring = dto.IsRecurring;
         entity.RecurrenceInterval = dto.RecurrenceInterval;
 
@@ -754,6 +764,7 @@ public class PickupRequestService : IPickupRequestService
             PreferredDate = p.PreferredDate,
             Status = p.Status.ToString(),
             Address = p.Address,
+            ContactPhone = p.ContactPhone,
             ResidentMessage = p.ResidentMessage,
 
             // The most recent attempt, so a resident can see what happened
@@ -853,6 +864,7 @@ public class PickupRequestService : IPickupRequestService
         PreferredDate = p.PreferredDate,
         Status = p.Status.ToString(),
         Address = p.Address,
+        ContactPhone = p.ContactPhone,
         IsBulkRequest = p.IsBulkRequest,
         IsRecurring = p.IsRecurring,
         RecurrenceInterval = p.RecurrenceInterval,
