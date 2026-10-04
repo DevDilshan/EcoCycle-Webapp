@@ -1,25 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/eco_theme.dart';
 import '../utils/network_errors.dart';
+import '../widgets/eco_auth.dart';
 import '../widgets/eco_components.dart';
 import '../widgets/google_sign_in_button.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _form = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;
+  bool _oauthLoading = false;
   bool _showPassword = false;
   String? _error;
+  bool get _busy => _loading || _oauthLoading;
 
   @override
   void dispose() {
@@ -29,136 +34,147 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
-    if (_loading) return;
-
-    final email = _email.text.trim();
-    final password = _password.text;
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _error = 'Enter your email and password.');
-      return;
-    }
-
+    if (_busy || !_form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
+        email: _email.text.trim(),
+        password: _password.text,
       );
-      // AuthGate swaps the home screen as soon as a session exists, but this
-      // screen was pushed on top of it, so without this the login form would
-      // stay visible and it would look as if the button did nothing.
+      TextInput.finishAutofillContext();
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } catch (e) {
-      setState(() => _error = friendlyNetworkMessage(e));
+      if (mounted) setState(() => _error = friendlyNetworkMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return EcoAuthScaffold(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: EcoColors.celadon.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(14),
+  Widget build(BuildContext context) => EcoAuthScaffold(
+    child: AutofillGroup(
+      child: Form(
+        key: _form,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const EcoAuthHeading(
+              title: 'Welcome back',
+              subtitle: 'Your pickups, rewards and greener routine await.',
             ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.lock_outline_rounded, color: EcoColors.green),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Welcome back',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 26),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Log in to manage your pickups and rewards.',
-            style: TextStyle(fontSize: 15, height: 1.45, color: EcoColors.body),
-          ),
-          const SizedBox(height: 24),
-          const EcoFieldLabel('Email'),
-          EcoTextField(
-            controller: _email,
-            hint: 'you@example.com',
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            prefixIcon: Icons.mail_outline_rounded,
-          ),
-          const SizedBox(height: 16),
-          const EcoFieldLabel('Password'),
-          EcoTextField(
-            controller: _password,
-            obscure: !_showPassword,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _signIn(),
-            prefixIcon: Icons.lock_outline_rounded,
-            suffix: IconButton(
-              onPressed: () => setState(() => _showPassword = !_showPassword),
-              icon: Icon(
-                _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: EcoColors.body,
-                size: 20,
-              ),
+            EcoAuthField(
+              controller: _email,
+              label: 'Email address',
+              hint: 'you@example.com',
+              icon: Icons.mail_outline_rounded,
+              enabled: !_busy,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email,
+              ],
+              validator: validateAuthEmail,
             ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () {},
-              child: const Text(
-                'Forgot password?',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: EcoColors.green,
+            const SizedBox(height: 20),
+            EcoAuthField(
+              controller: _password,
+              label: 'Password',
+              hint: 'Enter your password',
+              icon: Icons.lock_outline_rounded,
+              enabled: !_busy,
+              obscure: !_showPassword,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              validator: (value) =>
+                  (value ?? '').isEmpty ? 'Enter your password.' : null,
+              onSubmitted: (_) => _signIn(),
+              suffix: IconButton(
+                tooltip: _showPassword ? 'Hide password' : 'Show password',
+                onPressed: _busy
+                    ? null
+                    : () => setState(() => _showPassword = !_showPassword),
+                icon: Icon(
+                  _showPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: EcoColors.body,
+                  size: 21,
                 ),
               ),
             ),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(_error!, style: const TextStyle(color: EcoColors.danger, fontSize: 13)),
-            ),
-          EcoPrimaryButton(label: 'Log in', loading: _loading, onPressed: _signIn),
-          const SizedBox(height: 16),
-          GoogleSignInButton(onError: (message) => setState(() => _error = message)),
-          const SizedBox(height: 20),
-          Center(
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const RegisterScreen()),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ForgotPasswordScreen(
+                            initialEmail: _email.text.trim(),
+                          ),
+                        ),
+                      ),
+                child: const Text('Forgot password?'),
               ),
-              child: RichText(
-                text: const TextSpan(
-                  style: TextStyle(fontSize: 14, color: EcoColors.body),
+            ),
+            const SizedBox(height: 8),
+            EcoAuthError(_error),
+            EcoPrimaryButton(
+              label: 'Log in',
+              loading: _loading,
+              icon: Icons.arrow_forward_rounded,
+              onPressed: _busy ? null : _signIn,
+            ),
+            const SizedBox(height: 24),
+            GoogleSignInButton(
+              enabled: !_loading,
+              onBusyChanged: (value) {
+                if (mounted) setState(() => _oauthLoading = value);
+              },
+              onError: (message) {
+                if (mounted) setState(() => _error = message);
+              },
+            ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const RegisterScreen(),
+                      ),
+                    ),
+              child: const Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: EcoColors.body,
+                  ),
                   children: [
-                    TextSpan(text: 'New here? '),
+                    TextSpan(text: 'New to EcoCycle? '),
                     TextSpan(
                       text: 'Create account',
                       style: TextStyle(
+                        fontWeight: FontWeight.w800,
                         color: EcoColors.green,
-                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
+                textAlign: TextAlign.center,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
 }

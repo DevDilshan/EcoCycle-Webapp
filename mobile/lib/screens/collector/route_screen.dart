@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/api.dart';
 import '../../theme/eco_theme.dart';
 import '../../widgets/eco_components.dart';
+import '../../widgets/eco_loading.dart';
 import 'stop_detail_screen.dart';
 
 class CollectorRouteScreen extends StatefulWidget {
@@ -38,7 +39,7 @@ class _CollectorRouteScreenState extends State<CollectorRouteScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: EcoColors.primary));
+      return const EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true);
     }
 
     final done = _stops.where((s) => (s['status'] as String? ?? '').toLowerCase() == 'completed').length;

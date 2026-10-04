@@ -5,6 +5,7 @@ import '../../services/api.dart';
 import '../../theme/eco_theme.dart';
 import '../../utils/user_helpers.dart';
 import '../../widgets/eco_components.dart';
+import '../../widgets/eco_loading.dart';
 import '../../utils/pickup_approval_ui.dart';
 import '../pickup_detail_screen.dart';
 
@@ -78,9 +79,7 @@ class RequestsTabState extends State<RequestsTab> {
         const SizedBox(height: 12),
         Expanded(
           child: _loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: EcoColors.primary),
-                )
+              ? const EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true)
               : RefreshIndicator(
                   onRefresh: reload,
                   child: ListView.separated(

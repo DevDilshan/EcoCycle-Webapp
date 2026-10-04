@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/eco_loading.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -45,7 +46,7 @@ class _RewardsTabState extends State<RewardsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: EcoColors.primary));
+      return const EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true);
     }
 
     return RefreshIndicator(

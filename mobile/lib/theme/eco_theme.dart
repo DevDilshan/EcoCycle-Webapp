@@ -33,8 +33,12 @@ abstract final class EcoColors {
 }
 
 TextTheme _textTheme() {
-  final base = GoogleFonts.manropeTextTheme();
+  final base = ThemeData.light().textTheme.apply(fontFamily: 'Manrope');
   return base.copyWith(
+    headlineLarge: base.headlineLarge?.copyWith(
+      fontWeight: FontWeight.w800,
+      color: EcoColors.green,
+    ),
     headlineMedium: base.headlineMedium?.copyWith(
       fontWeight: FontWeight.w800,
       letterSpacing: -0.02 * 16,
@@ -50,14 +54,8 @@ TextTheme _textTheme() {
       fontSize: 15,
       color: EcoColors.ink,
     ),
-    bodyMedium: base.bodyMedium?.copyWith(
-      fontSize: 14,
-      color: EcoColors.ink,
-    ),
-    bodySmall: base.bodySmall?.copyWith(
-      fontSize: 12,
-      color: EcoColors.body,
-    ),
+    bodyMedium: base.bodyMedium?.copyWith(fontSize: 14, color: EcoColors.ink),
+    bodySmall: base.bodySmall?.copyWith(fontSize: 12, color: EcoColors.body),
     labelLarge: base.labelLarge?.copyWith(
       fontWeight: FontWeight.w700,
       fontSize: 15,
@@ -69,6 +67,7 @@ TextTheme _textTheme() {
 ThemeData buildEcoTheme() {
   return ThemeData(
     useMaterial3: true,
+    fontFamily: 'Manrope',
     scaffoldBackgroundColor: EcoColors.ivory,
     colorScheme: ColorScheme.fromSeed(
       seedColor: EcoColors.green,
@@ -76,12 +75,24 @@ ThemeData buildEcoTheme() {
       surface: EcoColors.ivory,
     ),
     textTheme: _textTheme(),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: EcoColors.green,
+        minimumSize: const Size(44, 48),
+        textStyle: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
     appBarTheme: AppBarTheme(
       elevation: 0,
       scrolledUnderElevation: 0,
       backgroundColor: EcoColors.ivory,
       foregroundColor: EcoColors.green,
-      titleTextStyle: GoogleFonts.manrope(
+      titleTextStyle: const TextStyle(
+        fontFamily: 'Manrope',
         fontWeight: FontWeight.w800,
         fontSize: 18,
         color: EcoColors.green,

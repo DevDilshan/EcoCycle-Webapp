@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/api.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_loading.dart';
 import 'redeem_screen.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -70,7 +71,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         children: [
           const EcoBackHeader(title: 'Leaderboard', subtitle: 'Top recyclers'),
           if (_loading)
-            const Expanded(child: Center(child: CircularProgressIndicator(color: EcoColors.primary)))
+            const Expanded(child: EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true))
           else
             Expanded(
               child: ListView.builder(

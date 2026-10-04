@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import '../theme/eco_theme.dart';
 
 class EcoLogo extends StatelessWidget {
-  const EcoLogo({super.key, this.size = 36});
+  const EcoLogo({super.key, this.size = 36, this.cornerRadius});
 
   final double size;
+  final double? cornerRadius;
 
   @override
   Widget build(BuildContext context) {
-    final radius = size >= 48 ? 12.0 : 10.0;
+    final radius = cornerRadius ?? (size >= 48 ? 12.0 : 10.0);
     return Container(
       width: size,
       height: size,
@@ -18,20 +19,19 @@ class EcoLogo extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         boxShadow: [
           BoxShadow(
-            color: EcoColors.green.withValues(alpha: 0.25),
+            color: EcoColors.green.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       alignment: Alignment.center,
-      child: Text(
-        'E',
-        style: TextStyle(
-          color: EcoColors.ivory,
-          fontWeight: FontWeight.w800,
-          fontSize: size * 0.48,
-        ),
+      child: Image.asset(
+        'assets/images/brand/ecocycle-mark-light.webp',
+        width: size * .74,
+        height: size * .74,
+        fit: BoxFit.contain,
+        excludeFromSemantics: true,
       ),
     );
   }
@@ -64,7 +64,12 @@ class EcoBrand extends StatelessWidget {
 }
 
 class EcoEyebrow extends StatelessWidget {
-  const EcoEyebrow({super.key, required this.label, this.icon, this.light = false});
+  const EcoEyebrow({
+    super.key,
+    required this.label,
+    this.icon,
+    this.light = false,
+  });
 
   final String label;
   final IconData? icon;
@@ -116,62 +121,62 @@ class EcoIconTile extends StatelessWidget {
 }
 
 class EcoAuthScaffold extends StatelessWidget {
-  const EcoAuthScaffold({
-    super.key,
-    required this.child,
-    this.onBack,
-  });
+  const EcoAuthScaffold({super.key, required this.child, this.onBack});
 
   final Widget child;
   final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
+    final canGoBack = Navigator.of(context).canPop();
     return Scaffold(
-      backgroundColor: EcoColors.honeydew,
+      backgroundColor: EcoColors.ivory,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: onBack ?? () => Navigator.maybePop(context),
-                    child: const EcoBrand(compact: true),
-                  ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: onBack ?? () => Navigator.maybePop(context),
-                    icon: const Icon(Icons.arrow_back_rounded, size: 18, color: EcoColors.green),
-                    label: const Text(
-                      'Back to home',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: EcoColors.green),
+                  const Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: EcoBrand(compact: true),
                     ),
                   ),
+                  if (canGoBack || onBack != null)
+                    TextButton.icon(
+                      onPressed: onBack ?? () => Navigator.maybePop(context),
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        size: 18,
+                        color: EcoColors.green,
+                      ),
+                      label: const Text(
+                        'Back',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: EcoColors.green,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
             Expanded(
-              child: Center(
+              child: Align(
+                alignment: Alignment.topCenter,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                   child: Container(
                     width: double.infinity,
                     constraints: const BoxConstraints(maxWidth: 440),
-                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+                    padding: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: EcoColors.ivory,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: EcoColors.cardBorder),
-                      boxShadow: [
-                        BoxShadow(
-                          color: EcoColors.green.withValues(alpha: 0.08),
-                          blurRadius: 32,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
+                      borderRadius: BorderRadius.circular(24),
                     ),
                     child: child,
                   ),
@@ -213,7 +218,7 @@ class EcoFieldLabel extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
           color: EcoColors.label,
         ),
@@ -276,7 +281,10 @@ class EcoTextField extends StatelessWidget {
             letterSpacing: obscure ? 3 : 0,
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
+          ),
           prefixIcon: prefixIcon != null
               ? Icon(prefixIcon, size: 20, color: EcoColors.body)
               : null,
@@ -315,6 +323,15 @@ class EcoPrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final vPad = compact ? 10.0 : 16.0;
     final hPad = compact ? 16.0 : 0.0;
+    final labelWidget = Text(
+      label,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        color: labelColor,
+        fontWeight: FontWeight.w700,
+        fontSize: compact ? 14 : 15,
+      ),
+    );
     return Material(
       color: color,
       borderRadius: BorderRadius.circular(14),
@@ -329,9 +346,9 @@ class EcoPrimaryButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: color.withValues(alpha: 0.35),
-                blurRadius: compact ? 12 : 20,
-                offset: Offset(0, compact ? 6 : 10),
+                color: color.withValues(alpha: 0.1),
+                blurRadius: compact ? 8 : 12,
+                offset: Offset(0, compact ? 3 : 5),
               ),
             ],
           ),
@@ -349,14 +366,7 @@ class EcoPrimaryButton extends StatelessWidget {
                   mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: labelColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: compact ? 14 : 15,
-                      ),
-                    ),
+                    if (expand) Flexible(child: labelWidget) else labelWidget,
                     if (icon != null) ...[
                       const SizedBox(width: 8),
                       Icon(icon, color: labelColor, size: 20),
@@ -370,11 +380,7 @@ class EcoPrimaryButton extends StatelessWidget {
 }
 
 class EcoSecondaryButton extends StatelessWidget {
-  const EcoSecondaryButton({
-    super.key,
-    required this.label,
-    this.onPressed,
-  });
+  const EcoSecondaryButton({super.key, required this.label, this.onPressed});
 
   final String label;
   final VoidCallback? onPressed;
@@ -419,13 +425,20 @@ class EcoBackHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () => Navigator.maybePop(context),
-            icon: const Icon(Icons.chevron_left, color: EcoColors.primary, size: 28),
+            icon: const Icon(
+              Icons.chevron_left,
+              color: EcoColors.primary,
+              size: 28,
+            ),
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: Theme.of(context).appBarTheme.titleTextStyle),
+                Text(
+                  title,
+                  style: Theme.of(context).appBarTheme.titleTextStyle,
+                ),
                 if (subtitle != null) Text(subtitle!, style: ecoMono()),
               ],
             ),
@@ -531,7 +544,10 @@ class _StripePainter extends CustomPainter {
       for (var x = 0.0; x < size.width; x += tile) {
         canvas.drawRect(Rect.fromLTWH(x, y, tile, tile), p1);
         canvas.drawRect(Rect.fromLTWH(x, y, tile / 2, tile / 2), p2);
-        canvas.drawRect(Rect.fromLTWH(x + tile / 2, y + tile / 2, tile / 2, tile / 2), p2);
+        canvas.drawRect(
+          Rect.fromLTWH(x + tile / 2, y + tile / 2, tile / 2, tile / 2),
+          p2,
+        );
       }
     }
   }
@@ -567,11 +583,7 @@ class StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: fg,
-        ),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg),
       ),
     );
   }
@@ -619,7 +631,9 @@ class EcoBottomNav extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: EcoColors.ivory,
-        border: Border(top: BorderSide(color: EcoColors.green.withValues(alpha: 0.08))),
+        border: Border(
+          top: BorderSide(color: EcoColors.green.withValues(alpha: 0.08)),
+        ),
       ),
       padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
       child: Row(
@@ -738,7 +752,10 @@ class FilterPills extends StatelessWidget {
             child: GestureDetector(
               onTap: () => onSelect(i),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: active ? EcoColors.primary : Colors.white,
                   border: Border.all(

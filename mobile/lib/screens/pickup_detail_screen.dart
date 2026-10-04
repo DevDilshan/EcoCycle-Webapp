@@ -6,6 +6,7 @@ import '../widgets/waste_photo_preview.dart';
 import '../theme/eco_theme.dart';
 import '../utils/user_helpers.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_loading.dart';
 import '../widgets/resident_approval_banner.dart';
 import '../utils/pickup_approval_ui.dart';
 import 'new_pickup_screen.dart';
@@ -85,9 +86,7 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const EcoScreen(
-        child: Center(
-          child: CircularProgressIndicator(color: EcoColors.primary),
-        ),
+        child: EcoLoadingState(title: 'Loading your EcoCycle', message: 'Bringing your latest details together.', compact: true),
       );
     }
     final p = _pickup;

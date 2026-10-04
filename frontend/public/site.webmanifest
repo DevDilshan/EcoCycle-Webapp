@@ -1,0 +1,15 @@
+{
+  "name": "EcoCycle",
+  "short_name": "EcoCycle",
+  "description": "Simple recycling pickups and rewards for a greener community.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFF0",
+  "theme_color": "#00563B",
+  "icons": [
+    { "src": "/icons/Icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/Icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/Icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/Icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

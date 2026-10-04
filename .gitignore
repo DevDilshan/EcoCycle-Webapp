@@ -112,6 +112,11 @@ ai-scratch/
 *.prompt.local
 *.local.md
 
+# Local design experiments, generation prompts, exports and preview captures
+/design/brand/
+/design/mobile-ui-redesign/
+# Runtime brand/illustration assets under frontend/ and mobile/ stay tracked.
+
 # Knowledge-graph / agent skill output
 graphify-out/
 .superpowers/
