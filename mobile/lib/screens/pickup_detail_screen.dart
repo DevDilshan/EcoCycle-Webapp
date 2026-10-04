@@ -101,6 +101,10 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
     final approvalPending = approval == 'pending';
     final approvalRejected = approval == 'rejected';
     final isPending = (p['status'] as String?)?.toLowerCase() == 'pending';
+    final createdRaw = p['createdAt'] as String?;
+    final createdAt = createdRaw != null ? DateTime.tryParse(createdRaw) : null;
+    final canCancel = createdAt != null &&
+        DateTime.now().toUtc().difference(createdAt.toUtc()) < const Duration(minutes: 30);
 
     return EcoScreen(
       child: Column(
@@ -169,27 +173,29 @@ class _PickupDetailScreenState extends State<PickupDetailScreen> {
               ),
             ),
           ),
-          if (isPending)
+          if (isPending || canCancel)
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
               child: Row(
                 children: [
-                  Expanded(
-                    child: EcoPrimaryButton(
-                      label: 'Edit',
-                      icon: Icons.edit_outlined,
-                      onPressed: _busy ? null : _edit,
+                  if (isPending)
+                    Expanded(
+                      child: EcoPrimaryButton(
+                        label: 'Edit',
+                        icon: Icons.edit_outlined,
+                        onPressed: _busy ? null : _edit,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: EcoPrimaryButton(
-                      label: 'Cancel request',
-                      color: EcoColors.danger,
-                      loading: _busy,
-                      onPressed: _cancel,
+                  if (isPending && canCancel) const SizedBox(width: 12),
+                  if (canCancel)
+                    Expanded(
+                      child: EcoPrimaryButton(
+                        label: 'Cancel request',
+                        color: EcoColors.danger,
+                        loading: _busy,
+                        onPressed: _cancel,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
