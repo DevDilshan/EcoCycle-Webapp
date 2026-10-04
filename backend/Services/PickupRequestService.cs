@@ -41,10 +41,8 @@ public class PickupRequestService : IPickupRequestService
     /// Creates a pickup request and runs it through the Python agent pipeline.
     /// </summary>
     /// <remarks>
-    /// The pickup is always saved first, and every later step is best-effort: if
-    /// the agent service is slow, down, or misconfigured, the resident's request
-    /// still lands as Pending and an admin can classify it by hand. Nothing here
-    /// may fail the resident's submission because of an AI outage.
+    /// Saves the pickup only. Call <see cref="RunAgentPipelineNowAsync"/> afterward
+    /// to classify (resident submit flow: save, then classify on the same page).
     /// </remarks>
     public async Task<PickupRequestResponseDto> CreateAsync(Guid residentId, CreatePickupRequestDto dto)
     {
@@ -91,9 +89,30 @@ public class PickupRequestService : IPickupRequestService
         _db.PickupRequests.Add(entity);
         await _db.SaveChangesAsync();
 
-        await TryRunAgentPipelineAsync(entity);
-
         return ToDto(entity);
+    }
+
+    public async Task<(PickupRequestResponseDto? Pickup, string? Error)> RunAgentPipelineNowAsync(
+        Guid pickupId)
+    {
+        var entity = await _db.PickupRequests.FirstOrDefaultAsync(p => p.Id == pickupId);
+        if (entity is null)
+            return (null, "Pickup not found.");
+        if (entity.Status != PickupStatus.Pending)
+            return (null, "Only pending pickups can be classified.");
+
+        var error = await TryRunAgentPipelineAsync(entity);
+        var dto = await ProjectToDto(
+                _db.PickupRequests.AsNoTracking().Where(p => p.Id == pickupId))
+            .FirstOrDefaultAsync();
+
+        if (dto is null)
+            return (null, "Pickup not found.");
+
+        if (string.IsNullOrEmpty(dto.Category))
+            return (dto, error ?? "Classification did not complete. Check the agent service and backend logs.");
+
+        return (dto, null);
     }
 
     /// <summary>
@@ -101,14 +120,15 @@ public class PickupRequestService : IPickupRequestService
     /// failure: the pickup already exists, and Pending is a valid state an admin
     /// can resolve by hand.
     /// </summary>
-    private async Task TryRunAgentPipelineAsync(PickupRequest entity)
+    /// <returns>Null on success; otherwise a short message for admins.</returns>
+    private async Task<string?> TryRunAgentPipelineAsync(PickupRequest entity)
     {
         if (entity.ZoneId is null)
         {
             _logger.LogWarning(
                 "Pickup {PickupId} has no zone (no active zones exist); skipping the agent " +
                 "pipeline and leaving it Pending for manual handling.", entity.Id);
-            return;
+            return "This pickup has no zone assigned.";
         }
 
         if (string.IsNullOrWhiteSpace(entity.Description))
@@ -117,7 +137,7 @@ public class PickupRequestService : IPickupRequestService
             // nothing to send and no point paying for the call.
             _logger.LogInformation(
                 "Pickup {PickupId} has no description; skipping the agent pipeline.", entity.Id);
-            return;
+            return "This pickup has no description for the classifier.";
         }
 
         PipelineResultDto? result;
@@ -149,7 +169,7 @@ public class PickupRequestService : IPickupRequestService
             // internal key, a contract mismatch. That is our bug, not the
             // resident's problem, so it is logged loudly and swallowed here.
             _logger.LogError(ex, "Agent pipeline call failed for pickup {PickupId}.", entity.Id);
-            return;
+            return ex.Message;
         }
 
         if (result is null)
@@ -157,7 +177,7 @@ public class PickupRequestService : IPickupRequestService
             _logger.LogWarning(
                 "Agent service unavailable; pickup {PickupId} stays Pending for manual classification.",
                 entity.Id);
-            return;
+            return "Agent service unreachable or timed out (pipeline can take 1–2 minutes).";
         }
 
         try
@@ -167,7 +187,10 @@ public class PickupRequestService : IPickupRequestService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Could not apply the pipeline result to pickup {PickupId}.", entity.Id);
+            return ex.Message;
         }
+
+        return null;
     }
 
     /// <summary>
@@ -603,11 +626,7 @@ public class PickupRequestService : IPickupRequestService
         var photoChanged = !string.Equals(previousPhoto, entity.PhotoUrl, StringComparison.Ordinal);
         var descriptionChanged = !string.Equals(previousDescription, entity.Description, StringComparison.Ordinal);
         if (photoChanged || descriptionChanged)
-        {
             await ClearStalePipelineResultsAsync(entity.Id);
-            await TryRunAgentPipelineAsync(entity);
-            await _db.Entry(entity).ReloadAsync();
-        }
 
         return ToDto(entity);
     }

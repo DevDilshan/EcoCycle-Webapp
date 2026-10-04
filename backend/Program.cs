@@ -9,8 +9,9 @@ using Npgsql;
 using backend.Data;
 using backend.Services;
 
-LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
+// Repo-root .env first, then backend/.env wins (pool size, agent URL, keys).
 LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"));
+LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -88,7 +89,7 @@ if (string.IsNullOrWhiteSpace(agentServiceKey))
 builder.Services.AddHttpClient<backend.Services.IAgentPipelineClient, backend.Services.AgentPipelineClient>(client =>
 {
     client.BaseAddress = new Uri(agentServiceUrl);
-    client.Timeout = TimeSpan.FromSeconds(60);
+    client.Timeout = TimeSpan.FromMinutes(3);
     client.DefaultRequestHeaders.Add("X-Internal-Key", agentServiceKey ?? string.Empty);
 });
 
@@ -177,9 +178,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     var cache = services.GetRequiredService<IMemoryCache>();
                     role = await cache.GetOrCreateAsync($"role:{userId}", async entry =>
                     {
-                        // Short-lived: saves a database round trip on every
-                        // request, and a role change still lands within a minute.
-                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60);
+                        // Cached role lookup: each miss opens a pooler connection.
+                        // Supabase session mode allows ~15 clients for the whole project.
+                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
                         var db = services.GetRequiredService<NpgsqlDataSource>();
                         await using var command = db.CreateCommand(
@@ -217,6 +218,55 @@ app.MapGet("/api/health", async (NpgsqlDataSource db) =>
 {
     await using var connection = await db.OpenConnectionAsync();
     return Results.Ok(new { status = "healthy", database = "connected" });
+});
+
+// Local dev: verify agent URL + shared secret (no auth required).
+app.MapGet("/api/health/agent", async (ILogger<Program> logger) =>
+{
+    var agentUrl = (Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
+                    ?? "http://127.0.0.1:8000").TrimEnd('/');
+    var key = Environment.GetEnvironmentVariable("INTERNAL_API_KEY");
+    var keyConfigured = !string.IsNullOrWhiteSpace(key);
+
+    try
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        var health = await http.GetAsync($"{agentUrl}/health");
+        int? pipelineStatus = null;
+        if (keyConfigured && health.IsSuccessStatusCode)
+        {
+            using var probe = new HttpRequestMessage(HttpMethod.Post, $"{agentUrl}/run-pipeline");
+            probe.Headers.Add("X-Internal-Key", key);
+            probe.Content = JsonContent.Create(new
+            {
+                description = "EcoCycle connectivity probe — mixed recyclables",
+                resident_zone_id = Guid.Empty.ToString(),
+                routing_context = new { slots = Array.Empty<object>() },
+            });
+            var pipe = await http.SendAsync(probe);
+            pipelineStatus = (int)pipe.StatusCode;
+        }
+
+        return Results.Ok(new
+        {
+            agentUrl,
+            internalKeyConfigured = keyConfigured,
+            healthStatus = (int)health.StatusCode,
+            runPipelineStatus = pipelineStatus,
+            ok = health.IsSuccessStatusCode && pipelineStatus is 200,
+        });
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Agent health check failed for {AgentUrl}", agentUrl);
+        return Results.Ok(new
+        {
+            agentUrl,
+            internalKeyConfigured = keyConfigured,
+            ok = false,
+            error = ex.Message,
+        });
+    }
 });
 
 app.MapGet("/api/me", (ClaimsPrincipal user) =>
