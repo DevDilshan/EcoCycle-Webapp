@@ -106,33 +106,45 @@ class EcoAuthField extends StatelessWidget {
             onFieldSubmitted: onSubmitted,
             autocorrect: false,
             enableSuggestions: !obscure,
-            style: const TextStyle(fontSize: 15, color: EcoColors.ink),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: EcoColors.ink,
+            ),
             decoration: InputDecoration(
               hintText: hint,
               filled: true,
               fillColor: EcoColors.surface,
-              hintStyle: const TextStyle(fontSize: 14, color: EcoColors.body),
-              prefixIcon: Icon(icon, size: 20, color: EcoColors.body),
+              // Medium weight and full-strength grey: the placeholder still
+              // reads as a hint next to typed text, which is darker and
+              // larger, but it is no longer faint on a small screen.
+              hintStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: EcoColors.body,
+              ),
+              prefixIcon: Icon(icon, size: 21, color: EcoColors.green),
               suffixIcon: suffix,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 18,
               ),
-              enabledBorder: border(EcoColors.green.withValues(alpha: .14)),
+              enabledBorder: border(EcoColors.green.withValues(alpha: .30)),
               focusedBorder: border(EcoColors.green, 1.6),
               errorBorder: border(EcoColors.danger),
               focusedErrorBorder: border(EcoColors.danger, 1.6),
               disabledBorder: border(EcoColors.border),
               errorStyle: const TextStyle(
-                fontSize: 12,
+                fontSize: 13,
                 height: 1.4,
+                fontWeight: FontWeight.w600,
                 color: EcoColors.danger,
               ),
               errorMaxLines: 3,
               helperText: helper,
               helperMaxLines: 3,
               helperStyle: const TextStyle(
-                fontSize: 12,
+                fontSize: 13,
                 height: 1.4,
                 color: EcoColors.body,
               ),

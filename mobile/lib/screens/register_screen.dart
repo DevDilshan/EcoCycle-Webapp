@@ -227,7 +227,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     Text(
                                       description,
                                       style: const TextStyle(
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         height: 1.4,
                                         color: EcoColors.body,
                                       ),
@@ -280,7 +280,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     _showPassword
                         ? Icons.visibility_off_outlined
                         : Icons.visibility_outlined,
-                    color: EcoColors.body,
+                    color: EcoColors.green,
                     size: 21,
                   ),
                 ),

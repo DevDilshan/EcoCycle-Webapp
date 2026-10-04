@@ -122,7 +122,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                             '$rank',
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
-                              color: isMe ? EcoColors.primary : EcoColors.muted,
+                              color: isMe ? EcoColors.primary : EcoColors.body,
                             ),
                           ),
                         ),
