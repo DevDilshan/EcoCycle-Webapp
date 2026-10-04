@@ -36,6 +36,8 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   bool _loading = false;
   XFile? _photo;
   String? _existingPhotoUrl;
+  String? _photoError;
+  bool _validatingPhoto = false;
 
   bool get _isEditing => widget.existing != null;
 
@@ -77,7 +79,37 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   Future<void> _pickPhoto(ImageSource source) async {
     final picker = ImagePicker();
     final file = await picker.pickImage(source: source, imageQuality: 85);
-    if (file != null && mounted) setState(() => _photo = file);
+    if (file != null && mounted) {
+      setState(() {
+        _photo = file;
+        _photoError = null;
+      });
+    }
+  }
+
+  // After upload, ask the backend (OpenAI vision) whether the photo is a clear
+  // image of actual waste. Returns a user-facing message when it is not, or null
+  // to proceed. Fail-open: an unavailable check returns null (does not block).
+  Future<String?> _photoValidationError(String photoUrl) async {
+    try {
+      final res = await _api.post(
+        '/pickuprequests/validate-photo',
+        body: {'photoUrl': photoUrl},
+      );
+      final map = res as Map<String, dynamic>?;
+      if (map == null || map['checked'] != true) return null;
+      if (map['isClear'] == false) {
+        return 'The photo is not clear. '
+            'Please upload a clearer photo of the waste.';
+      }
+      if (map['isWaste'] == false) {
+        return 'The photo is not waste. '
+            'Please upload a photo of the waste to collect.';
+      }
+      return null;
+    } catch (_) {
+      return null; // validation unavailable -> do not block the submission
+    }
   }
 
   Future<void> _choosePhotoSource() async {
@@ -164,11 +196,26 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       return;
     }
     FocusScope.of(context).unfocus();
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _photoError = null;
+    });
     try {
       String? photoUrl = _existingPhotoUrl;
       if (_photo != null) {
         photoUrl = await PickupPhotoService.upload(_photo!);
+        if (mounted) setState(() => _validatingPhoto = true);
+        final photoErr = await _photoValidationError(photoUrl);
+        if (mounted) setState(() => _validatingPhoto = false);
+        if (photoErr != null) {
+          if (mounted) {
+            setState(() {
+              _photoError = photoErr;
+              _loading = false;
+            });
+          }
+          return;
+        }
       }
       final body = {
         'description': _description.text.trim(),
@@ -215,7 +262,12 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
         ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _validatingPhoto = false;
+        });
+      }
     }
   }
 
@@ -267,6 +319,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                           )
                         : null,
                   ),
+                  if (_photoError != null) _fieldError(_photoError!),
                   const SizedBox(height: 20),
                   const Text(
                     'Ready for a fresh start?',
@@ -391,10 +444,41 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
-            child: EcoPrimaryButton(
-              label: _isEditing ? 'Save changes' : 'Submit request',
-              loading: _loading,
-              onPressed: _submit,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_validatingPhoto)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: EcoColors.primary,
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Checking your photo looks like waste…',
+                          style: TextStyle(
+                            color: EcoColors.body,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                EcoPrimaryButton(
+                  label: _isEditing ? 'Save changes' : 'Submit request',
+                  loading: _loading,
+                  onPressed: _submit,
+                ),
+              ],
             ),
           ),
         ],

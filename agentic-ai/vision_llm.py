@@ -15,6 +15,7 @@ misconfigured key or an unavailable model is visible instead of mysterious.
 
 import base64
 import ipaddress
+import json
 import logging
 import os
 import socket
@@ -146,3 +147,86 @@ def _require_public_https_url(photo_url: str) -> None:
     for info in socket.getaddrinfo(parsed.hostname, port, type=socket.SOCK_STREAM):
         if not ipaddress.ip_address(info[4][0]).is_global:
             raise ValueError("Photo URL does not point at a public address.")
+
+
+_VALIDATE_PROMPT = (
+    "You are the upload gatekeeper for a household waste-pickup app. A resident "
+    "uploaded this photo to request a waste collection. Judge two things:\n"
+    "1. is_clear: is the photo in focus and well-lit enough to recognise what the "
+    "items are? Set false if it is blurry, too dark, or unrecognisable.\n"
+    "2. is_waste: does it actually show discarded waste, trash, recycling, or "
+    "bulky/hazardous items to be collected? Set false if it shows something that "
+    "is not waste (a person or selfie, a pet, a plain room or street, food being "
+    "eaten, a document, etc.).\n"
+    "Reply with ONLY a JSON object using exactly these keys:\n"
+    '{"is_clear": true/false, "is_waste": true/false, "reason": "<one short sentence>"}'
+)
+
+
+def _validation_skipped(reason: str = "validation skipped") -> dict:
+    # Fail-open: if we cannot check, do not block the resident's submission.
+    return {"checked": False, "is_clear": True, "is_waste": True, "reason": reason}
+
+
+def validate_waste_image(photo_url: str) -> dict:
+    """Check that `photo_url` is a clear photo of actual waste.
+
+    Returns {checked, is_clear, is_waste, reason}. `checked` is False when the
+    check could not run (no key, unfetchable URL, model error) -- callers treat
+    that as "could not verify" and let the submission through. Never raises.
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        logger.info("OPENAI_API_KEY not set; skipping image validation.")
+        return _validation_skipped()
+
+    try:
+        image_bytes, mime_type = _fetch_image(photo_url)
+    except Exception as error:
+        logger.warning("Could not fetch image for validation %s: %s", photo_url, error)
+        return _validation_skipped()
+
+    try:
+        encoded = base64.b64encode(image_bytes).decode("ascii")
+        response = requests.post(
+            OPENAI_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": OPENAI_VISION_MODEL,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": _VALIDATE_PROMPT},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{encoded}",
+                                    "detail": "low",
+                                },
+                            },
+                        ],
+                    }
+                ],
+                "max_tokens": 200,
+                "response_format": {"type": "json_object"},
+            },
+            timeout=VISION_REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        content = (response.json()["choices"][0]["message"]["content"] or "").strip()
+        data = json.loads(content)
+        return {
+            "checked": True,
+            "is_clear": bool(data.get("is_clear", True)),
+            "is_waste": bool(data.get("is_waste", True)),
+            "reason": str(data.get("reason", "")),
+        }
+    except Exception as error:
+        logger.warning(
+            "OpenAI image validation failed (model=%s): %s", OPENAI_VISION_MODEL, error
+        )
+        return _validation_skipped()

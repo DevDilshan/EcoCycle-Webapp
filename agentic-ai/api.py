@@ -100,6 +100,24 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+class ValidateImageRequest(BaseModel):
+    """A photo URL to check before a pickup is created or edited."""
+
+    photo_url: str
+
+
+@app.post("/validate-image", dependencies=[Depends(require_internal_key)])
+def post_validate_image(request: ValidateImageRequest) -> dict:
+    """Check that an uploaded photo is clear and shows actual waste.
+
+    Returns {checked, is_clear, is_waste, reason}. Fail-open: `checked` is false
+    when the check could not run, and the caller should not block the resident.
+    """
+    from vision_llm import validate_waste_image
+
+    return validate_waste_image(request.photo_url)
+
+
 @app.post("/run-pipeline", dependencies=[Depends(require_internal_key)])
 def post_run_pipeline(request: RunPipelineRequest) -> dict:
     """Run a pickup request through all four agents.
