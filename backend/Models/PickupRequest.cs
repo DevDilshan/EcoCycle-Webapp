@@ -76,6 +76,10 @@ public class PickupRequest
     [MaxLength(300)]
     public string? Address { get; set; }
 
+    // Resident-confirmed pickup pin; older bookings have no coordinates.
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
     /// <summary>
     /// A number the crew can call from the kerb, given by the resident on the
     /// request itself.

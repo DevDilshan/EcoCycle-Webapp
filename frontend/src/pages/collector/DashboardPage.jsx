@@ -282,7 +282,7 @@ export default function CollectorDashboardPage() {
           <AcCard
             title="Route map"
             subtitle={`Where today&rsquo;s round takes you${unmappedCount > 0
-              ? ` · ${unmappedCount} not shown, no location on their zone`
+              ? ` · ${unmappedCount} without a confirmed pickup pin`
               : ''}`}
             action={(
               <Link className="ac-link-btn" to="/collector/map">

@@ -279,16 +279,22 @@ class _BalanceCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: EcoColors.body),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 13, color: EcoColors.body),
+            ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
-              fontSize: strong ? 18 : 14,
-              color: strong ? EcoColors.primary : EcoColors.ink,
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+                fontSize: strong ? 18 : 14,
+                color: strong ? EcoColors.primary : EcoColors.ink,
+              ),
             ),
           ),
         ],
@@ -406,15 +412,12 @@ class _CatalogCard extends StatelessWidget {
                       : soldOut
                       ? ' · sold out'
                       : ' · $stock left'}',
-                  style: const TextStyle(fontSize: 12, color: EcoColors.body),
+                  style: const TextStyle(fontSize: 13, color: EcoColors.body),
                 ),
                 if (description != null && description.isNotEmpty)
                   Text(
                     description,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: EcoColors.body,
-                    ),
+                    style: const TextStyle(fontSize: 13, color: EcoColors.body),
                   ),
               ],
             ),
@@ -439,7 +442,7 @@ class _CatalogCard extends StatelessWidget {
                       : 'Request',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 12,
+                    fontSize: 13,
                     color: locked ? EcoColors.muted : Colors.white,
                   ),
                 ),
@@ -514,7 +517,7 @@ class _RequestCard extends StatelessWidget {
                   status,
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 11,
+                    fontSize: 12,
                     color: fg,
                   ),
                 ),
@@ -524,18 +527,20 @@ class _RequestCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '${request['points']} points${created == null ? '' : ' · ${DateFormat('d MMM').format(created)}'}',
-            style: const TextStyle(fontSize: 12, color: EcoColors.body),
+            style: const TextStyle(fontSize: 13, color: EcoColors.body),
           ),
           if (note != null && note.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
               'Admin: $note',
-              style: const TextStyle(fontSize: 12, color: EcoColors.label),
+              style: const TextStyle(fontSize: 13, color: EcoColors.label),
             ),
           ],
           if (pending) ...[
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
               children: [
                 TextButton(
                   onPressed: busy ? null : onChange,

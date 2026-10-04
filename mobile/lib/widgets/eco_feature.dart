@@ -252,7 +252,7 @@ class EcoPickupCard extends StatelessWidget {
                       pickup['category'] as String? ??
                           'Awaiting classification',
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: EcoColors.body,
                       ),
                     ),
@@ -278,7 +278,7 @@ class EcoPickupCard extends StatelessWidget {
                 child: Text(
                   'Preferred: ${pickupDate(pickup)}',
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     height: 1.4,
                     color: EcoColors.body,
                   ),
@@ -351,7 +351,7 @@ class EcoPointsCard extends StatelessWidget {
           subtitle,
           style: const TextStyle(
             color: EcoColors.honeydew,
-            fontSize: 12,
+            fontSize: 13,
             height: 1.6,
           ),
         ),

@@ -32,6 +32,7 @@ class EcoLogo extends StatelessWidget {
         width: size * .74,
         height: size * .74,
         fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
         excludeFromSemantics: true,
       ),
     );
@@ -89,7 +90,7 @@ class EcoEyebrow extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.08 * 16,
             color: fg,
@@ -551,7 +552,7 @@ class EcoBackHeader extends StatelessWidget {
                     child: Text(
                       subtitle!,
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: EcoColors.body,
                         height: 1.5,
                       ),
@@ -625,7 +626,7 @@ class StripedPhotoZone extends StatelessWidget {
                         subtitle!,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           height: 1.5,
                           color: EcoColors.body,
                         ),
@@ -666,7 +667,7 @@ class StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
       ),
     );
   }
@@ -757,7 +758,7 @@ class EcoNavigationBar extends StatelessWidget {
   final List<EcoDestination> destinations;
   final EcoNavAction? centerAction;
 
-  static const _barHeight = 68.0;
+  static const _barHeight = 76.0;
   static const _actionSize = 58.0;
   // How far the action rises above the bar's top edge.
   static const _lift = 26.0;
@@ -766,10 +767,18 @@ class EcoNavigationBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final action = centerAction;
+    final textScale = MediaQuery.textScalerOf(context).scale(12) / 12;
+    final barHeight = _barHeight + (textScale - 1).clamp(0.0, 2.0) * 32;
+    final compact = MediaQuery.sizeOf(context).width < 360;
+    // Large labels get the full bar width. Lift the pickup action above it
+    // rather than taking space away from the destination names.
+    final separateAction = action != null && textScale > 1.2;
+    final lift = separateAction ? _actionSize + 6 : _lift;
     final half = destinations.length ~/ 2;
     final items = <Widget>[
       for (var i = 0; i < destinations.length; i++) ...[
-        if (action != null && i == half) const SizedBox(width: _notchGap),
+        if (action != null && !separateAction && i == half)
+          SizedBox(width: compact ? 66 : _notchGap),
         Expanded(
           child: _EcoNavItem(
             destination: destinations[i],
@@ -782,9 +791,9 @@ class EcoNavigationBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+        padding: EdgeInsets.fromLTRB(compact ? 8 : 14, 4, compact ? 8 : 14, 10),
         child: SizedBox(
-          height: _barHeight + (action == null ? 0 : _lift),
+          height: barHeight + (action == null ? 0 : lift),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
@@ -792,13 +801,17 @@ class EcoNavigationBar extends StatelessWidget {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                height: _barHeight,
+                height: barHeight,
                 child: CustomPaint(
-                  painter: _EcoNavBarPainter(notched: action != null),
+                  painter: _EcoNavBarPainter(
+                    notched: action != null && !separateAction,
+                  ),
                   child: Material(
                     type: MaterialType.transparency,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact ? 4 : 6,
+                      ),
                       child: Row(children: items),
                     ),
                   ),
@@ -880,10 +893,10 @@ class _EcoNavItem extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   height: 1.3,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   color: selected ? EcoColors.green : EcoColors.body,
@@ -984,6 +997,7 @@ class FilterPills extends StatelessWidget {
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onSelect;
+
   /// Wrapped onto as many lines as the chips need, rather than scrolled
   /// sideways.
   ///
@@ -1011,7 +1025,7 @@ class FilterPills extends StatelessWidget {
         backgroundColor: EcoColors.surface,
         labelStyle: TextStyle(
           fontFamily: 'Manrope',
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.w700,
           color: i == selected ? Colors.white : EcoColors.body,
         ),
@@ -1022,9 +1036,7 @@ class FilterPills extends StatelessWidget {
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
         side: const BorderSide(color: EcoColors.border),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
   );

@@ -80,4 +80,19 @@ public class RouteAssignmentDto
 
     /// <summary>When the pickup was asked for, which says how long it has waited.</summary>
     public DateTime? RequestedAt { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public RoutePickupDto? Pickup { get; set; }
+}
+
+public class RoutePickupDto
+{
+    public Guid Id { get; set; }
+    public string? Address { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? Description { get; set; }
+    public string? PhotoUrl { get; set; }
+    public string? ZoneName { get; set; }
+    public Guid? ZoneId { get; set; }
 }

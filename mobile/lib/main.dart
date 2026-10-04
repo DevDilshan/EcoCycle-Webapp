@@ -10,11 +10,15 @@ import 'app/eco_app_scope.dart';
 import 'app/resident_shell.dart';
 import 'app/collector_shell.dart';
 import 'debug/mobile_preview.dart';
+import 'debug/mobile_ui_audit.dart';
 import 'app/eco_startup.dart';
 import 'config/app_config.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/forgot_password_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/reset_password_screen.dart';
+import 'screens/pickup_submitted_screen.dart';
 import 'theme/eco_theme.dart';
 import 'widgets/eco_loading.dart';
 
@@ -60,9 +64,33 @@ class EcoCycleApp extends StatelessWidget {
       'login' => const LoginScreen(),
       'register' => const RegisterScreen(),
       'forgot-password' => const ForgotPasswordScreen(),
+      'ui-audit' => MobileUiAudit(
+        page: Uri.base.queryParameters['page'] ?? 'home',
+      ),
+      'onboarding' => Builder(
+        builder: (context) => OnboardingScreen(
+          onComplete: (createAccount) async {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute<void>(
+                builder: (_) => createAccount
+                    ? const RegisterScreen()
+                    : const LoginScreen(),
+              ),
+            );
+          },
+        ),
+      ),
+      'reset-password' => ResetPasswordScreen(onComplete: () {}),
+      'submitted' => PickupSubmittedScreen(
+        pickup: MobilePreviewApi().pickups.first,
+      ),
       _ => const AuthGate(),
     };
-    final designPreview = preview == 'resident' || preview == 'collector';
+    final designPreview =
+        preview == 'resident' ||
+        preview == 'collector' ||
+        preview == 'submitted' ||
+        preview == 'ui-audit';
     return MaterialApp(
       title: 'EcoCycle',
       debugShowCheckedModeBanner: false,
@@ -80,7 +108,11 @@ class EcoCycleApp extends StatelessWidget {
                 ? EcoAppScope(
                     api: MobilePreviewApi(),
                     user: MobilePreviewApi.user(
-                      collector: preview == 'collector',
+                      collector:
+                          preview == 'collector' ||
+                          (preview == 'ui-audit' &&
+                              (Uri.base.queryParameters['page'] ?? '')
+                                  .startsWith('collector')),
                     ),
                     preview: true,
                     child: Column(

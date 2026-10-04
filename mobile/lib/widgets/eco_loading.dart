@@ -34,6 +34,7 @@ class EcoLoadingState extends StatelessWidget {
                     'assets/images/generated/recycling-garden.webp',
                     width: 240,
                     height: 240,
+                    filterQuality: FilterQuality.high,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -195,7 +196,7 @@ class EcoLoadingScreen extends StatelessWidget {
                             'Getting things ready…',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: EcoColors.body,
                             ),

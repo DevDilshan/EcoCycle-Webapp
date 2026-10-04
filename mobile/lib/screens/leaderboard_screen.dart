@@ -139,7 +139,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                           child: Text(
                             name.isNotEmpty ? name[0].toUpperCase() : '?',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: isMe
                                   ? Colors.white
@@ -190,7 +190,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     children: [
                       const Text(
                         'Your balance',
-                        style: TextStyle(fontSize: 12, color: EcoColors.body),
+                        style: TextStyle(fontSize: 13, color: EcoColors.body),
                       ),
                       Text(
                         '$_balance pts',

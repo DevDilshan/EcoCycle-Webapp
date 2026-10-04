@@ -128,6 +128,8 @@ export function useCollectorRoute() {
       residentName: route.residentName,
       residentPhone: route.residentPhone,
       address: route.address,
+      latitude: route.latitude,
+      longitude: route.longitude,
       description: route.description,
       category: route.category,
       confidence: route.confidence,
@@ -248,7 +250,7 @@ export function useCollectorRoute() {
 
   /** Stops that cannot be drawn, because their zone was never placed on a map. */
   const unmappedCount = useMemo(
-    () => stops.filter((s) => s.zoneLatitude == null || s.zoneLongitude == null).length,
+    () => stops.filter((s) => s.latitude == null || s.longitude == null).length,
     [stops],
   )
 

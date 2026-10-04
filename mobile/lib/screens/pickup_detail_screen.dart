@@ -314,7 +314,7 @@ class _PipelineStep extends StatelessWidget {
               child: Text(
                 error ? '!' : (done ? '✓' : '4'),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   color: done || error ? Colors.white : EcoColors.muted,
                 ),
               ),
@@ -345,7 +345,7 @@ class _PipelineStep extends StatelessWidget {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     color: error ? EcoColors.danger : EcoColors.body,
                   ),
                 ),

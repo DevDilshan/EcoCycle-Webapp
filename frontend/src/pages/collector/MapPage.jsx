@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { pickupPoint } from '../../lib/mapLocation'
 import { Link } from 'react-router-dom'
 import { ChevronRight, MapPin } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
@@ -24,7 +25,7 @@ export default function CollectorMapPage() {
   const [search, setSearch] = useState('')
 
   const unplaced = stops.filter(
-    (stop) => stop.zoneLatitude == null || stop.zoneLongitude == null,
+    (stop) => !pickupPoint(stop.pickup),
   )
 
   return (
@@ -46,7 +47,7 @@ export default function CollectorMapPage() {
         <>
           <AcCard
             title="Today&rsquo;s round"
-            subtitle={`${counts.total} stop${counts.total === 1 ? '' : 's'} shown around your zone centre — pins are not street addresses`}
+            subtitle={`${counts.total} stop${counts.total === 1 ? '' : 's'} in today’s round — pins show confirmed pickup locations`}
             action={(
               <Link className="ac-link-btn" to="/collector/route">
                 Open the list <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />
@@ -67,7 +68,7 @@ export default function CollectorMapPage() {
           {unmappedCount > 0 && (
             <AcCard
               title="Not on the map"
-              subtitle={`${unmappedCount} stop${unmappedCount === 1 ? '' : 's'} whose zone has no location set`}
+              subtitle={`${unmappedCount} stop${unmappedCount === 1 ? '' : 's'} without a confirmed pickup pin`}
             >
               <ul className="ac-list">
                 {unplaced.map((stop) => (

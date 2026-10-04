@@ -54,6 +54,8 @@ public class PickupRequestService : IPickupRequestService
             PreferredDate = NormalizeToUtc(dto.PreferredDate),
             Address = dto.Address?.Trim(),
             ContactPhone = dto.ContactPhone?.Trim(),
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
             IsBulkRequest = dto.IsBulkRequest,
             IsRecurring = dto.IsRecurring,
             RecurrenceInterval = dto.RecurrenceInterval,
@@ -618,6 +620,18 @@ public class PickupRequestService : IPickupRequestService
 
         entity.PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl);
         entity.Description = dto.Description;
+        var addressChanged = dto.Address != null && dto.Address.Trim() != entity.Address;
+        if (dto.Address != null) entity.Address = dto.Address.Trim();
+        if (dto.ClearLocation || (addressChanged && dto.Latitude == null))
+        {
+            entity.Latitude = null;
+            entity.Longitude = null;
+        }
+        else if (dto.Latitude.HasValue && dto.Longitude.HasValue)
+        {
+            entity.Latitude = dto.Latitude;
+            entity.Longitude = dto.Longitude;
+        }
         entity.PreferredDate = NormalizeToUtc(dto.PreferredDate);
         // Both only when supplied. An edit that leaves them out keeps what is
         // stored rather than wiping the two things the crew needs to find the
@@ -765,6 +779,8 @@ public class PickupRequestService : IPickupRequestService
             Status = p.Status.ToString(),
             Address = p.Address,
             ContactPhone = p.ContactPhone,
+            Latitude = p.Latitude,
+            Longitude = p.Longitude,
             ResidentMessage = p.ResidentMessage,
 
             // The most recent attempt, so a resident can see what happened
@@ -865,6 +881,8 @@ public class PickupRequestService : IPickupRequestService
         Status = p.Status.ToString(),
         Address = p.Address,
         ContactPhone = p.ContactPhone,
+            Latitude = p.Latitude,
+            Longitude = p.Longitude,
         IsBulkRequest = p.IsBulkRequest,
         IsRecurring = p.IsRecurring,
         RecurrenceInterval = p.RecurrenceInterval,

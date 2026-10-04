@@ -358,6 +358,10 @@ public class RouteAssignmentService
         {
             ResidentId = pickup.ResidentId,
             ZoneId = pickup.ZoneId,
+            Address = pickup.Address,
+            ContactPhone = pickup.ContactPhone,
+            Latitude = pickup.Latitude,
+            Longitude = pickup.Longitude,
             Description = pickup.Description,
             PreferredDate = ServiceClock.TodayPlus(days),
             IsRecurring = true,
@@ -696,12 +700,25 @@ public class RouteAssignmentService
         ResidentName = route.PickupRequest?.Resident?.FullName,
         ResidentPhone = route.PickupRequest?.ContactPhone,
         Address = route.PickupRequest?.Address,
+        Latitude = route.PickupRequest?.Latitude,
+        Longitude = route.PickupRequest?.Longitude,
         Description = route.PickupRequest?.Description,
         ZoneName = route.Zone?.Name,
         ZoneLatitude = route.Zone?.Latitude,
         ZoneLongitude = route.Zone?.Longitude,
         IsBulkRequest = route.PickupRequest?.IsBulkRequest ?? false,
         PhotoUrl = route.PickupRequest?.PhotoUrl,
-        RequestedAt = route.PickupRequest?.CreatedAt
+        RequestedAt = route.PickupRequest?.CreatedAt,
+        Pickup = route.PickupRequest is { } p ? new RoutePickupDto
+        {
+            Id = p.Id,
+            Address = p.Address,
+            Latitude = p.Latitude,
+            Longitude = p.Longitude,
+            Description = p.Description,
+            PhotoUrl = p.PhotoUrl,
+            ZoneName = route.Zone?.Name,
+            ZoneId = p.ZoneId
+        } : null
     };
 }

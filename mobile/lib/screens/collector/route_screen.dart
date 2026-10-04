@@ -28,7 +28,12 @@ String stopCompletion(Object? value) => switch (value) {
 /// belonging to other collectors.
 ///
 /// The stop's `id` stays the route id, which is what complete and missed act on.
-Map<String, dynamic> collectorStop(Map<String, dynamic> route) => {
+Map<String, dynamic> collectorStop(
+  Map<String, dynamic> route, [
+  Map<String, dynamic>? pickup,
+]) => {
+  ...?pickup,
+  ...?(route["pickup"] as Map?)?.cast<String, dynamic>(),
   ...route,
   'completion': stopCompletion(route['completionStatus']),
   // True when an earlier round never got to this stop. Today's round carries
@@ -365,7 +370,9 @@ class _UpcomingCard extends StatelessWidget {
         ? resident!
         : (address?.isNotEmpty == true
               ? address!
-              : (description?.isNotEmpty == true ? description! : 'Pickup stop'));
+              : (description?.isNotEmpty == true
+                    ? description!
+                    : 'Pickup stop'));
     final detail = [
       if (resident?.isNotEmpty == true) address,
       category,
@@ -428,7 +435,7 @@ class _UpcomingCard extends StatelessWidget {
                     detail,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: EcoColors.body),
+                    style: const TextStyle(fontSize: 13, color: EcoColors.body),
                   ),
                 ],
                 if (phone?.isNotEmpty == true) ...[
@@ -436,7 +443,7 @@ class _UpcomingCard extends StatelessWidget {
                   Text(
                     phone!,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: EcoColors.green,
                     ),
@@ -542,7 +549,7 @@ class _Stat extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 4),
-      Text(label, style: const TextStyle(fontSize: 12, color: EcoColors.body)),
+      Text(label, style: const TextStyle(fontSize: 13, color: EcoColors.body)),
     ],
   );
 }
@@ -575,7 +582,9 @@ class _StopCard extends StatelessWidget {
         ? resident!
         : (address?.isNotEmpty == true
               ? address!
-              : (description?.isNotEmpty == true ? description! : 'Stop $number'));
+              : (description?.isNotEmpty == true
+                    ? description!
+                    : 'Stop $number'));
     final details = [
       if (resident?.isNotEmpty == true) address,
       stop['category'] as String?,
@@ -639,7 +648,7 @@ class _StopCard extends StatelessWidget {
                     details,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: EcoColors.body),
+                    style: const TextStyle(fontSize: 13, color: EcoColors.body),
                   ),
                 ],
                 if (phone?.isNotEmpty == true) ...[
@@ -647,7 +656,7 @@ class _StopCard extends StatelessWidget {
                   Text(
                     phone!,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: EcoColors.green,
                     ),
@@ -660,18 +669,26 @@ class _StopCard extends StatelessWidget {
                     tone: BadgeTone.inReview,
                   ),
                 ],
+                if (completed || missed || isNext) ...[
+                  const SizedBox(height: 8),
+                  StatusBadge(
+                    label: completed
+                        ? 'Collected'
+                        : missed
+                        ? 'Not collected'
+                        : 'Next',
+                    tone: completed
+                        ? BadgeTone.completed
+                        : missed
+                        ? BadgeTone.inReview
+                        : BadgeTone.next,
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(width: 10),
-          if (completed)
-            const StatusBadge(label: 'Collected', tone: BadgeTone.completed)
-          else if (missed)
-            const StatusBadge(label: 'Not collected', tone: BadgeTone.inReview)
-          else if (isNext)
-            const StatusBadge(label: 'Next', tone: BadgeTone.next)
-          else
-            const Icon(Icons.chevron_right_rounded, color: EcoColors.green),
+          const Icon(Icons.chevron_right_rounded, color: EcoColors.green),
         ],
       ),
     );
