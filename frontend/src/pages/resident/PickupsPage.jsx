@@ -756,9 +756,16 @@ export default function ResidentPickupsPage() {
               // never got booked at all -- offering it there asked the resident
               // to cancel something that was not going ahead anyway, and the
               // backend refuses both.
+              // Cancellation is only allowed within 30 minutes of creating the
+              // request; after that the pickup is committed (the backend enforces
+              // this too).
+              const createdMs = new Date(item.createdAt).getTime()
+              const withinCancelWindow = Number.isFinite(createdMs)
+                && (Date.now() - createdMs) < 30 * 60 * 1000
               const canCancel = item.status !== 'Completed'
                 && !isRefused(item)
                 && item.lastAttemptStatus !== 'Completed'
+                && withinCancelWindow
 
               return (
                 <div className={`r-item${expanded ? ' is-open' : ''}`} key={item.id}>

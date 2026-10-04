@@ -632,6 +632,11 @@ public class PickupRequestService : IPickupRequestService
         if (entity is null) return PickupOperationResult.NotFound;
         if (!isAdmin && entity.ResidentId != residentId) return PickupOperationResult.Forbidden;
 
+        // Residents may only cancel within 30 minutes of creating the request;
+        // after that the pickup is committed to the day's plan.
+        if (!isAdmin && DateTime.UtcNow - entity.CreatedAt > TimeSpan.FromMinutes(30))
+            return PickupOperationResult.CancelWindowExpired;
+
         // Once it has been collected there is nothing to cancel, and removing it
         // would erase the record of work that was actually done -- including the
         // points the resident was paid for it.

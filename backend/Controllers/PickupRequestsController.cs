@@ -163,6 +163,7 @@ private Guid CurrentUserId
             PickupOperationResult.NotFound    => NotFound(),
             PickupOperationResult.Forbidden   => Forbid(),
             PickupOperationResult.NotEditable => Conflict(new { message = "This pickup is already finished, so it cannot be cancelled." }),
+            PickupOperationResult.CancelWindowExpired => Conflict(new { message = "Requests can only be cancelled within 30 minutes of creating them." }),
             _ => StatusCode(500)
         };
     }

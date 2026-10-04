@@ -36,5 +36,6 @@ public enum PickupOperationResult
     Success,
     NotFound,
     Forbidden,
-    NotEditable   // e.g. trying to cancel a request that isn't Pending
+    NotEditable,          // the pickup is already finished, so it cannot be cancelled
+    CancelWindowExpired   // the 30-minute cancellation window has passed
 }
