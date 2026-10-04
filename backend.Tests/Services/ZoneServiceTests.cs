@@ -49,6 +49,10 @@ public class ZoneServiceTests
         public Task<DecisionExplanationDto?> ExplainDecisionAsync(
             ExplainDecisionRequestDto request, CancellationToken cancellationToken = default) =>
             Task.FromResult<DecisionExplanationDto?>(null);
+
+        public Task<ImageValidationDto?> ValidateImageAsync(
+            ValidateImageRequestDto request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<ImageValidationDto?>(null);
     }
 
     private Zone AddZone(
