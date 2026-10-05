@@ -6,6 +6,9 @@ import FormModal from '../FormModal'
 import { useConfirm } from '../../hooks/useConfirm'
 import { apiRequest } from '../../lib/api'
 import { hasErrors, validateRewardItem } from '../../lib/rewardValidation'
+import { DELIVERY, deliveryOf } from '../../lib/redemption'
+import RewardImage from '../rewards/RewardImage'
+import RewardImagePicker from '../rewards/RewardImagePicker'
 
 const FILTERS = [
   { key: '', label: 'All' },
@@ -13,7 +16,7 @@ const FILTERS = [
   { key: 'false', label: 'Hidden' },
 ]
 
-const EMPTY_FORM = { name: '', description: '', pointsCost: 100, stock: '', isActive: true }
+const EMPTY_FORM = { name: '', description: '', imageUrl: '', delivery: 'Collect', deliveryInstructions: '', pointsCost: 100, stock: '', isActive: true }
 
 /**
  * The catalog residents redeem from. Admins add items, change their cost or
@@ -67,6 +70,9 @@ export default function RewardCatalogPanel({ onError, onSuccess, onChanged, relo
       id: item.id,
       name: item.name,
       description: item.description ?? '',
+      imageUrl: item.imageUrl ?? '',
+      delivery: item.delivery ?? 'Collect',
+      deliveryInstructions: item.deliveryInstructions ?? '',
       pointsCost: item.pointsCost,
       stock: item.stock ?? '',
       isActive: item.isActive,
@@ -83,6 +89,9 @@ export default function RewardCatalogPanel({ onError, onSuccess, onChanged, relo
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
+      imageUrl: form.imageUrl.trim(),
+      delivery: form.delivery,
+      deliveryInstructions: form.deliveryInstructions.trim() || null,
       pointsCost: Number(form.pointsCost),
       stock: form.stock === '' ? null : Number(form.stock),
       isActive: form.isActive,
@@ -111,6 +120,9 @@ export default function RewardCatalogPanel({ onError, onSuccess, onChanged, relo
         body: JSON.stringify({
           name: item.name,
           description: item.description,
+          imageUrl: item.imageUrl,
+          delivery: item.delivery,
+          deliveryInstructions: item.deliveryInstructions,
           pointsCost: item.pointsCost,
           stock: item.stock,
           isActive: !item.isActive,
@@ -197,6 +209,26 @@ export default function RewardCatalogPanel({ onError, onSuccess, onChanged, relo
                 onChange={(e) => setForm({ ...form, description: e.target.value })} />
               {errors.description && <p className="ac-field-error" role="alert">{errors.description}</p>}
             </div>
+            <RewardImagePicker value={form.imageUrl} error={errors.imageUrl} onBusyChange={setBusy}
+              onChange={imageUrl => {
+                setForm(current => current ? { ...current, imageUrl } : null)
+                setErrors(current => ({ ...current, imageUrl: null }))
+              }} />
+            <div className="ac-field">
+              <label htmlFor="item-delivery">How the resident gets it</label>
+              <select id="item-delivery" value={form.delivery}
+                onChange={(e) => setForm({ ...form, delivery: e.target.value })}>
+                {Object.entries(DELIVERY).map(([key, d]) => <option key={key} value={key}>{d.option}</option>)}
+              </select>
+            </div>
+            <div className="ac-field">
+              <label htmlFor="item-collect">Instructions shown with the resident's code (optional)</label>
+              <input id="item-collect" value={form.deliveryInstructions} maxLength={300}
+                placeholder={form.delivery === 'Collect'
+                  ? 'Show this code at your municipal council office to collect your reward.'
+                  : 'Leave empty to use the standard wording.'}
+                onChange={(e) => setForm({ ...form, deliveryInstructions: e.target.value })} />
+            </div>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input type="checkbox" checked={form.isActive}
                 onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
@@ -228,12 +260,15 @@ export default function RewardCatalogPanel({ onError, onSuccess, onChanged, relo
       ) : (
         <ul className="ac-list">
           {items.map((item) => (
-            <li className="ac-row" key={item.id} style={{ flexWrap: 'wrap' }}>
+            <li className="ac-row reward-catalog-row" key={item.id} style={{ flexWrap: 'wrap' }}>
+              <span className="reward-catalog-info">
+              <RewardImage src={item.imageUrl} />
               <span className="ac-grow">
                 <strong>{item.name}</strong>
                 <small style={{ display: 'block' }}>
-                  {item.description || 'No description'} · {item.stock == null ? 'Unlimited' : `${item.stock} left`}
+                  {item.description || 'No description'} · {item.stock == null ? 'Unlimited' : `${item.stock} left`} · {deliveryOf(item).option}
                 </small>
+              </span>
               </span>
               <span className="ac-v">{item.pointsCost.toLocaleString()} pts</span>
               <AcStatusPill status={item.isActive ? 'Active' : 'Inactive'} label={item.isActive ? 'Available' : 'Hidden'} />

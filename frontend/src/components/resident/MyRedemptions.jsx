@@ -4,6 +4,9 @@ import { AcCard, AcModal } from '../admin/AcUi'
 import { AcStatusPill } from '../admin/AcPills'
 import { useConfirm } from '../../hooks/useConfirm'
 import { apiRequest, formatDate } from '../../lib/api'
+import RedemptionTicket from './RedemptionTicket'
+import RewardImage from '../rewards/RewardImage'
+import { addressError, deliveryOf, redemptionPillStatus, redemptionStatusLabel } from '../../lib/redemption'
 
 /**
  * The resident's redemption requests. They pick an item from the catalog in a
@@ -20,7 +23,9 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [chosen, setChosen] = useState('')
-  const [editing, setEditing] = useState(null) // { id, rewardItemId }
+  const [address, setAddress] = useState('')
+  const [addressProblem, setAddressProblem] = useState(null)
+  const [editing, setEditing] = useState(null) // { id, rewardItemId, address }
   const [fieldError, setFieldError] = useState(null)
   const [confirmDialog, confirm] = useConfirm()
 
@@ -46,12 +51,15 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
 
   function closeCreate() {
     setChosen('')
+    setAddress('')
+    setAddressProblem(null)
     setFieldError(null)
     onCloseForm?.()
   }
 
   const closeEdit = useCallback(() => {
     setEditing(null)
+    setAddressProblem(null)
     setFieldError(null)
   }, [])
 
@@ -77,8 +85,14 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
       setFieldError('Choose a reward to request.')
       return
     }
+    const problem = addressError(catalog.find((c) => c.id === chosen), address)
+    setAddressProblem(problem)
+    if (problem) return
     const ok = await run(
-      () => apiRequest('/redemptions', { method: 'POST', body: JSON.stringify({ rewardItemId: chosen }) }),
+      () => apiRequest('/redemptions', {
+        method: 'POST',
+        body: JSON.stringify({ rewardItemId: chosen, deliveryAddress: address.trim() || null }),
+      }),
       'Redemption requested. An admin will review it.',
     )
     if (ok) closeCreate()
@@ -90,10 +104,13 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
       setFieldError('Choose a reward.')
       return
     }
+    const problem = addressError(catalog.find((c) => c.id === editing.rewardItemId), editing.address)
+    setAddressProblem(problem)
+    if (problem) return
     const ok = await run(
       () => apiRequest(`/redemptions/${editing.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ rewardItemId: editing.rewardItemId }),
+        body: JSON.stringify({ rewardItemId: editing.rewardItemId, deliveryAddress: editing.address.trim() || null }),
       }),
       'Request updated.',
     )
@@ -115,26 +132,52 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
   // What the resident can still pick: not sold out and within their free points.
   function rewardSelect(id, value, onChange, extraRoom = 0) {
     return (
-      <select
-        id={id}
-        value={value}
-        aria-invalid={Boolean(fieldError)}
-        onChange={(e) => { setFieldError(null); onChange(e.target.value) }}
-      >
-        <option value="" disabled>Select a reward</option>
+      <div className="reward-choices" role="radiogroup" aria-label="Choose a reward" aria-invalid={Boolean(fieldError)}>
         {catalog.map((item) => {
-          const stock = item.stock == null ? '' : ` · ${item.stock} left`
+          const soldOut = item.stock != null && item.stock <= 0
+          const shortfall = Math.max(0, item.pointsCost - available - extraRoom)
           return (
-            <option
-              key={item.id}
-              value={item.id}
-              disabled={item.stock === 0 || item.pointsCost > available + extraRoom}
-            >
-              {item.name} &mdash; {item.pointsCost} pts{stock}
-            </option>
+            <label key={item.id} className="reward-choice">
+              <RewardImage src={item.imageUrl} />
+              <span className="reward-choice-copy">
+                <strong>{item.name}</strong>
+                <small>{item.pointsCost.toLocaleString()} pts · {deliveryOf(item).option}</small>
+                {item.description && <small>{item.description}</small>}
+                <small>{soldOut ? 'Sold out' : shortfall ? `${shortfall.toLocaleString()} more points needed`
+                  : item.stock == null ? 'Available' : `${item.stock} left`}</small>
+              </span>
+              <input type="radio" name={id} value={item.id} checked={value === item.id}
+                disabled={soldOut || shortfall > 0} aria-label={item.name}
+                onChange={() => { setFieldError(null); onChange(item.id) }} />
+            </label>
           )
         })}
-      </select>
+      </div>
+    )
+  }
+
+  // Says how the chosen reward arrives, and asks for an address if it is posted.
+  function deliveryFields(id, rewardItemId, value, onChange) {
+    const reward = catalog.find((c) => c.id === rewardItemId)
+    if (!reward) return null
+    return (
+      <>
+        <p className="ac-sub">How you get it: {deliveryOf(reward).option.toLowerCase()}.</p>
+        {reward.delivery === 'Post' && (
+          <div className="ac-field">
+            <label htmlFor={id}>Address to post it to</label>
+            <textarea
+              id={id}
+              rows={3}
+              maxLength={300}
+              value={value}
+              aria-invalid={Boolean(addressProblem)}
+              onChange={(e) => { setAddressProblem(null); onChange(e.target.value) }}
+            />
+            {addressProblem && <p className="ac-field-error" role="alert">{addressProblem}</p>}
+          </div>
+        )}
+      </>
     )
   }
 
@@ -155,10 +198,11 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
         ) : (
           <form className="ac-form" onSubmit={handleCreate} noValidate>
             <div className="ac-field">
-              <label htmlFor="redeem-item">Reward</label>
+              <span>Reward</span>
               {rewardSelect('redeem-item', chosen, setChosen)}
               {fieldError && <p className="ac-field-error" role="alert">{fieldError}</p>}
             </div>
+            {deliveryFields('redeem-address', chosen, address, setAddress)}
             <div className="ac-actions">
               <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || !canRequest}>
                 <Gift size={16} strokeWidth={2.2} aria-hidden="true" />
@@ -180,7 +224,7 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
             </p>
             <form className="ac-form" onSubmit={handleSave} noValidate>
               <div className="ac-field">
-                <label htmlFor="change-item">Reward</label>
+                <span>Reward</span>
                 {rewardSelect(
                   'change-item',
                   editing.rewardItemId,
@@ -189,6 +233,8 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
                 )}
                 {fieldError && <p className="ac-field-error" role="alert">{fieldError}</p>}
               </div>
+              {deliveryFields('change-address', editing.rewardItemId, editing.address,
+                (value) => setEditing({ ...editing, address: value }))}
               <div className="ac-actions">
                 <button type="submit" className="ac-btn ac-btn-primary" disabled={busy}>Save</button>
                 <button type="button" className="ac-btn ac-btn-ghost" onClick={closeEdit} disabled={busy}>
@@ -200,7 +246,7 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
         )}
       </AcModal>
 
-      <AcCard title="My redemption requests" subtitle="Points leave your balance once an admin approves">
+      <AcCard title="My redemption requests" subtitle="Once an admin approves, your points are deducted and you get a code to collect the reward">
         {loading ? (
           <p className="ac-loading">Loading requests…</p>
         ) : items.length === 0 ? (
@@ -208,10 +254,8 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
         ) : (
           <ul className="ac-list">
             {items.map((item) => (
-              <li className="ac-row" key={item.id}>
-                <span className="ac-ic">
-                  <Gift size={18} strokeWidth={2} aria-hidden="true" />
-                </span>
+              <li className="ac-row" key={item.id} style={{ flexWrap: 'wrap' }}>
+                <RewardImage src={catalog.find(reward => reward.id === item.rewardItemId)?.imageUrl} className="reward-history-image" />
                 <span className="ac-grow">
                   <strong>{item.reason}</strong>
                   <span className="ac-sub">
@@ -219,7 +263,7 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
                     {item.adminNote ? ` · Admin: ${item.adminNote}` : ''}
                   </span>
                 </span>
-                <AcStatusPill status={item.status} />
+                <AcStatusPill status={redemptionPillStatus(item)} label={redemptionStatusLabel(item)} />
                 {item.status === 'Pending' && (
                   <span className="ac-actions" style={{ marginTop: 0 }}>
                     <button
@@ -228,7 +272,8 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
                       disabled={busy}
                       onClick={() => {
                         setFieldError(null)
-                        setEditing({ id: item.id, rewardItemId: item.rewardItemId ?? '' })
+                        setAddressProblem(null)
+                        setEditing({ id: item.id, rewardItemId: item.rewardItemId ?? '', address: item.deliveryAddress ?? '' })
                       }}
                     >
                       <Pencil size={14} strokeWidth={2.2} aria-hidden="true" />
@@ -245,6 +290,7 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
                     </button>
                   </span>
                 )}
+                <RedemptionTicket item={item} />
               </li>
             ))}
           </ul>

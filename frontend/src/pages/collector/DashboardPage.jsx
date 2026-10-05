@@ -237,7 +237,7 @@ export default function CollectorDashboardPage() {
             </AcCard>
 
             <div className="ac-grid">
-              <AcCard title="By zone" subtitle="Where today&rsquo;s stops are">
+              <AcCard title="By zone" subtitle="Where today’s stops are">
                 {zones.length === 0 ? (
                   <p className="ac-empty">No zone recorded for today&rsquo;s stops.</p>
                 ) : (
@@ -261,7 +261,7 @@ export default function CollectorDashboardPage() {
                 )}
               </AcCard>
 
-              <AcCard title="What&rsquo;s on board" subtitle="Categories on today&rsquo;s route">
+              <AcCard title="What’s on board" subtitle="Categories on today’s route">
                 {categories.length === 0 ? (
                   <p className="ac-empty">No categories to show.</p>
                 ) : (
@@ -281,7 +281,7 @@ export default function CollectorDashboardPage() {
 
           <AcCard
             title="Route map"
-            subtitle={`Where today&rsquo;s round takes you${unmappedCount > 0
+            subtitle={`Where today’s round takes you${unmappedCount > 0
               ? ` · ${unmappedCount} without a confirmed pickup pin`
               : ''}`}
             action={(
@@ -295,7 +295,7 @@ export default function CollectorDashboardPage() {
 
           <AcCard
             title="Coming up"
-            subtitle="The rest of today&rsquo;s pending stops"
+            subtitle="The rest of today’s pending stops"
             action={(
               <Link className="ac-link-btn" to="/collector/route">
                 Full route <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />

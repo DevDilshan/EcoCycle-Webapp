@@ -1,4 +1,4 @@
-import { Archive, MapPin, Pencil, TrendingUp, TriangleAlert } from 'lucide-react'
+import { Archive, MapPin, Pencil, Trash2, TrendingUp, TriangleAlert } from 'lucide-react'
 import { profileInitials, shortProfileName } from '../../lib/adminUi'
 import { AcStatusPill } from './AcPills'
 
@@ -46,6 +46,7 @@ export default function ZoneCard({
   stats,
   onEdit,
   onDeactivate,
+  onDelete,
   busy = false,
   isBusiest = false,
 }) {
@@ -123,23 +124,36 @@ export default function ZoneCard({
           Edit
         </button>
         {/* Retiring a zone keeps the row: pickups and route assignments point at
-            it, so the label says what actually happens.
+            it, so the label says what actually happens. It is tucked to the
+            right and quieter than Edit, so the two are not equally easy to hit.
 
-            Icon-only, and tucked to the right. Two equally weighted buttons on
-            every card in a grid of them made the destructive one as easy to hit
-            as the ordinary one. */}
-        <button
-          type="button"
-          className="ac-icon-btn ac-zone-retire"
-          onClick={() => onDeactivate?.(zone)}
-          disabled={busy || inactive}
-          aria-label={inactive ? `${zone.name} is already retired` : `Retire ${zone.name}`}
-          title={inactive
-            ? 'This zone is already retired'
-            : 'Stop routing new pickups to this zone'}
-        >
-          <Archive size={15} strokeWidth={2} aria-hidden="true" />
-        </button>
+            A retired zone offers Delete instead. The API only allows it when
+            nothing was ever booked in the zone. */}
+        {inactive ? (
+          <button
+            type="button"
+            className="ac-btn ac-btn-danger ac-btn-sm ac-zone-retire"
+            onClick={() => onDelete?.(zone)}
+            disabled={busy}
+            aria-label={`Delete ${zone.name}`}
+            title="Delete this retired zone for good"
+          >
+            <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+            Delete
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="ac-btn ac-btn-ghost ac-btn-sm ac-zone-retire"
+            onClick={() => onDeactivate?.(zone)}
+            disabled={busy}
+            aria-label={`Retire ${zone.name}`}
+            title="Stop routing new pickups to this zone"
+          >
+            <Archive size={14} strokeWidth={2} aria-hidden="true" />
+            Retire
+          </button>
+        )}
       </div>
     </article>
   )

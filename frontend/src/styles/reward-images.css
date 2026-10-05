@@ -1,0 +1,33 @@
+.reward-image { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 76px; height: 76px; overflow: hidden; border-radius: 14px; background: #f7f6eb; color: #005640; }
+.reward-image img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.reward-catalog-row { gap: 16px; }
+.reward-catalog-info { display: flex; align-items: center; gap: 16px; flex: 1 1 320px; min-width: 0; }
+.reward-catalog-info .ac-grow { min-width: 0; overflow-wrap: anywhere; }
+.reward-catalog-info strong { display: block; margin-bottom: 4px; }
+.reward-art-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-height: 330px; overflow-y: auto; padding: 3px; overscroll-behavior: contain; }
+.reward-art-option { padding: 6px; border: 1px solid #d6e5db; border-radius: 12px; background: white; color: #005640; cursor: pointer; display: flex; flex-direction: column; gap: 6px; align-items: center; font: inherit; font-size: 11px; line-height: 1.3; }
+.reward-art-option[aria-pressed="true"] { border: 2px solid #005640; padding: 5px; background: #eef8eb; }
+.reward-art-option .reward-image { width: 100%; height: auto; aspect-ratio: 1; border-radius: 8px; }
+.reward-art-option:focus-visible, .reward-choice:has(input:focus-visible) { outline: 3px solid #74b590; outline-offset: 3px; }
+.reward-art-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.reward-art-preview { width: 120px; height: 120px; align-self: flex-start; }
+.reward-selected-art { display: flex; align-items: center; gap: 14px; }
+.reward-selected-art .reward-art-preview { width: 84px; height: 84px; }
+.reward-upload { display: grid; gap: 8px; justify-items: center; padding: 22px 14px; border: 1px dashed #89b49c; border-radius: 14px; background: #f6faf1; text-align: center; font-size: 13px; color: #005640; }
+.reward-upload input { width: 100%; font: inherit; }
+.reward-choices { display: grid; gap: 10px; max-height: min(430px, 52vh); overflow-y: auto; padding: 3px 5px 3px 3px; overscroll-behavior: contain; }
+.reward-choice { display: flex; align-items: center; gap: 12px; border: 1px solid #d6e5db; border-radius: 16px; padding: 10px; background: white; cursor: pointer; }
+.reward-choice:has(input:checked) { border-color: #005640; box-shadow: inset 0 0 0 1px #005640; background: #f4faef; }
+.reward-choice:has(input:disabled) { cursor: default; }
+.reward-choice-copy { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.reward-choice-copy strong { font-size: 14px; color: #005640; }
+.reward-choice-copy small { font-size: 12px; line-height: 1.5; color: #50685c; }
+.reward-choice input { accent-color: #005640; width: 18px; height: 18px; flex-shrink: 0; }
+.reward-history-image { width: 52px; height: 52px; border-radius: 12px; }
+@media (max-width: 540px) {
+  .reward-art-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .reward-catalog-info { flex-basis: 100%; gap: 12px; }
+  .reward-catalog-row > .ac-v { margin-left: 88px; }
+  .reward-choice { gap: 10px; }
+  .reward-choice .reward-image { width: 64px; height: 64px; }
+}

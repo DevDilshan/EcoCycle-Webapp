@@ -35,7 +35,7 @@ export default function CollectorMapPage() {
       showSearch
       searchValue={search}
       onSearchChange={setSearch}
-      searchPlaceholder="Search today&rsquo;s stops"
+      searchPlaceholder="Search today’s stops"
     >
       <AcAlert message={error} onClose={() => setError(null)} />
 
@@ -46,7 +46,7 @@ export default function CollectorMapPage() {
       ) : (
         <>
           <AcCard
-            title="Today&rsquo;s round"
+            title="Today’s round"
             subtitle={`${counts.total} stop${counts.total === 1 ? '' : 's'} in today’s round — pins show confirmed pickup locations`}
             action={(
               <Link className="ac-link-btn" to="/collector/route">

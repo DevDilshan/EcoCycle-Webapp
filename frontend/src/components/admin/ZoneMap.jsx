@@ -2,6 +2,9 @@ import { MapContainer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { FitToMarkers, KeepSized, OsmTileLayer } from '../map/leafletShared'
 import { FALLBACK_CENTRE } from '../map/mapConfig'
+import { useState } from 'react'
+import ZoneBoundaryLayer from '../map/ZoneBoundaryLayer'
+import { boundaryPoints } from '../../lib/zoneBoundary'
 
 // Lucide's "truck" as raw markup. Leaflet's divIcon takes an HTML string, not a
 // React node, so the icon cannot be the <Truck> component the rest of the admin
@@ -37,10 +40,12 @@ function zoneIcon({ waiting, unassigned }) {
  * Anything left off is listed beneath the map by the caller.
  */
 export default function ZoneMap({ zones = [], loadByZone = new Map(), collectorName }) {
+  const [selectedId, setSelectedId] = useState(null)
   const mappable = zones.filter(
     (zone) => zone.isActive !== false && zone.latitude != null && zone.longitude != null,
   )
-  const points = mappable.map((zone) => [zone.latitude, zone.longitude])
+  const selected = mappable.find(z => z.id === selectedId)
+  const points = (selected ? [selected] : mappable).flatMap(zone => boundaryPoints(zone).length ? boundaryPoints(zone) : [[zone.latitude, zone.longitude]])
 
   if (mappable.length === 0) {
     return (
@@ -76,6 +81,7 @@ export default function ZoneMap({ zones = [], loadByZone = new Map(), collectorN
         <OsmTileLayer />
         <KeepSized />
         <FitToMarkers points={points} />
+        <ZoneBoundaryLayer zones={mappable} selectedId={selectedId} onSelect={zone => setSelectedId(zone.id)} />
 
         {mappable.map((zone) => {
           const stats = loadByZone.get(zone.id)
@@ -88,10 +94,12 @@ export default function ZoneMap({ zones = [], loadByZone = new Map(), collectorN
               position={[zone.latitude, zone.longitude]}
               icon={zoneIcon({ waiting, unassigned: !collector })}
               title={`${escapeHtml(zone.name)}, ${waiting} waiting`}
+              eventHandlers={{ click: () => setSelectedId(zone.id) }}
             >
               <Popup>
                 <div className="ac-pop">
                   <strong>{zone.name}</strong>
+                  <p>{zone.boundaryGeoJson ? 'Collection boundary mapped' : 'Center pin only · no boundary yet'}</p>
                   <dl>
                     <dt>Collector</dt>
                     <dd>{collector || 'Not assigned'}</dd>
@@ -111,6 +119,7 @@ export default function ZoneMap({ zones = [], loadByZone = new Map(), collectorN
         <span><i /> Collector assigned</span>
         <span><i className="u" /> No collector</span>
         <span>Badge = pickups waiting</span>
+        {selected && <button type="button" className="ac-btn" onClick={() => setSelectedId(null)}>Show all zones</button>}
       </div>
     </div>
   )
