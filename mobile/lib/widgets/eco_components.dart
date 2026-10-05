@@ -202,20 +202,17 @@ class EcoScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: EcoColors.canvas,
-      // With a bar, the page runs underneath it so the bar reads as floating
-      // rather than as a band that cuts the list off.
-      extendBody: bottomNavigationBar != null,
+      // Reserve the full bar and Android gesture inset instead of letting
+      // large-text content and the pickup action overlap one another.
+      extendBody: false,
       body: SafeArea(bottom: bottomNavigationBar == null, child: child),
       bottomNavigationBar: bottomNavigationBar,
     );
   }
 }
 
-/// Bottom padding for a list on a screen with the floating bar: the bar's
-/// height (reported by the Scaffold once the body extends beneath it) plus a
-/// little breathing room.
-double ecoNavClearance(BuildContext context) =>
-    MediaQuery.paddingOf(context).bottom + 20;
+/// The Scaffold reserves the navigation bar and system inset separately.
+double ecoNavClearance(BuildContext context) => 24;
 
 class EcoFieldLabel extends StatelessWidget {
   const EcoFieldLabel(this.text, {super.key});
@@ -758,7 +755,7 @@ class EcoNavigationBar extends StatelessWidget {
   final List<EcoDestination> destinations;
   final EcoNavAction? centerAction;
 
-  static const _barHeight = 76.0;
+  static const _barHeight = 68.0;
   static const _actionSize = 58.0;
   // How far the action rises above the bar's top edge.
   static const _lift = 26.0;
@@ -768,21 +765,25 @@ class EcoNavigationBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final action = centerAction;
     final textScale = MediaQuery.textScalerOf(context).scale(12) / 12;
-    final barHeight = _barHeight + (textScale - 1).clamp(0.0, 2.0) * 32;
-    final compact = MediaQuery.sizeOf(context).width < 360;
-    // Large labels get the full bar width. Lift the pickup action above it
-    // rather than taking space away from the destination names.
-    final separateAction = action != null && textScale > 1.2;
-    final lift = separateAction ? _actionSize + 6 : _lift;
+    final showLabels =
+        MediaQuery.sizeOf(context).width >= 360 && textScale <= 1.2;
+    final barHeight = showLabels
+        ? 76.0 + (textScale - 1).clamp(0.0, .2) * 32
+        : _barHeight;
+    final compact = MediaQuery.sizeOf(context).width < 400;
+    // Icons keep a stable footprint at every Android font setting. Accessible
+    // names and tooltips remain, without moving the action out of its notch.
+    const lift = _lift;
     final half = destinations.length ~/ 2;
     final items = <Widget>[
       for (var i = 0; i < destinations.length; i++) ...[
-        if (action != null && !separateAction && i == half)
+        if (action != null && i == half)
           SizedBox(width: compact ? 66 : _notchGap),
         Expanded(
           child: _EcoNavItem(
             destination: destinations[i],
             selected: index == i,
+            showLabel: showLabels,
             onTap: () => onChanged(i),
           ),
         ),
@@ -803,9 +804,8 @@ class EcoNavigationBar extends StatelessWidget {
                 bottom: 0,
                 height: barHeight,
                 child: CustomPaint(
-                  painter: _EcoNavBarPainter(
-                    notched: action != null && !separateAction,
-                  ),
+                  key: const ValueKey('eco-nav-surface'),
+                  painter: _EcoNavBarPainter(notched: action != null),
                   child: Material(
                     type: MaterialType.transparency,
                     child: Padding(
@@ -864,10 +864,12 @@ class _EcoNavItem extends StatelessWidget {
   const _EcoNavItem({
     required this.destination,
     required this.selected,
+    required this.showLabel,
     required this.onTap,
   });
   final EcoDestination destination;
   final bool selected;
+  final bool showLabel;
   final VoidCallback onTap;
 
   @override
@@ -883,36 +885,54 @@ class _EcoNavItem extends StatelessWidget {
       label: label,
       onTap: onTap,
       child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(selected ? filled : outline, size: 24, color: color),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.3,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: selected ? EcoColors.green : EcoColors.body,
+        child: Tooltip(
+          message: label,
+          excludeFromSemantics: true,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: duration,
+                  padding: EdgeInsets.all(showLabel ? 3 : 9),
+                  decoration: BoxDecoration(
+                    color: selected ? EcoColors.honeydew : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    selected ? filled : outline,
+                    size: 24,
+                    color: color,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              AnimatedContainer(
-                duration: duration,
-                width: selected ? 6 : 0,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: EcoColors.green,
-                  shape: BoxShape.circle,
+                if (showLabel) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    label,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.3,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                AnimatedContainer(
+                  duration: duration,
+                  width: selected ? 6 : 0,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: EcoColors.green,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

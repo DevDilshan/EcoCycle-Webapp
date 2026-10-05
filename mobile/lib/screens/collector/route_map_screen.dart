@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../app/eco_app_scope.dart';
 import '../../services/map_location.dart';
+import '../../services/zone_boundary.dart';
 import '../../theme/eco_theme.dart';
 import '../../widgets/eco_map.dart';
 import 'route_screen.dart';
@@ -19,6 +20,8 @@ class RouteMapScreen extends StatefulWidget {
 class RouteMapScreenState extends State<RouteMapScreen> {
   final _map = MapController();
   List<Map<String, dynamic>> _stops = [];
+  List<Map<String, dynamic>> _zones = [];
+  bool _boundaryFailed = false;
   String? _selectedId, _error;
   bool _loading = true, _ready = false, _locating = false, _tileFailed = false;
   LatLng? _location;
@@ -54,9 +57,26 @@ class RouteMapScreenState extends State<RouteMapScreen> {
             ),
           )
           .toList();
+      List<Map<String, dynamic>> zones = [];
+      var boundaryFailed = false;
+      if (!mounted) return;
+      try {
+        final allZones = await EcoAppScope.apiOf(
+          context,
+        ).get('/zones/selectable');
+        final ids = rows.map((s) => s['zoneId']).toSet();
+        zones = (allZones as List)
+            .cast<Map<String, dynamic>>()
+            .where((z) => ids.contains(z['id']))
+            .toList();
+      } catch (_) {
+        boundaryFailed = true;
+      }
       if (!mounted) return;
       setState(() {
         _stops = rows;
+        _zones = zones;
+        _boundaryFailed = boundaryFailed;
         if (rows.isEmpty) _ready = false;
         if (!rows.any((r) => r['id'] == _selectedId)) {
           _selectedId =
@@ -78,7 +98,10 @@ class RouteMapScreenState extends State<RouteMapScreen> {
   }
 
   void _fit() {
-    final points = _stops.map(pickupPoint).whereType<LatLng>().toList();
+    final points = [
+      ..._stops.map(pickupPoint).whereType<LatLng>(),
+      ..._zones.expand((z) => ZoneBoundary.fromZone(z)?.points ?? <LatLng>[]),
+    ];
     if (points.isEmpty) return;
     if (points.length == 1) {
       _map.move(points.single, 16);
@@ -159,7 +182,10 @@ class RouteMapScreenState extends State<RouteMapScreen> {
     final selected =
         _stops.where((s) => s['id'] == _selectedId).firstOrNull ?? _stops.first;
     final pinned = _stops.where((s) => pickupPoint(s) != null).length;
-    final initialPoints = _stops.map(pickupPoint).whereType<LatLng>().toList();
+    final initialPoints = [
+      ..._stops.map(pickupPoint).whereType<LatLng>(),
+      ..._zones.expand((z) => ZoneBoundary.fromZone(z)?.points ?? <LatLng>[]),
+    ];
     return Column(
       children: [
         Padding(
@@ -182,6 +208,13 @@ class RouteMapScreenState extends State<RouteMapScreen> {
         ),
         if (_error != null)
           Text(_error!, style: const TextStyle(color: EcoColors.danger)),
+        if (_boundaryFailed)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text(
+              'Collection boundaries could not load. Stop pins and directions still work.',
+            ),
+          ),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -220,6 +253,7 @@ class RouteMapScreenState extends State<RouteMapScreen> {
                           }
                         },
                       ),
+                      EcoZoneBoundaries(zones: _zones),
                       MarkerLayer(
                         markers: [
                           for (var i = 0; i < _stops.length; i++)
