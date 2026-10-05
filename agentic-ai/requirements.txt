@@ -2,3 +2,6 @@ requests==2.31.0
 python-dotenv==1.0.1
 fastapi==0.115.6
 uvicorn==0.34.0
+
+# Testing (deterministic agent-evaluation suite; no network).
+pytest==9.0.3
