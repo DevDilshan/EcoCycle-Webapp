@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using backend.Data;
@@ -12,9 +13,11 @@ using backend.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005090427_AddZoneBoundaries")]
+    partial class AddZoneBoundaries
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -267,25 +270,7 @@ namespace backend.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<string>("CollectionCode")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Delivery")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DeliveryAddress")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("DeliveryInstructions")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<DateTime?>("FulfilledAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Points")
@@ -316,9 +301,6 @@ namespace backend.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CollectionCode")
-                        .IsUnique();
-
                     b.HasIndex("ReviewedByAdminId");
 
                     b.HasIndex("RewardItemId");
@@ -339,20 +321,9 @@ namespace backend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("Delivery")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DeliveryInstructions")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
-
-                    b.Property<string>("ImageUrl")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -494,16 +465,9 @@ namespace backend.Migrations
                     b.Property<Guid?>("AssignedCollectorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("BoundaryCoverageReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("BoundaryGeoJson")
                         .HasMaxLength(64000)
                         .HasColumnType("character varying(64000)");
-
-                    b.Property<string>("BoundaryReferenceJson")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
 
                     b.Property<List<int>>("CollectionDays")
                         .IsRequired()

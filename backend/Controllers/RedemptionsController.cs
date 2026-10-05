@@ -111,4 +111,17 @@ public class RedemptionsController : ControllerBase
         catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }
+
+    // POST /api/redemptions/{id}/fulfil - admin records that the item was handed over, emailed or posted.
+    [HttpPost("{id:guid}/fulfil")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> Fulfil(Guid id)
+    {
+        try
+        {
+            var result = await _service.FulfilAsync(id);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
 }

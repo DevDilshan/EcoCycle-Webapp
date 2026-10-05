@@ -25,6 +25,14 @@ public class Zone
 
     public double? Longitude { get; set; }
 
+    /// <summary>Optional GeoJSON Polygon/MultiPolygon collection boundary.</summary>
+    [MaxLength(64000)]
+    public string? BoundaryGeoJson { get; set; }
+
+    [MaxLength(2000)]
+    public string? BoundaryReferenceJson { get; set; }
+    public DateTime? BoundaryCoverageReviewedAt { get; set; }
+
     /// <summary>
     /// Days of the week this zone is collected, as System.DayOfWeek numbers
     /// (0 = Sunday ... 6 = Saturday).

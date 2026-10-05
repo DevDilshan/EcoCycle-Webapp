@@ -8,6 +8,10 @@ public class CreateRedemptionDto
 {
     [Required]
     public Guid RewardItemId { get; set; }
+
+    // Required when the item is posted; ignored otherwise.
+    [MaxLength(300)]
+    public string? DeliveryAddress { get; set; }
 }
 
 // A pending request can be switched to a different catalog item.
@@ -15,6 +19,10 @@ public class UpdateRedemptionDto
 {
     [Required]
     public Guid RewardItemId { get; set; }
+
+    // Required when the item is posted; ignored otherwise.
+    [MaxLength(300)]
+    public string? DeliveryAddress { get; set; }
 }
 
 public class ReviewRedemptionDto
@@ -28,6 +36,7 @@ public class RedemptionResponseDto
     public Guid Id { get; set; }
     public Guid ResidentId { get; set; }
     public string ResidentName { get; set; } = string.Empty;
+    public string ResidentEmail { get; set; } = string.Empty;
     public Guid? RewardItemId { get; set; }
     public int Points { get; set; }
     public string Reason { get; set; } = string.Empty;
@@ -37,6 +46,15 @@ public class RedemptionResponseDto
 
     public string? AdminNote { get; set; }
     public DateTime? ReviewedAt { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RewardDelivery Delivery { get; set; }
+    public string? DeliveryAddress { get; set; }
+
+    // Null until approved.
+    public string? CollectionCode { get; set; }
+    public string? DeliveryInstructions { get; set; }
+    public DateTime? FulfilledAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -45,7 +63,7 @@ public class RedemptionResponseDto
 public class RedemptionQueryParams
 {
     public RedemptionStatus? Status { get; set; }       // ?status=Pending
-    public string? Search { get; set; }                 // resident name, email or item name
+    public string? Search { get; set; }                 // resident name, email, item name or collection code
 
     public string? SortBy { get; set; } = "createdAt";  // createdAt | points | status
     public string? SortDir { get; set; } = "desc";      // asc | desc

@@ -1,12 +1,24 @@
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services;
 
 public class RedemptionService : IRedemptionService
 {
+    // Used when the item has no instructions of its own.
+    public static string DefaultDeliveryInstructions(RewardDelivery delivery) => delivery switch
+    {
+        RewardDelivery.Email => "We will email this reward to your account email address within 3 working days.",
+        RewardDelivery.Post => "We will post this reward to the address you gave within 7 working days.",
+        _ => "Show this code at your municipal council office to collect your reward."
+    };
+
+    // No 0/O or 1/I/L: the code is read aloud and typed at a counter.
+    private const string CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
     private readonly ApplicationDbContext _db;
 
     public RedemptionService(ApplicationDbContext db) => _db = db;
@@ -24,7 +36,9 @@ public class RedemptionService : IRedemptionService
             ResidentId = residentId,
             RewardItemId = item.Id,
             Points = item.PointsCost,
-            Reason = item.Name
+            Reason = item.Name,
+            Delivery = item.Delivery,
+            DeliveryAddress = AddressFor(item, dto.DeliveryAddress)
         };
         _db.RedemptionRequests.Add(entity);
         await _db.SaveChangesAsync();
@@ -48,6 +62,7 @@ public class RedemptionService : IRedemptionService
         {
             var term = query.Search.Trim().ToLower();
             q = q.Where(r => r.Reason.ToLower().Contains(term)
+                || (r.CollectionCode != null && r.CollectionCode.ToLower().Contains(term))
                 || (r.Resident != null
                     && ((r.Resident.FullName != null && r.Resident.FullName.ToLower().Contains(term))
                         || r.Resident.Email.ToLower().Contains(term))));
@@ -106,6 +121,8 @@ public class RedemptionService : IRedemptionService
         entity.RewardItemId = item.Id;
         entity.Points = item.PointsCost;
         entity.Reason = item.Name;
+        entity.Delivery = item.Delivery;
+        entity.DeliveryAddress = AddressFor(item, dto.DeliveryAddress ?? entity.DeliveryAddress);
         entity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
@@ -146,6 +163,9 @@ public class RedemptionService : IRedemptionService
         if (entity.RewardItemId is { } itemId)
         {
             var item = await _db.RewardItems.FirstOrDefaultAsync(i => i.Id == itemId);
+            entity.DeliveryInstructions = string.IsNullOrWhiteSpace(item?.DeliveryInstructions)
+                ? null
+                : item.DeliveryInstructions.Trim();
             if (item?.Stock is { } stock)
             {
                 if (stock <= 0)
@@ -161,6 +181,7 @@ public class RedemptionService : IRedemptionService
         entity.ReviewedByAdminId = adminId;
         entity.ReviewedAt = now;
         entity.UpdatedAt = now;
+        entity.CollectionCode = await NewCollectionCodeAsync();
 
         // Status change and ledger row go out in a single save, so they commit together.
         _db.RewardPoints.Add(new RewardPoint
@@ -200,6 +221,41 @@ public class RedemptionService : IRedemptionService
         return ToDto(entity);
     }
 
+    public async Task<RedemptionResponseDto?> FulfilAsync(Guid id)
+    {
+        var entity = await _db.RedemptionRequests
+            .Include(r => r.Resident)
+            .FirstOrDefaultAsync(r => r.Id == id);
+        if (entity is null)
+            return null;
+
+        if (entity.Status != RedemptionStatus.Approved)
+            throw new InvalidOperationException(
+                $"Only an approved request can be handed over; this one is {entity.Status}.");
+        if (entity.FulfilledAt is not null)
+            throw new InvalidOperationException("This reward has already been handed over.");
+
+        var now = DateTime.UtcNow;
+        entity.FulfilledAt = now;
+        entity.UpdatedAt = now;
+        await _db.SaveChangesAsync();
+
+        return ToDto(entity);
+    }
+
+    // ECO-XXXX-XXXX from 31 symbols is about 850 billion codes, so a clash is
+    // rare; checking here is still cheaper than a failed save on the unique index.
+    private async Task<string> NewCollectionCodeAsync()
+    {
+        while (true)
+        {
+            var chars = RandomNumberGenerator.GetItems<char>(CodeAlphabet, 8);
+            var code = $"ECO-{new string(chars, 0, 4)}-{new string(chars, 4, 4)}";
+            if (!await _db.RedemptionRequests.AnyAsync(r => r.CollectionCode == code))
+                return code;
+        }
+    }
+
     private async Task<int> BalanceAsync(Guid residentId) =>
         await _db.RewardPoints
             .Where(r => r.ResidentId == residentId)
@@ -228,6 +284,17 @@ public class RedemptionService : IRedemptionService
                 $"Only a pending request can be {action}; this one is {entity.Status}.");
     }
 
+    // A posted item needs somewhere to go; nothing else keeps an address.
+    private static string? AddressFor(RewardItem item, string? address)
+    {
+        if (item.Delivery != RewardDelivery.Post)
+            return null;
+        if (string.IsNullOrWhiteSpace(address) || address.Trim().Length < 10)
+            throw new ArgumentException(
+                $"\"{item.Name}\" is sent by post. Enter the full address to post it to.");
+        return address.Trim();
+    }
+
     private async Task<RewardItem> GetRequestableItemAsync(Guid itemId)
     {
         var item = await _db.RewardItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == itemId)
@@ -244,12 +311,21 @@ public class RedemptionService : IRedemptionService
         Id = r.Id,
         ResidentId = r.ResidentId,
         ResidentName = r.Resident?.FullName ?? r.Resident?.Email ?? "Unknown resident",
+        ResidentEmail = r.Resident?.Email ?? string.Empty,
         RewardItemId = r.RewardItemId,
         Points = r.Points,
         Reason = r.Reason,
         Status = r.Status,
         AdminNote = r.AdminNote,
         ReviewedAt = r.ReviewedAt,
+        Delivery = r.Delivery,
+        DeliveryAddress = r.DeliveryAddress,
+        CollectionCode = r.CollectionCode,
+        // Requests approved before codes existed have neither; keep them blank.
+        DeliveryInstructions = r.CollectionCode is null
+            ? null
+            : r.DeliveryInstructions ?? DefaultDeliveryInstructions(r.Delivery),
+        FulfilledAt = r.FulfilledAt,
         CreatedAt = r.CreatedAt,
         UpdatedAt = r.UpdatedAt
     };

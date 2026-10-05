@@ -20,4 +20,7 @@ public interface IRedemptionService
     Task<RedemptionResponseDto?> ApproveAsync(Guid id, Guid adminId, ReviewRedemptionDto dto);
 
     Task<RedemptionResponseDto?> RejectAsync(Guid id, Guid adminId, ReviewRedemptionDto dto);
+
+    // Records that an approved item was handed over, emailed or posted.
+    Task<RedemptionResponseDto?> FulfilAsync(Guid id);
 }

@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
+using backend.Validation;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services;
@@ -106,8 +107,13 @@ public class RewardItemService : IRewardItemService
 
         item.Name = name;
         item.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+        item.ImageUrl = RewardImages.Validate(dto.ImageUrl);
         item.PointsCost = dto.PointsCost;
         item.Stock = dto.Stock;
+        item.Delivery = dto.Delivery;
+        item.DeliveryInstructions = string.IsNullOrWhiteSpace(dto.DeliveryInstructions)
+            ? null
+            : dto.DeliveryInstructions.Trim();
         item.IsActive = dto.IsActive;
     }
 
@@ -116,8 +122,11 @@ public class RewardItemService : IRewardItemService
         Id = i.Id,
         Name = i.Name,
         Description = i.Description,
+        ImageUrl = i.ImageUrl ?? RewardImages.ForName(i.Name),
         PointsCost = i.PointsCost,
         Stock = i.Stock,
+        Delivery = i.Delivery,
+        DeliveryInstructions = i.DeliveryInstructions,
         IsActive = i.IsActive,
         CreatedAt = i.CreatedAt,
         UpdatedAt = i.UpdatedAt

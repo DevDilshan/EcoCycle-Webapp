@@ -1,0 +1,23 @@
+{
+  "note": "Synthetic service areas for geometry tests, not official Sri Lankan borders.",
+  "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+      [
+        [[79.84, 6.9], [79.9, 6.9], [79.9, 6.95], [79.84, 6.95], [79.84, 6.9]],
+        [[79.86, 6.915], [79.87, 6.915], [79.87, 6.925], [79.86, 6.925], [79.86, 6.915]]
+      ],
+      [[[79.94, 6.9], [79.96, 6.9], [79.96, 6.92], [79.94, 6.92], [79.94, 6.9]]]
+    ]
+  },
+  "cases": [
+    { "name": "inside outer ring", "latitude": 6.91, "longitude": 79.85, "inside": true },
+    { "name": "outside every polygon", "latitude": 6.97, "longitude": 79.91, "inside": false },
+    { "name": "inside hole", "latitude": 6.92, "longitude": 79.865, "inside": false },
+    { "name": "outer edge", "latitude": 6.9, "longitude": 79.85, "inside": true },
+    { "name": "outer vertex", "latitude": 6.9, "longitude": 79.84, "inside": true },
+    { "name": "hole edge", "latitude": 6.915, "longitude": 79.865, "inside": false },
+    { "name": "second polygon", "latitude": 6.91, "longitude": 79.95, "inside": true },
+    { "name": "gap between polygons", "latitude": 6.91, "longitude": 79.92, "inside": false }
+  ]
+}

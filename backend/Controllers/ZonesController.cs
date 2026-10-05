@@ -149,4 +149,25 @@ public class ZonesController : ControllerBase
             }),
         };
     }
+
+    // DELETE /api/zones/{id}/permanent
+    //
+    // Removes a retired zone that nothing was ever booked in (one made by mistake
+    // or for a test). A zone with pickups or route stops is refused and stays retired.
+    [HttpDelete("{id:guid}/permanent")]
+    [Authorize(Roles = "admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeletePermanently(Guid id)
+    {
+        try
+        {
+            return await _zoneService.DeleteZonePermanentlyAsync(id) is null ? NotFound() : NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
 }

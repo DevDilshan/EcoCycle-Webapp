@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
+using backend.Validation;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services;
@@ -65,15 +66,16 @@ public class PickupRequestService : IPickupRequestService
         // The resident chooses the zone. It is validated rather than defaulted:
         // silently filing a pickup in the wrong zone sends a collector to the
         // wrong side of the city, which is worse than refusing the submission.
-        var zoneIsUsable = await _db.Zones
-            .AnyAsync(z => z.Id == dto.ZoneId && z.IsActive);
+        var selectedZone = await _db.Zones.AsNoTracking()
+            .FirstOrDefaultAsync(z => z.Id == dto.ZoneId && z.IsActive);
 
-        if (!zoneIsUsable)
+        if (selectedZone == null)
         {
             throw new ArgumentException(
                 "That zone does not exist or is no longer active. Pick a zone from the list.");
         }
 
+        CheckBoundary(selectedZone.BoundaryGeoJson, dto.Latitude, dto.Longitude);
         entity.ZoneId = dto.ZoneId;
 
         // A council tells you the allowance is spent when you book, not after.
@@ -618,6 +620,14 @@ public class PickupRequestService : IPickupRequestService
         var previousPhoto = entity.PhotoUrl;
         var previousDescription = entity.Description;
 
+        // Validate any submitted pin before changing the tracked entity.
+        if (!dto.ClearLocation && dto.Latitude.HasValue && dto.Longitude.HasValue)
+        {
+            var boundary = await _db.Zones.Where(z => z.Id == entity.ZoneId)
+                .Select(z => z.BoundaryGeoJson).FirstOrDefaultAsync();
+            CheckBoundary(boundary, dto.Latitude, dto.Longitude);
+        }
+
         entity.PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl);
         entity.Description = dto.Description;
         var addressChanged = dto.Address != null && dto.Address.Trim() != entity.Address;
@@ -653,6 +663,13 @@ public class PickupRequestService : IPickupRequestService
             await ClearStalePipelineResultsAsync(entity.Id);
 
         return ToDto(entity);
+    }
+
+    private static void CheckBoundary(string? json, double? latitude, double? longitude)
+    {
+        var boundary = ZoneBoundary.Parse(json);
+        if (boundary != null && latitude.HasValue && longitude.HasValue && !boundary.Contains(latitude.Value, longitude.Value))
+            throw new ArgumentException("The pickup pin is outside the selected collection area. Move the pin or choose the correct zone.");
     }
 
     /// <summary>
