@@ -320,3 +320,7 @@ static string NormalizeRole(string? role) =>
         "user" => "resident",
         _ => "resident",
     };
+
+// Exposes the implicit Program class so the test project's WebApplicationFactory
+// can boot the real app in-memory for API integration tests. No runtime effect.
+public partial class Program { }
