@@ -1,261 +1,298 @@
 # ♻️ EcoCycle
 
-Waste pickup platform for residents, collectors and admins. Residents request a
-pickup; an AI agent pipeline classifies the waste, checks it against business
-rules, and either assigns a collector automatically or flags it for an admin.
+**AI-assisted waste-pickup platform for residents, collectors and council admins.**
 
-```
-frontend/       💻 React + Vite web app (admin, resident, collector)
-mobile/         📱 Flutter app — planned, talks to the same backend
-backend/        ⚙️  ASP.NET Core 8 Web API — the shared API for web AND mobile
-agentic-ai/     🤖 Python FastAPI service running the four AI agents
-backend.Tests/  🧪 xUnit tests
-```
+Residents book a pickup with a photo. A pipeline of four AI agents classifies the waste, checks it against business rules and picks a collector and day. Anything risky pauses for an admin to approve. Collectors work their round on web or mobile, and residents earn reward points when their waste is collected.
 
-Database is PostgreSQL on Supabase. Supabase also issues the JWTs used for
-authentication — **by both the web app and the Flutter app**.
+![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)
+![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=black)
+![Flutter](https://img.shields.io/badge/Flutter-3-02569B?logo=flutter&logoColor=white)
+![Python](https://img.shields.io/badge/Python-FastAPI-009688?logo=fastapi&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-gpt--4o--mini-412991?logo=openai&logoColor=white)
 
 ---
 
-## 🔄 How a pickup flows through the system
+## 📑 Contents
 
-1. A resident submits a pickup (`POST /api/pickuprequests`) — from the web app
-   or, once built, the Flutter app. Same endpoint either way.
-   
-2. The backend calls the Python agent service, which runs four agents in order:
-   - 🧠 **Classifier** — decides the waste category. OpenAI reads the resident's
-     description, and also describes the photo when one is supplied.
-   - ✅ **Validator** — deterministic business rules (hazardous waste, max 2 bulk
-     pickups per resident per month). No AI, no network.
-   - 🚛 **Routing** — picks the collector with the lowest pending load. Skipped
-     when the Validator found a broken rule.
-   - 📨 **Notifier** — flagged pickups only: recommends approve / reject /
-     request_revision and drafts a message for the resident.
-     
-3. Back in C#, `ComplianceRules` runs a second pass for checks Python cannot do:
-   e-waste detection, contamination wording, and which findings count against
-   the resident's record.
-   
-4. ✅ **Clean pickup** → a `RouteAssignment` is created, pickup becomes
-   `Scheduled`. 🚩 **Flagged pickup** → an `ApprovalRequest` is created holding
-   the full pipeline result as JSON, and the pickup waits at `Classified`.
-   
-5. When an admin approves a flagged pickup, the backend routes it **then** —
-   using current collector loads, not the ones captured at submission, because a
-   flagged pickup can sit in review for days.
-
-> ⚠️ If the agent service is unreachable, the pickup is still saved as `Pending`
-> and the failure is logged. A resident's submission never fails because the AI
-> is down.
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [How a pickup flows](#-how-a-pickup-flows)
+- [Repository layout](#-repository-layout)
+- [Running locally](#-running-locally)
+- [Configuration](#-configuration)
+- [API](#-api)
+- [Testing](#-testing)
+- [Deploying](#-deploying)
+- [Documentation](#-documentation)
+- [Known gaps](#-known-gaps)
 
 ---
 
-## 🚀 Running it locally
+## ✨ Features
 
-You need three terminals. Start them in this order.
+| Feature | Who uses it | What it does |
+|---|---|---|
+| 📦 **Pickup Requests** | Resident | Book a pickup with a photo, address, contact number and zone. The photo is checked by AI vision. Pickups can be one-off or recurring. |
+| 🚛 **Route & Dispatch** | Admin, Collector | Admins set up zones, collection days and collector capacity. Collectors see today's stops, upcoming stops, overdue stops and a route map, and mark each stop collected or not collected. |
+| 🚩 **Complaints & Approvals** | Admin, Resident | Flagged pickups wait in an approval queue showing the AI's reasoning. Residents raise complaints and track their status. |
+| 🎁 **Recycling & Rewards** | Resident, Admin | Points are awarded automatically when a stop is completed. Residents redeem catalogue items, and admins approve the redemptions. |
 
-### 1. 🤖 Agent service (Python)
+**Clients:** a React web app (resident, collector and admin consoles) and a Flutter mobile app (resident and collector). Both use the same API and the same Supabase login, with email or Google.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    WEB["💻 React web<br/>(Vite, Leaflet)"]
+    MOB["📱 Flutter app<br/>(flutter_map)"]
+    API["⚙️ ASP.NET Core 8 API<br/>rules · scheduling · EF Core"]
+    AG["🤖 Agent service<br/>Python FastAPI"]
+    DB[("🗄️ Supabase PostgreSQL")]
+    AUTH["🔐 Supabase Auth<br/>+ Storage"]
+    AI["🧠 OpenAI<br/>gpt-4o-mini"]
+
+    WEB & MOB -- "JWT" --> API
+    WEB & MOB -- "sign in · photos" --> AUTH
+    API -- "EF Core" --> DB
+    API -. "validate JWT (JWKS)" .-> AUTH
+    API -- "X-Internal-Key" --> AG
+    AG --> AI
+```
+
+| Layer | Technology | Role |
+|---|---|---|
+| Web client | React + Vite, Leaflet / OpenStreetMap | Resident, collector and admin consoles |
+| Mobile client | Flutter, `supabase_flutter`, `flutter_map` | Resident and collector app |
+| API | ASP.NET Core 8, EF Core, Npgsql | Business rules, scheduling, validation, auth |
+| AI agents | Python, FastAPI | Classifier, Validator, Routing and Notifier agents |
+| Data | Supabase PostgreSQL | 12 application tables |
+| Auth & files | Supabase Auth (email + Google), Supabase Storage | JWTs, pickup photos |
+
+Full diagrams, including the agentic pipeline, ER diagrams and the end-to-end workflow, are in [`docs/`](docs/).
+
+---
+
+## 🔄 How a pickup flows
+
+1. **Submit.** The resident uploads a photo, and AI vision checks that it's a clear photo of waste. If that check can't run, submission still goes ahead (fail-open). The pickup is then saved as `Pending`.
+2. **Prepare.** The API works out the **legal slots**: collectors who can carry this type of waste, have capacity left, and serve that zone on that day, over the next 14 days.
+3. **Agent pipeline** (`/run-pipeline`):
+   - 🧠 **Classifier** (AI). Puts the waste in one of 6 categories, with a confidence score, using the photo and the description. It falls back to the text alone if photo analysis fails.
+   - ✅ **Validator** (rules, no AI). Hazardous waste always needs an admin, and a resident may have at most 2 bulky pickups a month.
+   - 🚛 **Routing** (AI). Runs only if no rule was broken. It picks a slot **number** from the legal list, so it can never invent a collector or a date.
+   - 📨 **Notifier** (AI). Runs only if the pickup was flagged. It recommends approve, reject or revise to the admin.
+4. **Second check in .NET.** `ComplianceRules` re-checks restricted categories, low confidence (below 0.70) and contaminated waste, plus the bulky allowance.
+5. **Outcome:**
+   - ✅ **Clean.** A route stop is created and the pickup becomes `Scheduled`.
+   - ⏸ **Flagged.** An `ApprovalRequest` is created with the full AI result stored as JSON, and the resident sees "In review". When an admin approves it, the pickup is routed then, using current collector loads, without classifying the photo again. The Notifier then writes the resident a plain-language message.
+6. **Collection.** The collector marks the stop collected, which closes it, completes the pickup and awards points in one save. Or they mark it not collected with a reason, and the pickup is rebooked.
+
+> ⚠️ If the agent service is unreachable, the pickup stays `Pending` and an admin can assign it by hand. A resident's submission never fails because the AI is down.
+
+---
+
+## 📁 Repository layout
+
+```
+frontend/        💻 React + Vite web app (resident, collector, admin)
+mobile/          📱 Flutter app (resident, collector)
+backend/         ⚙️  ASP.NET Core 8 Web API – shared by web and mobile
+backend.Tests/   🧪 xUnit tests (unit, API, database, end-to-end, performance)
+agentic-ai/      🤖 Python FastAPI service running the four AI agents
+supabase/        🗄️  SQL for storage buckets and signup role rules
+docs/            📐 Architecture, ER and workflow diagrams; test evidence
+scripts/         🔧 Helper scripts
+```
+
+---
+
+## 🚀 Running locally
+
+**Prerequisites:** .NET 8 SDK, Node.js 20+, Python 3.12+, Flutter 3.8+, a Supabase project and an OpenAI API key.
+
+Start the services in this order, each in its own terminal.
+
+### 1. 🤖 Agent service
 
 ```bash
 cd agentic-ai
-python -m venv .venv          # first time only
-.venv\Scripts\activate        # Git Bash: source .venv/Scripts/activate
+python -m venv .venv                 # first time only
+.venv\Scripts\activate               # macOS/Linux/Git Bash: source .venv/Scripts/activate
 pip install -r requirements.txt
-cp .env.example .env          # first time only, then fill in the keys
+cp .env.example .env                 # first time only, then fill in the keys
 uvicorn api:app --reload --port 8000
 ```
 
-> 💡 The venv must be activated in **every new terminal**, or you get
-> `ModuleNotFoundError`. Check it is up at <http://127.0.0.1:8000/docs>.
+Check it at <http://127.0.0.1:8000/health>. Activate the venv in **every** new terminal, or you'll get `ModuleNotFoundError`.
 
-### 2. ⚙️ Backend (.NET 8)
+### 2. ⚙️ Backend
 
 ```bash
 cd backend
-cp .env.example .env          # first time only, then fill in the values
-dotnet run                    # http://localhost:5051, opens Swagger
+cp .env.example .env                 # first time only
+dotnet ef database update            # apply migrations
+dotnet run                           # http://localhost:5051 (Swagger at /swagger)
 ```
 
-### 3. 💻 Frontend (React)
+### 3. 💻 Web
 
 ```bash
 cd frontend
-npm install                   # first time only
-cp .env.example .env          # first time only
-npm run dev                   # http://localhost:5173
+npm install
+cp .env.example .env
+npm run dev                          # http://localhost:5173
 ```
 
-Vite proxies `/api` to `localhost:5051`, so the ports above matter.
+Vite proxies `/api` to `localhost:5051`, so leave `VITE_API_BASE_URL` empty when running locally.
 
-### 4. 📱 Mobile (Flutter) — when it exists
+### 4. 📱 Mobile
 
 ```bash
 cd mobile
+cp .env.example .env
 flutter pub get
-flutter run                   # point it at the backend, see the mobile section
+flutter run
 ```
+
+Set `API_BASE_URL` in `mobile/.env` to match your device:
+
+| Device | `API_BASE_URL` |
+|---|---|
+| Android emulator | `http://10.0.2.2:5051/api` |
+| iOS simulator / Flutter web | `http://localhost:5051/api` |
+| Release | your deployed API URL + `/api` |
+
+> 💡 On Windows, if the Android build fails with *"different roots"*, your project and the Flutter package cache are on different drives. `mobile/android/gradle.properties` already disables Kotlin incremental builds to avoid this.
 
 ---
 
 ## 🔑 Configuration
 
-Each app has its own `.env` file in its own folder, all **gitignored**. Copy the
-`.env.example` next to it and fill in real values. 🚫 Never commit a real key.
+Each app reads its own **gitignored** `.env`. Copy the `.env.example` next to it, and 🚫 never commit a real key.
 
-### `backend/.env` — read by the backend
+<details>
+<summary><b><code>backend/.env</code></b></summary>
 
 | Variable | Purpose |
-| --- | --- |
-| `SUPABASE_CONNECTION_STRING` | PostgreSQL connection string |
-| `SUPABASE_URL` | Supabase project URL, used as the JWT issuer |
-| `SUPABASE_JWT_SECRET` | Validates incoming JWTs |
-| `AGENT_SERVICE_URL` | Agent service base URL (default `http://localhost:8000`) |
+|---|---|
+| `SUPABASE_CONNECTION_STRING` | PostgreSQL connection string (session pooler) |
+| `SUPABASE_URL` | Supabase project URL, used as the JWT issuer and for JWKS |
+| `SUPABASE_JWT_SECRET` | Legacy JWT secret, required at startup |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side admin key, used only for account deletion |
+| `AGENT_SERVICE_URL` | Agent service URL (default `http://localhost:8000`) |
 | `INTERNAL_API_KEY` | Shared secret sent to the agent service |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated CORS origins (default `http://localhost:5173`) |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated web origins (default `http://localhost:5173`) |
 
-### `agentic-ai/.env` — read by the agent service
+</details>
 
-| Variable | Purpose |
-| --- | --- |
-| `OPENAI_API_KEY` | Required. All agent reasoning and photo recognition run on `gpt-4o-mini`. |
-| `INTERNAL_API_KEY` | ⚠️ **Must match the `backend/.env` value**, or every call is 401 |
-| `OPENAI_VISION_MODEL` | Optional. Vision-capable model for photo recognition (default `gpt-4o-mini`). |
-
-### `frontend/.env` — read by Vite
+<details>
+<summary><b><code>agentic-ai/.env</code></b></summary>
 
 | Variable | Purpose |
-| --- | --- |
+|---|---|
+| `OPENAI_API_KEY` | Required. Agent reasoning and photo recognition. |
+| `INTERNAL_API_KEY` | ⚠️ **Must match the backend's value**, or every call is rejected with 401 |
+| `OPENAI_VISION_MODEL` | Optional vision model (default `gpt-4o-mini`) |
+
+</details>
+
+<details>
+<summary><b><code>frontend/.env</code></b></summary>
+
+| Variable | Purpose |
+|---|---|
 | `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon (public) key |
+| `VITE_SUPABASE_ANON_KEY` | Supabase public key (never the secret key) |
 | `VITE_SUPABASE_PICKUP_BUCKET` | Storage bucket for pickup photos |
-| `VITE_API_BASE_URL` | Backend origin. Leave empty locally — Vite proxies `/api`. |
+| `VITE_API_BASE_URL` | Backend origin. Leave empty locally. |
 
-### `mobile/.env` — read by the Flutter app
+</details>
+
+<details>
+<summary><b><code>mobile/.env</code></b></summary>
 
 | Variable | Purpose |
-| --- | --- |
+|---|---|
 | `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anon (public) key |
+| `SUPABASE_ANON_KEY` | Supabase public key |
 | `SUPABASE_PICKUP_BUCKET` | Storage bucket for pickup photos |
-| `API_BASE_URL` | Backend API URL, including `/api` |
+| `API_BASE_URL` | Backend API URL including `/api` |
+
+</details>
 
 ---
 
 ## 🌐 API
 
-All endpoints are under `/api` and require a Supabase JWT as
-`Authorization: Bearer <token>`. Roles are `admin`, `collector`, `resident`
-(`user` is treated as `resident` — it is the fallback for accounts whose role
-was never set).
+Every endpoint is under `/api` and needs a Supabase JWT, sent as `Authorization: Bearer <token>`. The roles are `admin`, `collector` and `resident`. A legacy role of `user` is treated as `resident`. Swagger UI is served at `/swagger` in Development.
 
-| Area | Endpoints |
-| --- | --- |
-| 📦 Pickups | `POST /pickuprequests`, `GET /pickuprequests`, `GET /pickuprequests/{id}`, `GET /pickuprequests/{id}/status`, `PUT`, `DELETE` |
-| 🚩 Approvals (admin) | `GET /approvals`, `GET /approvals/{id}`, `POST /approvals/{id}/approve`, `POST /approvals/{id}/reject` |
-| 🚛 Routes | `GET /routes/{collectorId}/today`, `GET /routes/load-report`, `GET /routes/zone-load`, `POST /routes/assign/{pickupRequestId}`, `PUT /routes/{id}/reassign` |
-| 🗺️ Zones | `GET /zones`, `POST /zones`, `PUT /zones/{id}`, `DELETE /zones/{id}` |
-| 🎁 Rewards | `POST /rewards`, `GET /rewards/leaderboard`, `GET /rewards/{residentId}/history`, `PUT`/`DELETE /rewards/{id}` (admin corrections) |
-| 🛍️ Reward catalog | `GET /reward-items`, `GET /reward-items/{id}` (residents see active items only), `POST`, `PUT`, `DELETE /reward-items/{id}` (admin) |
-| 🎟️ Redemptions | `POST /redemptions` (pick a catalog item), `GET /redemptions`, `GET /redemptions/{id}`, `PUT`/`DELETE /redemptions/{id}` (resident, while Pending), `POST /redemptions/{id}/approve` and `/reject` (admin) |
-| 💬 Complaints | `POST /complaints`, `GET /complaints`, `PUT`, `DELETE` |
+| Area | Key endpoints |
+|---|---|
+| 📦 Pickups | `POST /pickuprequests`, `POST /pickuprequests/validate-photo`, `POST /pickuprequests/{id}/run-agent-pipeline`, `GET /pickuprequests`, `PUT`/`DELETE /pickuprequests/{id}` |
+| 🚩 Approvals (admin) | `GET /approvals`, `POST /approvals/{id}/approve`, `/reject`, `/request-revision` |
+| 🚛 Routes | `GET /routes/{collectorId}/today`, `/upcoming`, `PATCH /routes/{id}/complete`, `/missed`, `GET /routes/day`, `/overdue`, `/load-report`, `/zone-load`, `POST /routes/assign/{pickupId}`, `PUT /routes/{id}/reassign` |
+| 🗺️ Zones | `GET /zones`, `/zones/selectable`, `/zones/public`, `POST`, `PUT`, `DELETE /zones/{id}` (retire) |
+| 💬 Complaints | `POST /complaints`, `GET /complaints`, `PUT`/`DELETE /complaints/{id}` |
+| 🎁 Rewards | `GET /rewards/leaderboard`, `GET /rewards/{residentId}/history`, admin corrections |
+| 🛍️ Catalogue | `GET /reward-items`, admin `POST`/`PUT`/`DELETE` |
+| 🎟️ Redemptions | `POST /redemptions`, `GET /redemptions`, admin `POST /redemptions/{id}/approve` / `/reject` |
 | 👤 Profiles | `GET /profiles?role=resident\|collector\|admin` |
 
-Swagger UI is served in Development at `/swagger`.
+**Pickup statuses:** `Pending` → `Classified` → (`Approved`) → `Scheduled` → `Completed`, or `Rejected`.
 
-Two endpoints worth knowing when building any client:
-
-- `GET /pickuprequests` returns the AI result **inline** — `category`,
-  `confidence`, `reasoning`, `classifiedAt`, `zoneName`, and
-  `hasApprovalRequest` / `approvalStatus` / `flagReason`. There is no separate
-  classification call.
-- `GET /approvals/{id}` returns `agentInsight` — the agent's reasoning and
-  recommendation — for the admin review screen.
+**Status updates are pulled, not pushed.** The web app checks again every 5 seconds while a pickup is being classified, and mobile uses pull-to-refresh.
 
 ---
 
-## 📱 Mobile app (Flutter)
+## 🧪 Testing
 
-The Flutter client is a **second frontend on the same backend**. Nothing new is
-needed server-side to support it: the API, the auth, and the AI pipeline are all
-shared with the web app. Put it in a `mobile/` folder at the repo root.
+| Suite | Command | Notes |
+|---|---|---|
+| Backend (xUnit) | `dotnet test backend.Tests` | 280 tests. PostgreSQL integration tests are skipped without a live database. |
+| Web (Vitest) | `cd frontend && npm test` | Pickups, auth guard, API client, map helpers |
+| Mobile | `cd mobile && flutter test` | Form validation, layout, maps, auth screens |
+| Agents | `cd agentic-ai && python -m pytest` | Classifier evaluation and vision checks. Some scripts need a live OpenAI key. |
+| Lint | `cd frontend && npm run lint` · `cd mobile && flutter analyze` | |
 
-### Auth
+**CI:** GitHub Actions restores, builds and tests the backend on every push and pull request to `main` and `dev`. See [`.github/workflows/backend-ci.yml`](.github/workflows/backend-ci.yml).
 
-- 🔐 Sign in with the **Supabase Flutter SDK** (`supabase_flutter`), then send
-  the resulting access token as `Authorization: Bearer <token>` on every call.
-- The backend only **validates** tokens against `SUPABASE_URL` and
-  `SUPABASE_JWT_SECRET` — it never issues them, and there is no separate
-  login endpoint to call.
-- 👤 Read the role from the token, not from local storage. The backend resolves
-  it from the `role` claim, then `app_metadata`, then `user_metadata`,
-  defaulting to `resident`.
-
-### Talking to the API
-
-- 🌍 **Base URL**: `http://10.0.2.2:5051/api` on the Android emulator
-  (`localhost` there means the emulator itself), `http://localhost:5051/api` on
-  iOS simulator, and the deployed URL in release builds. Make it a
-  `--dart-define`, not a hardcoded string.
-- ⏱️ **`POST /pickuprequests` takes 8–17 seconds** — the AI pipeline runs inline
-  before responding. Set a client timeout above 30 s and show real progress, not
-  a spinner that looks frozen.
-- 🔤 **Enums are strings** (`"EWaste"`, `"Scheduled"`), so map them to Dart
-  enums **by name, never by index** — the numeric order is not stable across the
-  codebase.
-- 🌐 CORS does not apply to a mobile app, so `CORS_ALLOWED_ORIGINS` is a web-only
-  concern.
-
-### Pickup status, and what to show the resident
-
-| Status | Meaning |
-| --- | --- |
-| `Pending` | Not classified — the agent service was unavailable |
-| `Classified` | 🚩 Flagged, waiting for an admin decision |
-| `Scheduled` | ✅ Collector assigned, `scheduledDate` set |
-| `Completed` | Collected |
-
-### Suggested first screens
-
-1. 📝 **Submit a pickup** — description, optional photo, preferred date
-2. 📋 **My pickups** — list with status, category and the AI's reasoning
-3. 🔔 **Pickup detail** — flag reason if any, assigned collector, scheduled date
-4. 🎁 **Rewards** — points balance, history, leaderboard
+The latest results are recorded in [`docs/test-evidence/`](docs/test-evidence/).
 
 ---
 
 ## 🚢 Deploying
 
-The backend has a [Dockerfile](backend/Dockerfile) — Render's native .NET
-support is inconsistent, so deploy it as a Docker service with
-`Root Directory = backend`. It binds `0.0.0.0` on `$PORT`.
+| Service | Host | Notes |
+|---|---|---|
+| Web | Vercel | `frontend/vercel.json` rewrites all routes to `index.html`. Set `VITE_API_BASE_URL` to the deployed API. |
+| API | Render (Docker) | [`backend/Dockerfile`](backend/Dockerfile), `Root Directory = backend`. Binds `0.0.0.0:$PORT`. |
+| Agents | Render (Docker) | [`agentic-ai/Dockerfile`](agentic-ai/Dockerfile), `Root Directory = agentic-ai`. Runs `uvicorn api:app --host 0.0.0.0 --port $PORT`. |
+| Database, auth and storage | Supabase | Run the SQL in [`supabase/`](supabase/) for the photo bucket and signup role rules. |
 
-The agent service has a [Dockerfile](agentic-ai/Dockerfile) too
-(`Root Directory = agentic-ai`). It runs
-`uvicorn api:app --host 0.0.0.0 --port $PORT` — the default host `127.0.0.1` is
-not reachable from outside a container.
+Set every Configuration variable in the host's environment. Both services read real environment variables when no `.env` file is present.
 
-Set every variable from the Configuration tables in the host's environment.
-Both services read real environment variables when no `.env` file is present.
+> ⏳ On Render's free tier, services sleep after inactivity, so the first request can take about 50 seconds. Use `/health` to wake the agent service.
+
+---
+
+## 📐 Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | Feature overview, system integration, pickup flow, rewards, approvals, agentic pipeline |
+| [`docs/er-diagram.md`](docs/er-diagram.md) | Entities, keys, relationships, and crow's-foot and Chen ER diagrams |
+| [`docs/workflow-sequence.md`](docs/workflow-sequence.md) | Cross-platform end-to-end workflow |
+| [`docs/README.md`](docs/README.md) | Guide to the diagrams and how to export them |
 
 ---
 
 ## ⚠️ Known gaps
 
-Things that work but are not finished, so nobody rediscovers them the hard way:
-
-- ⏱️ **The AI pipeline runs inline on the request thread**, which is why pickup
-  creation takes 8–17 seconds. It belongs in a background job — and this will be
-  more noticeable on mobile than on desktop.
-- 🎁 **Points are awarded automatically** when a collector completes a stop (per-category
-  table in `PointsRules`); admins can still correct or reverse entries.
-- 🔁 **`RewardRules` (C#) duplicates the Python Validator** — same rule codes,
-  same limits. Still wired to `POST /rewards/validate`; remove once nothing
-  depends on it.
-- 🗺️ **Zones have a single coordinate, not a boundary**, so the admin map shows
-  pins rather than areas.
-- 🗄️ **A fresh database is missing two columns.** The migration adding
-  `Complaints.AdminNotes` and `ApprovalRequests.ReviewNotes` was applied to the
-  shared database but reconstructed later; verify a clean
-  `dotnet ef database update` before relying on one.
-- 🧪 **Frontend pages have not been clicked through end to end** after the agent
-  integration; the backend paths have been tested live.
+- **The live database has columns not in the migrations.** These are the `Zones` boundary columns, and the delivery columns on `RewardItems` and `RedemptionRequests`. A fresh `dotnet ef database update` won't create them until those migrations are pushed.
+- **Map pins are approximate** unless the resident pins an exact spot. Street addresses aren't geocoded.
+- **Status updates are pulled.** There are no push notifications or realtime updates yet.
+- **Zone locations are looked up** through OpenStreetMap Nominatim from the admin's browser. At higher volume this should move server-side with caching.
+- **`RewardRules` (C#) duplicates the Python Validator's bulky-limit rule.** Remove it once nothing depends on `POST /rewards/validate/{pickupRequestId}`.
