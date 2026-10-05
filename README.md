@@ -24,7 +24,6 @@ Residents book a pickup with a photo. A pipeline of four AI agents classifies th
 - [API](#-api)
 - [Testing](#-testing)
 - [Deploying](#-deploying)
-- [Documentation](#-documentation)
 - [Known gaps](#-known-gaps)
 
 ---
@@ -71,8 +70,6 @@ flowchart LR
 | Data | Supabase PostgreSQL | 12 application tables |
 | Auth & files | Supabase Auth (email + Google), Supabase Storage | JWTs, pickup photos |
 
-Full diagrams, including the agentic pipeline, ER diagrams and the end-to-end workflow, are in [`docs/`](docs/).
-
 ---
 
 ## 🔄 How a pickup flows
@@ -103,7 +100,6 @@ backend/         ⚙️  ASP.NET Core 8 Web API – shared by web and mobile
 backend.Tests/   🧪 xUnit tests (unit, API, database, end-to-end, performance)
 agentic-ai/      🤖 Python FastAPI service running the four AI agents
 supabase/        🗄️  SQL for storage buckets and signup role rules
-docs/            📐 Architecture, ER and workflow diagrams; test evidence
 scripts/         🔧 Helper scripts
 ```
 
@@ -259,8 +255,6 @@ Every endpoint is under `/api` and needs a Supabase JWT, sent as `Authorization:
 
 **CI:** GitHub Actions restores, builds and tests the backend on every push and pull request to `main` and `dev`. See [`.github/workflows/backend-ci.yml`](.github/workflows/backend-ci.yml).
 
-The latest results are recorded in [`docs/test-evidence/`](docs/test-evidence/).
-
 ---
 
 ## 🚢 Deploying
@@ -278,4 +272,10 @@ Set every Configuration variable in the host's environment. Both services read r
 
 ---
 
+## ⚠️ Known gaps
 
+- **The live database has columns not in the migrations.** These are the `Zones` boundary columns, and the delivery columns on `RewardItems` and `RedemptionRequests`. A fresh `dotnet ef database update` won't create them until those migrations are pushed.
+- **Map pins are approximate** unless the resident pins an exact spot. Street addresses aren't geocoded.
+- **Status updates are pulled.** There are no push notifications or realtime updates yet.
+- **Zone locations are looked up** through OpenStreetMap Nominatim from the admin's browser. At higher volume this should move server-side with caching.
+- **`RewardRules` (C#) duplicates the Python Validator's bulky-limit rule.** Remove it once nothing depends on `POST /rewards/validate/{pickupRequestId}`.
