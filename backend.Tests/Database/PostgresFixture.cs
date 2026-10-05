@@ -88,9 +88,10 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     // Inserts a minimal profile row so a pickup's ResidentId FK is satisfied.
-    public async Task<Guid> AddProfileAsync()
+    // A specific id can be supplied so it matches the authenticated test user.
+    public async Task<Guid> AddProfileAsync(Guid? profileId = null)
     {
-        var id = Guid.NewGuid();
+        var id = profileId ?? Guid.NewGuid();
         await using var conn = new NpgsqlConnection(ConnectionString);
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
