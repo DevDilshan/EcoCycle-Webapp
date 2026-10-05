@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run && node --test src/lib/mapLocation.test.js",
+    "test": "vitest run && node --test src/lib/mapLocation.test.js src/lib/serviceAreaSearch.test.js",
     "test:watch": "vitest"
   },
   "dependencies": {

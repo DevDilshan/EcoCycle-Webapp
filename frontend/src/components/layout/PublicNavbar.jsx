@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Menu, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { ArrowUpRight, Menu, X } from 'lucide-react'
 import EcoLogo from '../public/EcoLogo'
 import { useAuth } from '../../context/AuthContext'
 import { getHomePath } from '../../lib/roles'
@@ -15,26 +16,49 @@ const NAV_LINKS = [
 /**
  * Public site navigation.
  *
- * Starts transparent with light text over the photo hero, then turns solid ivory
- * once the page scrolls (`.eco-nav-over` vs `.eco-nav-solid` in the design).
+ * The landing stylesheet blends into the hero and uses a light surface after scrolling.
+ * An intersection sentinel adds the sticky header's shadow without a scroll loop.
  */
 export default function PublicNavbar() {
   const { user, role, signOut } = useAuth()
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const sentinel = useRef(null)
+  const toggle = useRef(null)
+  const drawer = useRef(null)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    if (!menuOpen) return
+    const opener = toggle.current
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    drawer.current.showModal()
+    const desktop = window.matchMedia('(min-width: 901px)')
+    const closeOnDesktop = (event) => { if (event.matches) setMenuOpen(false) }
+    desktop.addEventListener('change', closeOnDesktop)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      desktop.removeEventListener('change', closeOnDesktop)
+      opener?.focus({ preventScroll: true })
+    }
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (!('IntersectionObserver' in window)) return
+    const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting))
+    observer.observe(sentinel.current)
+    return () => observer.disconnect()
   }, [])
 
   const dashboardLabel =
     role === 'admin' ? 'Admin' : role === 'collector' ? 'Collector' : 'Dashboard'
 
   return (
-    <header className={`eco-nav eco-nav-over${scrolled ? ' is-scrolled' : ''}`}>
+    <>
+    <div ref={sentinel} className="eco-nav-sentinel" aria-hidden="true" />
+    <header className={`eco-nav eco-nav-over${scrolled ? ' is-scrolled' : ''}`} onKeyDown={(event) => {
+      if (event.key === 'Escape') { setMenuOpen(false); toggle.current?.focus() }
+    }}>
       <div className="eco-container eco-nav-inner">
         <a href="#top" className="eco-brand" onClick={() => setMenuOpen(false)}>
           <EcoLogo />
@@ -68,9 +92,11 @@ export default function PublicNavbar() {
 
         <button
           className="eco-nav-toggle"
+          ref={toggle}
           type="button"
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={menuOpen}
+          aria-controls="eco-mobile-navigation"
           onClick={() => setMenuOpen((open) => !open)}
         >
           {menuOpen
@@ -79,18 +105,32 @@ export default function PublicNavbar() {
         </button>
       </div>
 
-      <div className={`eco-mobile-menu${menuOpen ? ' is-open' : ''}`}>
+    </header>
+    {menuOpen && createPortal(
+      <dialog ref={drawer} id="eco-mobile-navigation" className="eco eco-landing eco-nav-drawer"
+        aria-labelledby="eco-drawer-title" onCancel={(event) => { event.preventDefault(); setMenuOpen(false) }}>
+        <div className="eco-drawer-inner">
+          <div className="eco-drawer-top">
+            <a href="#top" className="eco-brand" onClick={() => setMenuOpen(false)}><EcoLogo /></a>
+            <button type="button" className="eco-drawer-close" aria-label="Close menu" autoFocus onClick={() => setMenuOpen(false)}><X size={24} aria-hidden="true" /></button>
+          </div>
+          <h2 id="eco-drawer-title">Recycling starts here.</h2>
+          <nav className="eco-drawer-links" aria-label="Mobile navigation">
         {NAV_LINKS.map((link) => (
           <a
             key={link.label}
-            className="eco-nav-link"
+            className="eco-drawer-link"
             href={link.href}
             onClick={() => setMenuOpen(false)}
           >
             {link.label}
+            <ArrowUpRight size={22} aria-hidden="true" />
           </a>
         ))}
-
+          </nav>
+          <div className="eco-drawer-bottom">
+            <p>A cleaner neighbourhood, one pickup at a time.</p>
+            <div className="eco-drawer-actions">
         {user ? (
             <>
               <Link
@@ -100,7 +140,7 @@ export default function PublicNavbar() {
               >
                 {dashboardLabel}
               </Link>
-              <button className="eco-btn eco-btn-primary" type="button" onClick={signOut}>
+              <button className="eco-btn eco-btn-primary" type="button" onClick={() => { setMenuOpen(false); signOut() }}>
                 Log out
               </button>
             </>
@@ -122,7 +162,11 @@ export default function PublicNavbar() {
               </Link>
             </>
         )}
-      </div>
-    </header>
+            </div>
+          </div>
+        </div>
+      </dialog>, document.body
+    )}
+    </>
   )
 }
