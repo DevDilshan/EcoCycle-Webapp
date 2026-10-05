@@ -90,7 +90,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                           child: Text(
                             label,
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: active
                                   ? FontWeight.w700
                                   : FontWeight.w600,

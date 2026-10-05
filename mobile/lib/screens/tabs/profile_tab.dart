@@ -157,7 +157,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     const Text(
                       'Email address',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: EcoColors.body,
                         fontWeight: FontWeight.w600,
                       ),
@@ -221,7 +221,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 'Deleting your account removes your pickups, points and '
                 'rewards for good.',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   height: 1.5,
                   color: EcoColors.body,
                 ),
@@ -289,7 +289,7 @@ class _ProfileTile extends StatelessWidget {
                 Text(
                   subtitle,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     height: 1.5,
                     color: EcoColors.body,
                   ),

@@ -50,6 +50,8 @@ public class PublicZoneDto
 /// </remarks>
 public class ZoneOptionDto
 {
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
 

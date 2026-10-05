@@ -20,6 +20,7 @@ import { apiRequest } from '../../lib/api'
 import { uploadPickupPhoto } from '../../lib/pickupPhoto'
 import PickupPhotoField from '../../components/resident/PickupPhotoField'
 import CollectionDayPicker from '../../components/resident/CollectionDayPicker'
+import PickupLocationPicker from '../../components/map/PickupLocationPicker'
 import ResidentApprovalNotice from '../../components/resident/ResidentApprovalNotice'
 import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
 import { COLLECTION_WINDOW_LABEL } from '../../lib/collectorUi'
@@ -54,6 +55,8 @@ const emptyForm = {
   photoUrl: '',
   zoneId: '',
   address: '',
+  latitude: null,
+  longitude: null,
   contactPhone: '',
   isBulkRequest: false,
   preferredDate: '',
@@ -479,6 +482,8 @@ export default function ResidentPickupsPage() {
           ...(photoUrl ? { photoUrl } : {}),
           zoneId: createForm.zoneId,
           address: createForm.address.trim(),
+          latitude: createForm.latitude,
+          longitude: createForm.longitude,
           contactPhone: createForm.contactPhone.trim(),
           isBulkRequest: createForm.isBulkRequest,
           preferredDate: new Date(createForm.preferredDate).toISOString(),
@@ -524,6 +529,11 @@ export default function ResidentPickupsPage() {
       ...emptyForm,
       description: item.description || '',
       photoUrl: item.photoUrl || '',
+      address: item.address || '',
+      contactPhone: item.contactPhone || '',
+      zoneId: item.zoneId || '',
+      latitude: item.latitude ?? null,
+      longitude: item.longitude ?? null,
       preferredDate: toDateInputValue(item.preferredDate),
       isRecurring: item.isRecurring,
       recurrenceInterval: item.recurrenceInterval || '',
@@ -553,6 +563,11 @@ export default function ResidentPickupsPage() {
         method: 'PUT',
         body: JSON.stringify({
           description: editForm.description || undefined,
+          address: editForm.address.trim() || undefined,
+          contactPhone: editForm.contactPhone.trim() || undefined,
+          latitude: editForm.latitude,
+          longitude: editForm.longitude,
+          clearLocation: editForm.latitude == null,
           ...(photoUrl ? { photoUrl } : {}),
           preferredDate: new Date(editForm.preferredDate).toISOString(),
           isRecurring: editForm.isRecurring,
@@ -694,6 +709,7 @@ export default function ResidentPickupsPage() {
                 setCreateForm({
                   ...createForm,
                   zoneId,
+                  latitude: null, longitude: null,
                   preferredDate: keepDate ? createForm.preferredDate : '',
                 })
               }}
@@ -718,7 +734,7 @@ export default function ResidentPickupsPage() {
               <input
                 id="pickup-address"
                 value={createForm.address}
-                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value, latitude: null, longitude: null })}
                 placeholder="e.g. 14/2 Temple Road, near the junction"
               />
               {createErrors.address && <p className="ac-field-error">{createErrors.address}</p>}
@@ -756,6 +772,7 @@ export default function ResidentPickupsPage() {
                 rather than the control offering only the few that are. A
                 resident can then see that their zone is Mondays and Sundays,
                 which a list of eight dates hides. */}
+            <PickupLocationPicker value={createForm} zone={zones.find((z) => z.id === createForm.zoneId)} onChange={(point) => setCreateForm((f) => ({ ...f, ...point }))} />
             <CollectionDayPicker
               id="pickup-date"
               value={createForm.preferredDate}
@@ -1160,6 +1177,13 @@ export default function ResidentPickupsPage() {
               Only possible while nothing has been decided yet.
             </p>
 
+            <div className="ac-field"><label htmlFor="edit-pickup-address">Address</label>
+              <input id="edit-pickup-address" value={editForm.address} maxLength={300} onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value, latitude: null, longitude: null }))} />
+            </div>
+            <div className="ac-field"><label htmlFor="edit-pickup-phone">Contact number</label>
+              <input id="edit-pickup-phone" type="tel" value={editForm.contactPhone} maxLength={20} onChange={(e) => setEditForm((f) => ({ ...f, contactPhone: e.target.value }))} />
+            </div>
+            <PickupLocationPicker value={editForm} zone={zones.find((z) => z.id === editForm.zoneId)} onChange={(point) => setEditForm((f) => ({ ...f, ...point }))} />
             <PickupPhotoField
               existingUrl={editForm.photoUrl}
               previewUrl={editPhotoPreview}

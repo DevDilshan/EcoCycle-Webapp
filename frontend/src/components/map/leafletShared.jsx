@@ -13,8 +13,9 @@ import { FIT_PADDING, OSM_ATTRIBUTION, OSM_TILE_URL } from './mapConfig'
  */
 
 /** The OpenStreetMap raster layer, with its required attribution. */
-export function OsmTileLayer() {
-  return <TileLayer attribution={OSM_ATTRIBUTION} url={OSM_TILE_URL} />
+export function OsmTileLayer({ onError }) {
+  return <TileLayer attribution={OSM_ATTRIBUTION} url={OSM_TILE_URL} maxNativeZoom={19}
+    eventHandlers={onError ? { tileerror: onError } : undefined} />
 }
 
 /**

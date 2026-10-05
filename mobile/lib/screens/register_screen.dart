@@ -227,7 +227,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     Text(
                                       description,
                                       style: const TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 13,
                                         height: 1.4,
                                         color: EcoColors.body,
                                       ),
@@ -309,7 +309,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   'Google sign-up creates a resident account. Use email to join as a collector.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     height: 1.5,
                     color: EcoColors.body,
                   ),

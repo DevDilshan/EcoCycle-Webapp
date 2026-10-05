@@ -33,7 +33,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       label: 'From your doorstep',
       title: 'One photo.\nA simpler pickup.',
       body:
-          'Snap your waste and choose a time. We’ll find the right collector.',
+          'Snap your waste and choose a collection day. We’ll find the right collector.',
     ),
     (
       image: 'assets/images/generated/recycling-rewards.webp',
@@ -143,7 +143,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           color: EcoColors.green,
                         );
                         const labelStyle = TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: EcoColors.body,
                         );
@@ -209,6 +209,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                       width: imageSize,
                                       height: imageSize,
                                       fit: BoxFit.contain,
+                                      filterQuality: FilterQuality.high,
                                       excludeFromSemantics: true,
                                     ),
                                   ),

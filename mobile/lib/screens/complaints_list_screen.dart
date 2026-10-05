@@ -87,15 +87,20 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              spacing: 12,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Text(
                                   '#CMP-${(c['id'] as String?)?.substring(0, 4).toUpperCase() ?? '—'}',
                                   style: ecoMono(),
                                 ),
                                 StatusBadge(
-                                  label: status,
+                                  label: status == 'InReview'
+                                      ? 'In review'
+                                      : status,
                                   tone: resolved
                                       ? BadgeTone.resolved
                                       : BadgeTone.inReview,
@@ -113,7 +118,7 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
                             Text(
                               c['description'] as String? ?? '',
                               style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: 13,
                                 color: EcoColors.body,
                                 height: 1.5,
                               ),

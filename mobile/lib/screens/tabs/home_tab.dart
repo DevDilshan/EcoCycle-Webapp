@@ -203,7 +203,7 @@ class HomeTabState extends State<HomeTab> {
                         const Text(
                           'YOUR IMPACT',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             letterSpacing: 1.2,
                             fontWeight: FontWeight.w800,
                             color: EcoColors.body,
@@ -233,7 +233,7 @@ class HomeTabState extends State<HomeTab> {
                           Text(
                             'Community rank #$_rank',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               color: EcoColors.green,
                               fontWeight: FontWeight.w700,
                             ),
@@ -325,7 +325,7 @@ class _Metric extends StatelessWidget {
       Text(
         label,
         style: const TextStyle(
-          fontSize: 12,
+          fontSize: 13,
           height: 1.4,
           color: EcoColors.body,
         ),

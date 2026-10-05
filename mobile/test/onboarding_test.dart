@@ -143,7 +143,7 @@ void main() {
     await tester.pumpAndSettle();
     const bodies = [
       'Recycle from home with simple pickups and rewards for doing your part.',
-      'Snap your waste and choose a time. We’ll find the right collector.',
+      'Snap your waste and choose a collection day. We’ll find the right collector.',
       'Track every pickup. Earn recycling points. Make a lasting difference.',
     ];
     for (var i = 0; i < bodies.length; i++) {

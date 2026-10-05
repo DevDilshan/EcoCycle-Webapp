@@ -124,7 +124,7 @@ class RewardsTabState extends State<RewardsTab> {
                             Text(
                               'See the difference we make together',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 13,
                                 height: 1.4,
                                 color: EcoColors.body,
                               ),
@@ -209,7 +209,7 @@ class _HistoryRow extends StatelessWidget {
                     Text(
                       DateFormat('d MMM yyyy').format(date.toLocal()),
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: EcoColors.body,
                       ),
                     ),

@@ -25,6 +25,8 @@ class MobilePreviewApi extends Api {
     {
       'id': 'preview-pickup-1',
       'address': '12 Park Road, Colombo 07',
+      'latitude': 6.9108,
+      'longitude': 79.8696,
       'description': 'Bottles & cardboard',
       'category': 'Recyclable',
       'status': 'Scheduled',
@@ -40,6 +42,8 @@ class MobilePreviewApi extends Api {
     {
       'id': 'preview-pickup-2',
       'address': '4 Lake Drive, Colombo 08',
+      'latitude': 6.9174,
+      'longitude': 79.8812,
       'description': 'Garden clippings',
       'category': 'Organic',
       'status': 'Pending',
@@ -64,6 +68,20 @@ class MobilePreviewApi extends Api {
   ];
   @override
   Future<dynamic> get(String path, {Map<String, String>? query}) async {
+    if (path == '/pickuprequests/bulk-allowance') {
+      return {'limit': 2, 'used': 0, 'remaining': 2};
+    }
+    if (path == '/zones/selectable') {
+      return [
+        {
+          'id': 'preview-zone',
+          'name': 'Colombo',
+          'isActive': true,
+          'latitude': 6.9271,
+          'longitude': 79.8612,
+        },
+      ];
+    }
     if (path == '/pickuprequests') return {'items': pickups};
     if (path.startsWith('/pickuprequests/')) {
       return pickups.firstWhere(
@@ -160,15 +178,18 @@ class MobilePreviewApi extends Api {
       };
     }
     if (path.startsWith('/routes/')) {
-      // Shaped like RouteAssignmentDto: a stop carries only ids and its own
-      // completion state; the address and items come from the pickup.
+      // Assigned stops carry their own detail and retain the route id.
       return List.generate(
         3,
         (i) => {
+          ...pickups[i],
           'id': 'preview-route-${i + 1}',
           'pickupRequestId': pickups[i]['id'],
+          'pickup': pickups[i],
           'completionStatus': i == 0 ? 1 : 0,
-          'scheduledDate': DateTime.now().toIso8601String(),
+          'scheduledDate': DateTime.now()
+              .add(Duration(days: path.contains('/upcoming') ? i + 1 : 0))
+              .toIso8601String(),
         },
       );
     }

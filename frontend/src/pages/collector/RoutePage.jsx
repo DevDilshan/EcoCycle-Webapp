@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Camera,
   Check,
@@ -16,6 +17,7 @@ import { AcAlert, AcCard, AcChips, AcToast } from '../../components/admin/AcUi'
 import { AcCategory, AcCategoryIcon, AcStatusPill, CATEGORY_LABELS } from '../../components/admin/AcPills'
 import MarkCompleteDrawer from '../../components/collector/MarkCompleteDrawer'
 import ReportMissedDrawer from '../../components/collector/ReportMissedDrawer'
+import CollectorRouteMap from '../../components/collector/CollectorRouteMap'
 import { useCollectorData } from '../../components/collector/collectorShell'
 import { useAuth } from '../../context/AuthContext'
 import { formatRequestId } from '../../lib/adminUi'
@@ -24,6 +26,7 @@ import { UPCOMING_DAYS } from '../../hooks/useCollectorRoute'
 
 export default function CollectorRoutePage() {
   const { role } = useAuth()
+  const location = useLocation()
   const {
     stops, upcoming, upcomingCount, counts, nextStop,
     loading, error, setError, completeStop, reportMissed,
@@ -31,7 +34,7 @@ export default function CollectorRoutePage() {
 
   const [filter, setFilter] = useState('')
   const [search, setSearch] = useState('')
-  const [openId, setOpenId] = useState(null)
+  const [openId, setOpenId] = useState(location.state?.stopId ?? null)
   const [completing, setCompleting] = useState(null)
   const [reporting, setReporting] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -71,6 +74,12 @@ export default function CollectorRoutePage() {
     () => new Map(stops.map((stop, index) => [stop.id, index + 1])),
     [stops],
   )
+
+  useEffect(() => {
+    if (loading || !openId) return undefined
+    const frame = requestAnimationFrame(() => document.getElementById(`route-stop-${openId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    return () => cancelAnimationFrame(frame)
+  }, [loading, openId])
 
   async function handleMissed(stop, reason) {
     setBusy(true)
@@ -135,6 +144,12 @@ export default function CollectorRoutePage() {
       )}
       <AcAlert message={error} onClose={() => setError(null)} />
 
+      {!loading && visible.length > 0 && <CollectorRouteMap stops={visible} positions={positions}
+        onOpen={(stop) => {
+          setOpenId(stop.id)
+          requestAnimationFrame(() => document.getElementById(`route-stop-${stop.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+        }} onComplete={setCompleting} onMissed={setReporting} />}
+
       {loading ? (
         <p className="ac-empty">Loading today&rsquo;s route…</p>
       ) : counts.total === 0 ? (
@@ -149,7 +164,7 @@ export default function CollectorRoutePage() {
             const pickup = stop.pickup
 
             return (
-              <li className={`c-stop ${tone}${open ? ' is-open' : ''}`.trim()} key={stop.id}>
+              <li id={`route-stop-${stop.id}`} className={`c-stop ${tone}${open ? ' is-open' : ''}`.trim()} key={stop.id}>
                 <span className="c-stop-dot" aria-hidden="true">
                   {stop.status === 'Completed' ? <Check size={18} strokeWidth={2.6} />
                     : stop.status === 'Missed' ? <X size={18} strokeWidth={2.6} />

@@ -12,6 +12,9 @@ import '../services/pickup_photo_service.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
 import 'pickup_submitted_screen.dart';
+import 'pickup_location_screen.dart';
+import '../services/map_location.dart';
+import 'package:latlong2/latlong.dart';
 
 class NewPickupScreen extends StatefulWidget {
   const NewPickupScreen({super.key, this.onSubmitted, this.existing});
@@ -31,12 +34,20 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   final _description = TextEditingController();
   final _contactPhone = TextEditingController();
   final _address = TextEditingController();
+
   /// Active zones for the picker, from /zones/selectable.
   List<Map<String, dynamic>> _zones = [];
   String? _zoneId;
+  LatLng? _point;
 
   static const _dayNames = [
-    'Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays',
+    'Sundays',
+    'Mondays',
+    'Tuesdays',
+    'Wednesdays',
+    'Thursdays',
+    'Fridays',
+    'Saturdays',
   ];
 
   /// DayOfWeek numbers the chosen zone is collected on, empty when no zone is
@@ -89,11 +100,13 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
         : names.first;
     return '$name is collected on $joined.';
   }
+
   DateTime _date = DateTime.now().add(const Duration(days: 1));
   late final TextEditingController _dateLabel;
   bool _recurring = false;
   String? _interval;
   bool _loading = false;
+
   /// True while the agent pipeline runs, after the pickup itself is saved.
   bool _classifying = false;
   XFile? _photo;
@@ -108,6 +121,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   static const _collectionWindowLabel = '8:30 am – 4:00 pm';
 
   bool _isBulkRequest = false;
+
   /// This month's bulky allowance, null until loaded or if the request failed.
   Map<String, dynamic>? _bulkAllowance;
 
@@ -115,8 +129,19 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   /// after submission, so it can never warn them while they can still change
   /// the answer; a plain word list catches the honest cases at the right moment.
   static const _bulkyWords = [
-    'sofa', 'couch', 'settee', 'mattress', 'bed frame', 'wardrobe', 'dresser',
-    'furniture', 'armchair', 'table', 'fridge', 'freezer', 'washing machine',
+    'sofa',
+    'couch',
+    'settee',
+    'mattress',
+    'bed frame',
+    'wardrobe',
+    'dresser',
+    'furniture',
+    'armchair',
+    'table',
+    'fridge',
+    'freezer',
+    'washing machine',
   ];
 
   bool get _looksBulky {
@@ -172,15 +197,22 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       _contactPhone.text = (existing['contactPhone'] as String?) ?? '';
       _address.text = (existing['address'] as String?) ?? '';
       _zoneId = existing['zoneId'] as String?;
-      final parsed = DateTime.tryParse(existing['preferredDate'] as String? ?? '');
+      _point = pickupPoint(existing);
+      final parsed = DateTime.tryParse(
+        existing['preferredDate'] as String? ?? '',
+      );
       if (parsed != null) _date = parsed.toLocal();
       _recurring = existing['isRecurring'] == true;
       final interval = existing['recurrenceInterval'] as String?;
-      if (interval != null && _allowedIntervals.contains(interval)) _interval = interval;
+      if (interval != null && _allowedIntervals.contains(interval)) {
+        _interval = interval;
+      }
 
       _existingPhotoUrl = existing['photoUrl'] as String?;
     }
-    _dateLabel = TextEditingController(text: DateFormat('EEE, d MMM yyyy').format(_date));
+    _dateLabel = TextEditingController(
+      text: DateFormat('EEE, d MMM yyyy').format(_date),
+    );
     // Only when creating: the update endpoint takes no zone, so the picker is
     // not shown on an edit and the list would be fetched for nothing.
     if (!_isEditing) {
@@ -212,6 +244,19 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     } catch (_) {
       // Left empty on purpose; the field shows its own unavailable state.
     }
+  }
+
+  Future<void> _choosePoint() async {
+    final zone = _zones.where((z) => z['id'] == _zoneId).firstOrNull;
+    final point = await Navigator.of(context).push<LatLng>(
+      MaterialPageRoute(
+        builder: (_) => PickupLocationScreen(
+          point: _point,
+          center: zone == null ? null : pickupPoint(zone),
+        ),
+      ),
+    );
+    if (point != null && mounted) setState(() => _point = point);
   }
 
   @override
@@ -384,12 +429,12 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
   /// The small grey note under a field, as the web form has beneath the
   /// address, the contact number and the date.
   Widget _fieldHint(String text) => Padding(
-        padding: const EdgeInsets.only(top: 6, left: 4),
-        child: Text(
-          text,
-          style: const TextStyle(fontSize: 12.5, color: EcoColors.body),
-        ),
-      );
+    padding: const EdgeInsets.only(top: 6, left: 4),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 12.5, color: EcoColors.body),
+    ),
+  );
 
   Widget _fieldError(String text) => Padding(
     padding: const EdgeInsets.only(top: 6, left: 4),
@@ -446,6 +491,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
         if (!_isEditing) 'zoneId': _zoneId,
         if (!_isEditing) 'isBulkRequest': _isBulkRequest,
         'address': _address.text.trim(),
+        'latitude': _point?.latitude,
+        'longitude': _point?.longitude,
+        if (_isEditing) 'clearLocation': _point == null,
         'isRecurring': _recurring,
         if (_recurring) 'recurrenceInterval': _interval,
         if (photoUrl != null) 'photoUrl': photoUrl,
@@ -459,7 +507,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
         return;
       }
 
-      final created = await _api.post('/pickuprequests', body: body) as Map<String, dynamic>;
+      final created =
+          await _api.post('/pickuprequests', body: body)
+              as Map<String, dynamic>;
 
       // Creating a pickup only stores it; nothing classifies it. The agents run
       // on this call, and it is what decides the category, whether the pickup
@@ -474,12 +524,17 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       String? pipelineError;
       try {
         setState(() => _classifying = true);
-        final result = await _api.post('/pickuprequests/${created['id']}/run-agent-pipeline');
-        final map = result is Map ? result.cast<String, dynamic>() : const <String, dynamic>{};
+        final result = await _api.post(
+          '/pickuprequests/${created['id']}/run-agent-pipeline',
+        );
+        final map = result is Map
+            ? result.cast<String, dynamic>()
+            : const <String, dynamic>{};
         final classified = map['pickup'];
         if (classified is Map) pickup = classified.cast<String, dynamic>();
         if (map['success'] != true) {
-          pipelineError = map['message'] as String? ?? 'Classification did not complete.';
+          pipelineError =
+              map['message'] as String? ?? 'Classification did not complete.';
         }
       } catch (e) {
         // The pickup exists and Pending is a valid state an admin can push
@@ -596,7 +651,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Add a photo if you can, tell us what you’re recycling, and choose your preferred day.',
+                    'Add a clear photo, tell us what you’re recycling, and choose a collection day.',
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.6,
@@ -609,7 +664,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                     Container(
                       decoration: BoxDecoration(
                         color: EcoColors.surface,
-                        border: Border.all(color: EcoColors.green.withValues(alpha: 0.12)),
+                        border: Border.all(
+                          color: EcoColors.green.withValues(alpha: 0.12),
+                        ),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -618,21 +675,32 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                           value: _zoneId,
                           isExpanded: true,
                           hint: Text(
-                            _zones.isEmpty ? 'Zones unavailable — try again' : 'Select your zone…',
-                            style: const TextStyle(fontSize: 14, color: EcoColors.muted),
+                            _zones.isEmpty
+                                ? 'Zones unavailable — try again'
+                                : 'Select your zone…',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: EcoColors.muted,
+                            ),
                           ),
                           items: _zones
-                              .map((zone) => DropdownMenuItem<String>(
-                                    value: zone['id'] as String?,
-                                    child: Text(
-                                      (zone['name'] as String?) ?? 'Unnamed zone',
-                                      style: const TextStyle(fontSize: 14, color: EcoColors.ink),
+                              .map(
+                                (zone) => DropdownMenuItem<String>(
+                                  value: zone['id'] as String?,
+                                  child: Text(
+                                    (zone['name'] as String?) ?? 'Unnamed zone',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: EcoColors.ink,
                                     ),
-                                  ))
+                                  ),
+                                ),
+                              )
                               .toList(),
                           onChanged: (value) {
                             setState(() {
                               _zoneId = value;
+                              _point = null;
                               _zoneError = null;
                             });
                             // The date already picked may not be a day this
@@ -643,7 +711,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                             if (next != null && !_isCollectionDay(_date)) {
                               setState(() {
                                 _date = next;
-                                _dateLabel.text = DateFormat('EEE, d MMM yyyy').format(next);
+                                _dateLabel.text = DateFormat(
+                                  'EEE, d MMM yyyy',
+                                ).format(next);
                                 _dateError = null;
                               });
                             }
@@ -660,7 +730,10 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                         padding: const EdgeInsets.only(top: 6, left: 4),
                         child: Text(
                           _collectionDaysLabel!,
-                          style: const TextStyle(fontSize: 12.5, color: EcoColors.body),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: EcoColors.body,
+                          ),
                         ),
                       ),
                   ],
@@ -668,13 +741,41 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                   const EcoFieldLabel('Address'),
                   EcoTextField(
                     controller: _address,
+                    onChanged: (_) => setState(() => _point = null),
                     hint: 'e.g. 14/2 Temple Road, near the junction',
                     prefixIcon: Icons.location_on_outlined,
                   ),
                   if (_addressError != null) _fieldError(_addressError!),
-                  _fieldHint('A zone is a whole suburb, so the crew needs the '
-                      'house number and street.'),
+                  _fieldHint(
+                    'A zone is a whole suburb, so the crew needs the '
+                    'house number and street.',
+                  ),
                   const SizedBox(height: 20),
+                  OutlinedButton.icon(
+                    onPressed: _choosePoint,
+                    icon: const Icon(Icons.location_on_outlined),
+                    label: Text(
+                      _point == null
+                          ? 'Add pickup pin (optional)'
+                          : 'Change pickup pin',
+                    ),
+                  ),
+                  if (_point != null)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_point!.latitude.toStringAsFixed(5)}, ${_point!.longitude.toStringAsFixed(5)}',
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove pickup pin',
+                          onPressed: () => setState(() => _point = null),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 16),
                   const EcoFieldLabel('Contact number'),
                   EcoTextField(
                     controller: _contactPhone,
@@ -683,11 +784,16 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                     prefixIcon: Icons.phone_outlined,
                     maxLength: 20,
                   ),
-                  if (_contactPhoneError != null) _fieldError(_contactPhoneError!),
-                  _fieldHint('Whoever will be at the collection — it need not be you.'),
+                  if (_contactPhoneError != null)
+                    _fieldError(_contactPhoneError!),
+                  _fieldHint(
+                    'Whoever will be at the collection — it need not be you.',
+                  ),
                   const SizedBox(height: 20),
                   EcoFieldLabel(
-                    _collectionDays.isNotEmpty ? 'Choose a collection day' : 'Collect on or after',
+                    _collectionDays.isNotEmpty
+                        ? 'Choose a collection day'
+                        : 'Collect on or after',
                   ),
                   EcoTextField(
                     readOnly: true,
@@ -697,19 +803,25 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                       // are. A resident reads the calendar they already know and
                       // can see at a glance which days their zone is served; a
                       // list of eight dates hides that shape entirely.
-                      final initial = _isCollectionDay(_date) ? _date : _nextCollectionDay();
+                      final initial = _isCollectionDay(_date)
+                          ? _date
+                          : _nextCollectionDay();
                       final from = initial ?? DateTime.now();
                       final picked = await showDatePicker(
                         context: context,
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
-                        initialDate: from.isBefore(DateTime.now()) ? DateTime.now() : from,
+                        initialDate: from.isBefore(DateTime.now())
+                            ? DateTime.now()
+                            : from,
                         selectableDayPredicate: _isCollectionDay,
                       );
                       if (picked != null) {
                         setState(() {
                           _date = picked;
-                          _dateLabel.text = DateFormat('EEE, d MMM yyyy').format(picked);
+                          _dateLabel.text = DateFormat(
+                            'EEE, d MMM yyyy',
+                          ).format(picked);
                           _dateError = null;
                         });
                       }
@@ -725,8 +837,10 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                   // The hours are the same every day and nothing books a stop
                   // for a time of its own, so this is the only promise that can
                   // be made about when the crew arrives.
-                  _fieldHint('Collections run $_collectionWindowLabel. Please have it '
-                      'out by the start of that window.'),
+                  _fieldHint(
+                    'Collections run $_collectionWindowLabel. Please have it '
+                    'out by the start of that window.',
+                  ),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('What needs collecting?'),
                   EcoTextField(
@@ -737,7 +851,8 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                     // than only after the field loses focus.
                     onChanged: (_) => setState(() {}),
                   ),
-                  if (_descriptionError != null) _fieldError(_descriptionError!),
+                  if (_descriptionError != null)
+                    _fieldError(_descriptionError!),
                   // Bulky collections are booked separately and draw on a
                   // monthly allowance, so the resident declares it here rather
                   // than finding out after the classifier has run. Create only:
@@ -786,7 +901,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                                       '(furniture, mattress, large appliance)',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: _bulkLocked ? EcoColors.muted : EcoColors.ink,
+                                        color: _bulkLocked
+                                            ? EcoColors.muted
+                                            : EcoColors.ink,
                                       ),
                                     ),
                                   ),
@@ -802,8 +919,11 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                                 (_bulkRemaining ?? 0) > 0
                                     ? '$_bulkRemaining of $_bulkLimit bulky collections left this month.'
                                     : 'You have used all $_bulkLimit bulky collections this '
-                                        'month. The allowance resets on $_bulkResetLabel.',
-                                style: const TextStyle(fontSize: 12.5, color: EcoColors.body),
+                                          'month. The allowance resets on $_bulkResetLabel.',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: EcoColors.body,
+                                ),
                               ),
                             ),
                           // Nudged, never forced: the resident can still say no,
@@ -853,7 +973,9 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                     Container(
                       decoration: BoxDecoration(
                         color: EcoColors.surface,
-                        border: Border.all(color: EcoColors.green.withValues(alpha: 0.12)),
+                        border: Border.all(
+                          color: EcoColors.green.withValues(alpha: 0.12),
+                        ),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -863,18 +985,26 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                           isExpanded: true,
                           hint: const Text(
                             'Select…',
-                            style: TextStyle(fontSize: 14, color: EcoColors.muted),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: EcoColors.muted,
+                            ),
                           ),
                           // These two only. A free text box accepted anything
                           // and the server then refused everything else.
                           items: _allowedIntervals
-                              .map((label) => DropdownMenuItem<String>(
-                                    value: label,
-                                    child: Text(
-                                      label,
-                                      style: const TextStyle(fontSize: 14, color: EcoColors.ink),
+                              .map(
+                                (label) => DropdownMenuItem<String>(
+                                  value: label,
+                                  child: Text(
+                                    label,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: EcoColors.ink,
                                     ),
-                                  ))
+                                  ),
+                                ),
+                              )
                               .toList(),
                           onChanged: (value) => setState(() {
                             _interval = value;
