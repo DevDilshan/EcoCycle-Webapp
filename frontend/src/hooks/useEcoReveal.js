@@ -97,7 +97,7 @@ export function useCountUp(display, { duration = 1400 } = {}) {
     // setValue is called from the animation frame callback, never synchronously
     // in the effect body, so this does not cascade renders.
     const step = (now) => {
-      const progress = Math.min(1, (now - started) / duration)
+      const progress = Math.max(0, Math.min(1, (now - started) / duration))
       // Ease-out so it decelerates into the final number.
       const eased = 1 - (1 - progress) ** 3
       setValue(Math.round(target * eased))
