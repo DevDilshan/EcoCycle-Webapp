@@ -278,21 +278,4 @@ Set every Configuration variable in the host's environment. Both services read r
 
 ---
 
-## 📐 Documentation
 
-| Document | Contents |
-|---|---|
-| [`docs/architecture.md`](docs/architecture.md) | Feature overview, system integration, pickup flow, rewards, approvals, agentic pipeline |
-| [`docs/er-diagram.md`](docs/er-diagram.md) | Entities, keys, relationships, and crow's-foot and Chen ER diagrams |
-| [`docs/workflow-sequence.md`](docs/workflow-sequence.md) | Cross-platform end-to-end workflow |
-| [`docs/README.md`](docs/README.md) | Guide to the diagrams and how to export them |
-
----
-
-## ⚠️ Known gaps
-
-- **The live database has columns not in the migrations.** These are the `Zones` boundary columns, and the delivery columns on `RewardItems` and `RedemptionRequests`. A fresh `dotnet ef database update` won't create them until those migrations are pushed.
-- **Map pins are approximate** unless the resident pins an exact spot. Street addresses aren't geocoded.
-- **Status updates are pulled.** There are no push notifications or realtime updates yet.
-- **Zone locations are looked up** through OpenStreetMap Nominatim from the admin's browser. At higher volume this should move server-side with caching.
-- **`RewardRules` (C#) duplicates the Python Validator's bulky-limit rule.** Remove it once nothing depends on `POST /rewards/validate/{pickupRequestId}`.
