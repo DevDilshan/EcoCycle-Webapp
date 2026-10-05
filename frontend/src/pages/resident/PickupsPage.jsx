@@ -4,6 +4,7 @@ import {
   ChevronRight,
   MapPin,
   Package,
+  Phone,
   Plus,
   RotateCcw,
   Send,
@@ -18,6 +19,8 @@ import { formatCompactDate, formatRequestId } from '../../lib/adminUi'
 import { apiRequest } from '../../lib/api'
 import { uploadPickupPhoto } from '../../lib/pickupPhoto'
 import PickupPhotoField from '../../components/resident/PickupPhotoField'
+import CollectionDayPicker from '../../components/resident/CollectionDayPicker'
+import PickupLocationPicker from '../../components/map/PickupLocationPicker'
 import ResidentApprovalNotice from '../../components/resident/ResidentApprovalNotice'
 import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
 import { COLLECTION_WINDOW_LABEL } from '../../lib/collectorUi'
@@ -52,6 +55,9 @@ const emptyForm = {
   photoUrl: '',
   zoneId: '',
   address: '',
+  latitude: null,
+  longitude: null,
+  contactPhone: '',
   isBulkRequest: false,
   preferredDate: '',
   isRecurring: false,
@@ -76,7 +82,31 @@ const DAY_NAMES = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 
 const ALLOWED_INTERVALS = ['Weekly', 'Bi-weekly']
 const MAX_FUTURE_DAYS = 365
 
-function validatePickupForm(form, { requireZone = false } = {}) {
+// Whether a contact number could be dialled. Separators are stripped before the
+// digits are counted, so a resident is not refused over a space they cannot see.
+// 9 to 15 digits is the E.164 range, so a local 0771234567 and an international
+// +94771234567 are both accepted. Mirrors PickupRequestValidation.IsDialable.
+function isDialable(phone) {
+  const trimmed = (phone || '').trim()
+  if (!trimmed) return false
+  // A plus is allowed only as the first character.
+  const body = trimmed.startsWith('+') ? trimmed.slice(1) : trimmed
+  if (/[^0-9\s\-()]/.test(body)) return false
+  const digits = body.replace(/[^0-9]/g, '').length
+  return digits >= 9 && digits <= 15
+}
+
+// When the bulky allowance next resets: the 1st of next month. The server
+// counts bulky pickups from the start of the current calendar month, so this is
+// the first day a refused resident can book one again. Naming the day is kinder
+// than "the 1st", which leaves them to work out which 1st.
+function bulkResetLabel() {
+  const now = new Date()
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  return next.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })
+}
+
+function validatePickupForm(form, { requireZone = false, collectionDays = [], bulkRemaining = null, hasPhoto = null } = {}) {
   const errors = {}
   // Only on create: the update endpoint takes no zone, and the edit form never
   // carries one, so requiring it there would block every edit.
@@ -92,11 +122,34 @@ function validatePickupForm(form, { requireZone = false } = {}) {
     } else if (addr.length > 300) {
       errors.address = 'Address must be 300 characters or fewer.'
     }
+    // Required alongside the address: an address can be wrong or hard to find,
+    // and a call from the kerb is what stops the visit being written off.
+    const phone = (form.contactPhone || '').trim()
+    if (!phone) {
+      errors.contactPhone = 'Please give a number the crew can call.'
+    } else if (!isDialable(phone)) {
+      errors.contactPhone = 'Please give a valid contact number, e.g. 0771234567.'
+    }
   }
   const desc = (form.description || '').trim()
   if (desc.length === 0) errors.description = 'Please describe the waste to be collected.'
   else if (desc.length < 5) errors.description = 'Description must be at least 5 characters.'
   else if (desc.length > 1000) errors.description = 'Description must be 1000 characters or fewer.'
+
+  // Required on create: the classifier reads the photo, and without one the
+  // category rests entirely on how the resident happened to word the
+  // description. hasPhoto is null on the edit form, which keeps whatever photo
+  // the request already carries.
+  if (hasPhoto === false) {
+    errors.photoUrl = 'Please add a photo of the waste so it can be classified.'
+  }
+
+  // The checkbox is disabled once the allowance is spent, but the box can be
+  // ticked while one is left and the allowance spent elsewhere before this
+  // submits. Caught here so the resident is told before the photo uploads.
+  if (requireZone && form.isBulkRequest && bulkRemaining === 0) {
+    errors.isBulkRequest = 'You have no bulky collections left this month.'
+  }
 
   if (!form.preferredDate) {
     errors.preferredDate = 'Please choose a preferred date.'
@@ -107,6 +160,11 @@ function validatePickupForm(form, { requireZone = false } = {}) {
     if (Number.isNaN(picked.getTime())) errors.preferredDate = 'Please choose a valid date.'
     else if (picked < today) errors.preferredDate = 'Preferred date cannot be in the past.'
     else if (picked > max) errors.preferredDate = 'Preferred date must be within the next 12 months.'
+    // The calendar already blocks these, but a date survives a zone change, so
+    // this catches a day that was valid for the zone chosen before.
+    else if (collectionDays.length > 0 && !collectionDays.includes(picked.getDay())) {
+      errors.preferredDate = 'That zone is not collected on this day.'
+    }
   }
 
   if (form.isRecurring) {
@@ -131,15 +189,6 @@ function mapBackendErrors(details) {
 
 function revokeBlobPreview(url) {
   if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
-}
-
-// yyyy-mm-dd from a Date, built from local parts. toISOString() would convert
-// to UTC first, which in UTC+5:30 turns an early-morning date into the day
-// before and offers a day the zone is not collected on.
-function toLocalDateValue(date) {
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
 }
 
 function toDateInputValue(value) {
@@ -201,24 +250,19 @@ export default function ResidentPickupsPage() {
   const [editErrors, setEditErrors] = useState({})
   const [zones, setZones] = useState([])
   const [bulkAllowance, setBulkAllowance] = useState(null)
+  /** null | 'submitting' (photo + save) | 'classifying' (agent pipeline) */
+  const [createFlowPhase, setCreateFlowPhase] = useState(null)
+  const [cancelId, setCancelId] = useState(null)
 
-  // The actual dates the chosen zone is collected on, for the next few weeks.
-  // A free date box let a resident pick a Wednesday in a Tue/Fri zone and then
-  // quietly ignored it; offering only real days means the answer can be kept.
-  const collectionDates = useMemo(() => {
+  // The zone's day numbers, for the calendar's isDayOpen. The dates themselves
+  // are no longer precomputed: the calendar asks about each day it draws.
+  // Whether a new bulky collection can still be declared. Unticking one already
+  // ticked stays allowed, so the resident cannot get stuck.
+  const bulkLocked = bulkAllowance?.remaining === 0 && !createForm.isBulkRequest
+
+  const collectionDays = useMemo(() => {
     const zone = zones.find((z) => z.id === createForm.zoneId)
-    const days = zone?.collectionDays ?? []
-    if (days.length === 0) return null
-
-    const out = []
-    const cursor = new Date()
-    cursor.setHours(0, 0, 0, 0)
-    for (let i = 1; i <= 28 && out.length < 8; i += 1) {
-      const day = new Date(cursor)
-      day.setDate(cursor.getDate() + i)
-      if (days.includes(day.getDay())) out.push(day)
-    }
-    return out
+    return zone?.collectionDays ?? []
   }, [zones, createForm.zoneId])
 
   const collectionDaysLabel = useMemo(() => {
@@ -257,6 +301,7 @@ export default function ResidentPickupsPage() {
 
   function setCreatePhoto(file) {
     setCreatePhotoFile(file)
+    setCreateErrors((prev) => ({ ...prev, photo: undefined }))
     setCreatePhotoPreview((prev) => {
       revokeBlobPreview(prev)
       return file ? URL.createObjectURL(file) : ''
@@ -273,6 +318,7 @@ export default function ResidentPickupsPage() {
 
   function setEditPhoto(file) {
     setEditPhotoFile(file)
+    setEditErrors((prev) => ({ ...prev, photo: undefined }))
     setEditPhotoPreview((prev) => {
       revokeBlobPreview(prev)
       return file ? URL.createObjectURL(file) : ''
@@ -310,9 +356,11 @@ export default function ResidentPickupsPage() {
     setStatusCounts(counts)
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
+    // A silent reload runs from an error handler to refresh the list; it must
+    // not wipe the error message that was just shown to the user.
+    if (!silent) setError(null)
     try {
       const query = new URLSearchParams({ page: String(page), pageSize: '20' })
       if (statusFilter) query.set('status', statusFilter)
@@ -322,9 +370,23 @@ export default function ResidentPickupsPage() {
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [page, statusFilter])
+
+  const awaitingClassification = useMemo(
+    () => items.some((item) => item.status === 'Pending' && !item.category),
+    [items],
+  )
+
+  useEffect(() => {
+    if (!awaitingClassification) return undefined
+    const timer = setInterval(() => {
+      load({ silent: true })
+      loadCounts()
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [awaitingClassification, load, loadCounts])
 
   useEffect(() => { loadCounts() }, [loadCounts])
   useEffect(() => { load() }, [load])
@@ -366,49 +428,98 @@ export default function ResidentPickupsPage() {
     }
   }
 
+  // After a photo is uploaded, ask the backend (OpenAI vision) whether it is a
+  // clear photo of actual waste. Throws a user-facing message when it is not.
+  // Fail-open: if the check could not run, it does not block the submission.
+  // Returns an inline error message if the uploaded photo is not a clear image
+  // of waste, or null to proceed. Fail-open: an unavailable check returns null.
+  async function photoValidationMessage(photoUrl) {
+    if (!photoUrl) return null
+    let result
+    try {
+      result = await apiRequest('/pickuprequests/validate-photo', {
+        method: 'POST',
+        body: JSON.stringify({ photoUrl }),
+      })
+    } catch {
+      return null // validation service unavailable -- do not block the submission
+    }
+    if (!result?.checked) return null
+    if (!result.isClear) return 'The photo is not clear. Please upload a clearer photo of the waste.'
+    if (!result.isWaste) return 'The photo is not waste. Please upload a photo of the waste to collect.'
+    return null
+  }
+
   async function handleCreate(e) {
     e.preventDefault()
-    const errs = validatePickupForm(createForm, { requireZone: true })
+    const errs = validatePickupForm(createForm, {
+      requireZone: true,
+      collectionDays,
+      bulkRemaining: bulkAllowance?.remaining ?? null,
+      hasPhoto: Boolean(createPhotoFile),
+    })
     setCreateErrors(errs)
     if (Object.keys(errs).length > 0) return      // client-side gate
 
-    setBusyId('create')
+    setCreateFlowPhase('submitting')
     setError(null)
     try {
       let photoUrl
       if (createPhotoFile) {
         photoUrl = await uploadPickupPhoto(createPhotoFile)
+        setCreateFlowPhase('checking-photo')
+        const photoMsg = await photoValidationMessage(photoUrl)
+        if (photoMsg) {
+          setCreateErrors((prev) => ({ ...prev, photo: photoMsg }))
+          return
+        }
+        setCreateFlowPhase('submitting')
       }
-      await apiRequest('/pickuprequests', {
+      const created = await apiRequest('/pickuprequests', {
         method: 'POST',
         body: JSON.stringify({
           description: createForm.description || undefined,
           ...(photoUrl ? { photoUrl } : {}),
           zoneId: createForm.zoneId,
           address: createForm.address.trim(),
+          latitude: createForm.latitude,
+          longitude: createForm.longitude,
+          contactPhone: createForm.contactPhone.trim(),
           isBulkRequest: createForm.isBulkRequest,
           preferredDate: new Date(createForm.preferredDate).toISOString(),
           isRecurring: createForm.isRecurring,
           recurrenceInterval: createForm.isRecurring ? createForm.recurrenceInterval || undefined : undefined,
         }),
       })
-      setSuccess('Pickup request submitted.')
-      loadBulkAllowance()
+
+      setCreateFlowPhase('classifying')
+      const pipeline = await apiRequest(`/pickuprequests/${created.id}/run-agent-pipeline`, {
+        method: 'POST',
+      })
+
+      const category = pipeline?.pickup?.category
+      if (!pipeline?.success || !category) {
+        throw new Error(pipeline?.message || 'Classification did not complete. You can try again from admin or resubmit.')
+      }
+
+      setSuccess(`Classified as ${category}.`)
       setCreateForm(emptyForm)
       setCreateErrors({})
       clearCreatePhoto()
       setShowForm(false)
       setPage(1)
-      load()
-      loadCounts()
+      await Promise.all([load(), loadCounts(), loadBulkAllowance()])
     } catch (err) {
       const fieldErrors = mapBackendErrors(err.details)
       if (fieldErrors) setCreateErrors(fieldErrors)
       else setError(err.message)
+      await load({ silent: true })
     } finally {
-      setBusyId(null)
+      setCreateFlowPhase(null)
     }
   }
+
+  const createFormBusy = createFlowPhase !== null
 
   function startEdit(item) {
     setEditingId(item.id)
@@ -418,6 +529,11 @@ export default function ResidentPickupsPage() {
       ...emptyForm,
       description: item.description || '',
       photoUrl: item.photoUrl || '',
+      address: item.address || '',
+      contactPhone: item.contactPhone || '',
+      zoneId: item.zoneId || '',
+      latitude: item.latitude ?? null,
+      longitude: item.longitude ?? null,
       preferredDate: toDateInputValue(item.preferredDate),
       isRecurring: item.isRecurring,
       recurrenceInterval: item.recurrenceInterval || '',
@@ -437,11 +553,21 @@ export default function ResidentPickupsPage() {
       let photoUrl = editForm.photoUrl?.trim() || undefined
       if (editPhotoFile) {
         photoUrl = await uploadPickupPhoto(editPhotoFile)
+        const photoMsg = await photoValidationMessage(photoUrl)
+        if (photoMsg) {
+          setEditErrors((prev) => ({ ...prev, photo: photoMsg }))
+          return
+        }
       }
       await apiRequest(`/pickuprequests/${id}`, {
         method: 'PUT',
         body: JSON.stringify({
           description: editForm.description || undefined,
+          address: editForm.address.trim() || undefined,
+          contactPhone: editForm.contactPhone.trim() || undefined,
+          latitude: editForm.latitude,
+          longitude: editForm.longitude,
+          clearLocation: editForm.latitude == null,
           ...(photoUrl ? { photoUrl } : {}),
           preferredDate: new Date(editForm.preferredDate).toISOString(),
           isRecurring: editForm.isRecurring,
@@ -463,7 +589,6 @@ export default function ResidentPickupsPage() {
   }
 
   async function handleCancel(id) {
-    if (!window.confirm('Cancel this pickup request? The booked visit is released.')) return
     setBusyId(id)
     setError(null)
     try {
@@ -495,7 +620,7 @@ export default function ResidentPickupsPage() {
           type="button"
           className="ac-btn ac-btn-primary ac-btn-sm"
           onClick={() => setShowForm((open) => !open)}
-          disabled={role !== 'resident'}
+          disabled={role !== 'resident' || createFormBusy}
           aria-expanded={showForm}
         >
           <Plus size={15} strokeWidth={2.4} aria-hidden="true" />
@@ -536,26 +661,58 @@ export default function ResidentPickupsPage() {
               type="button"
               className="ac-icon-btn"
               onClick={() => setShowForm(false)}
+              disabled={createFormBusy}
               aria-label="Close the new pickup form"
             >
               <X size={18} strokeWidth={2} aria-hidden="true" />
             </button>
           )}
         >
-        <form className="ac-form" onSubmit={handleCreate}>
+        <div className="r-pickup-form-wrap">
+          {createFormBusy && (
+            <div className="r-pickup-form-loading" role="status" aria-live="polite">
+              <p>
+                {createFlowPhase === 'checking-photo'
+                  ? 'Checking your photo looks like waste…'
+                  : createFlowPhase === 'submitting'
+                  ? 'Uploading photo & saving your request…'
+                  : 'Classifying your waste…'}
+              </p>
+            </div>
+          )}
+        <form className="ac-form" onSubmit={handleCreate} aria-busy={createFormBusy}>
           <PickupPhotoField
             previewUrl={createPhotoPreview}
             onFileChange={setCreatePhoto}
             onClear={clearCreatePhoto}
-            disabled={busyId === 'create' || role !== 'resident'}
+            disabled={createFormBusy || role !== 'resident'}
           />
+          {createErrors.photoUrl && <p className="ac-field-error">{createErrors.photoUrl}</p>}
+          {createErrors.photo && <p className="ac-field-error">{createErrors.photo}</p>}
 
           <div className="ac-field">
             <label htmlFor="pickup-zone">Your zone</label>
             <select
               id="pickup-zone"
               value={createForm.zoneId}
-              onChange={(e) => setCreateForm({ ...createForm, zoneId: e.target.value })}
+              onChange={(e) => {
+                const zoneId = e.target.value
+                const days = zones.find((z) => z.id === zoneId)?.collectionDays ?? []
+                const picked = createForm.preferredDate
+                  ? new Date(`${createForm.preferredDate}T00:00:00`)
+                  : null
+                // Drop a date the new zone is not collected on, so the calendar
+                // never shows a selected day that is also greyed out.
+                const keepDate = !picked
+                  || days.length === 0
+                  || days.includes(picked.getDay())
+                setCreateForm({
+                  ...createForm,
+                  zoneId,
+                  latitude: null, longitude: null,
+                  preferredDate: keepDate ? createForm.preferredDate : '',
+                })
+              }}
             >
               <option value="">Select your zone…</option>
               {zones.map((zone) => (
@@ -570,14 +727,14 @@ export default function ResidentPickupsPage() {
           </div>
 
           {/* Side by side on a wide screen, stacked on a phone: together
-              these two decide where and when the crew turns up. */}
+              these two say how the crew reaches you on the day. */}
           <div className="ac-two">
             <div className="ac-field">
               <label htmlFor="pickup-address">Address</label>
               <input
                 id="pickup-address"
                 value={createForm.address}
-                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value, latitude: null, longitude: null })}
                 placeholder="e.g. 14/2 Temple Road, near the junction"
               />
               {createErrors.address && <p className="ac-field-error">{createErrors.address}</p>}
@@ -588,46 +745,53 @@ export default function ResidentPickupsPage() {
             </div>
 
             <div className="ac-field">
-              <label htmlFor="pickup-date">
-                {collectionDates ? 'Choose a collection day' : 'Collect on or after'}
-              </label>
-              {collectionDates ? (
-                <select
-                  id="pickup-date"
-                  value={createForm.preferredDate}
-                  onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
-                >
-                  <option value="">Select a day…</option>
-                  {collectionDates.map((day) => {
-                    const value = toLocalDateValue(day)
-                    return (
-                      <option key={value} value={value}>
-                        {day.toLocaleDateString(undefined, {
-                          weekday: 'long', day: 'numeric', month: 'long',
-                        })}
-                      </option>
-                    )
-                  })}
-                </select>
-              ) : (
-                <input
-                  id="pickup-date"
-                  type="date"
-                  value={createForm.preferredDate}
-                  onChange={(e) => setCreateForm({ ...createForm, preferredDate: e.target.value })}
-                />
-              )}
-              {createErrors.preferredDate && (
-                <p className="ac-field-error">{createErrors.preferredDate}</p>
-              )}
-              {/* The hours are the same every day and nothing books a stop for
-                  a time of its own, so this is the only promise that can be
-                  made about when the crew arrives. */}
+              <label htmlFor="pickup-phone">Contact number</label>
+              <input
+                id="pickup-phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                maxLength={20}
+                value={createForm.contactPhone}
+                onChange={(e) => setCreateForm({ ...createForm, contactPhone: e.target.value })}
+                placeholder="e.g. 0771234567"
+              />
+              {createErrors.contactPhone && <p className="ac-field-error">{createErrors.contactPhone}</p>}
               <p className="ac-field-hint">
-                Collections run {COLLECTION_WINDOW_LABEL}. Please have it out by
-                the start of that window.
+                <Phone size={12} strokeWidth={2.2} aria-hidden="true" />
+                {' '}Whoever will be at the collection &mdash; it need not be you.
               </p>
             </div>
+          </div>
+
+          <div className="ac-field">
+            <label htmlFor="pickup-date">
+              {collectionDays.length > 0 ? 'Choose a collection day' : 'Collect on or after'}
+            </label>
+            {/* The days the zone is not collected on are shown but greyed out,
+                rather than the control offering only the few that are. A
+                resident can then see that their zone is Mondays and Sundays,
+                which a list of eight dates hides. */}
+            <PickupLocationPicker value={createForm} zone={zones.find((z) => z.id === createForm.zoneId)} onChange={(point) => setCreateForm((f) => ({ ...f, ...point }))} />
+            <CollectionDayPicker
+              id="pickup-date"
+              value={createForm.preferredDate}
+              onChange={(next) => setCreateForm({ ...createForm, preferredDate: next })}
+              isDayOpen={collectionDays.length > 0
+                ? (day) => collectionDays.includes(day.getDay())
+                : undefined}
+              maxDays={MAX_FUTURE_DAYS}
+            />
+            {createErrors.preferredDate && (
+              <p className="ac-field-error">{createErrors.preferredDate}</p>
+            )}
+            {/* The hours are the same every day and nothing books a stop for
+                a time of its own, so this is the only promise that can be
+                made about when the crew arrives. */}
+            <p className="ac-field-hint">
+              Collections run {COLLECTION_WINDOW_LABEL}. Please have it out by
+              the start of that window.
+            </p>
           </div>
 
           <div className="ac-field">
@@ -650,17 +814,23 @@ export default function ResidentPickupsPage() {
                 type="checkbox"
                 checked={createForm.isBulkRequest}
                 onChange={(e) => setCreateForm({ ...createForm, isBulkRequest: e.target.checked })}
-                disabled={bulkAllowance?.remaining === 0 && !createForm.isBulkRequest}
+                disabled={bulkLocked}
               />
-              <span>This is a bulky-waste collection (furniture, mattress, large appliance)</span>
+              <span className={bulkLocked ? 'is-off' : undefined}>
+                This is a bulky-waste collection (furniture, mattress, large appliance)
+              </span>
             </label>
 
             {bulkAllowance && (
               <p>
                 {bulkAllowance.remaining > 0
                   ? `${bulkAllowance.remaining} of ${bulkAllowance.limit} bulky collections left this month.`
-                  : `You have used all ${bulkAllowance.limit} bulky collections this month. The allowance resets on the 1st.`}
+                  : `You have used all ${bulkAllowance.limit} bulky collections this month. The allowance resets on ${bulkResetLabel()}.`}
               </p>
+            )}
+
+            {createErrors.isBulkRequest && (
+              <p className="ac-field-error">{createErrors.isBulkRequest}</p>
             )}
 
             {/* Nudged, never forced: the resident can still say no, and the
@@ -720,7 +890,7 @@ export default function ResidentPickupsPage() {
             <button
               type="submit"
               className="ac-btn ac-btn-primary"
-              disabled={busyId === 'create' || role !== 'resident'}
+              disabled={createFormBusy || role !== 'resident'}
             >
               <Send size={16} strokeWidth={2.2} aria-hidden="true" />
               Submit request
@@ -729,12 +899,13 @@ export default function ResidentPickupsPage() {
               type="button"
               className="ac-btn ac-btn-ghost"
               onClick={() => setShowForm(false)}
-              disabled={busyId === 'create'}
+              disabled={createFormBusy}
             >
               Cancel
             </button>
           </div>
         </form>
+        </div>
         </AcCard>
       )}
 
@@ -756,9 +927,16 @@ export default function ResidentPickupsPage() {
               // never got booked at all -- offering it there asked the resident
               // to cancel something that was not going ahead anyway, and the
               // backend refuses both.
+              // Cancellation is only allowed within 30 minutes of creating the
+              // request; after that the pickup is committed (the backend enforces
+              // this too).
+              const createdMs = new Date(item.createdAt).getTime()
+              const withinCancelWindow = Number.isFinite(createdMs)
+                && (Date.now() - createdMs) < 30 * 60 * 1000
               const canCancel = item.status !== 'Completed'
                 && !isRefused(item)
                 && item.lastAttemptStatus !== 'Completed'
+                && withinCancelWindow
 
               return (
                 <div className={`r-item${expanded ? ' is-open' : ''}`} key={item.id}>
@@ -849,6 +1027,14 @@ export default function ResidentPickupsPage() {
                             <dd>{item.address}</dd>
                           </>
                         )}
+                        {/* Shown back so the resident can check the number the
+                            crew will actually ring. */}
+                        {item.contactPhone && (
+                          <>
+                            <dt>Contact</dt>
+                            <dd>{item.contactPhone}</dd>
+                          </>
+                        )}
                         {item.zoneName && (
                           <>
                             <dt>Zone</dt>
@@ -934,7 +1120,7 @@ export default function ResidentPickupsPage() {
                             type="button"
                             className="ac-btn ac-btn-danger ac-btn-sm"
                             disabled={busyId === item.id}
-                            onClick={() => handleCancel(item.id)}
+                            onClick={() => setCancelId(item.id)}
                           >
                             <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
                             Cancel this request
@@ -991,6 +1177,13 @@ export default function ResidentPickupsPage() {
               Only possible while nothing has been decided yet.
             </p>
 
+            <div className="ac-field"><label htmlFor="edit-pickup-address">Address</label>
+              <input id="edit-pickup-address" value={editForm.address} maxLength={300} onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value, latitude: null, longitude: null }))} />
+            </div>
+            <div className="ac-field"><label htmlFor="edit-pickup-phone">Contact number</label>
+              <input id="edit-pickup-phone" type="tel" value={editForm.contactPhone} maxLength={20} onChange={(e) => setEditForm((f) => ({ ...f, contactPhone: e.target.value }))} />
+            </div>
+            <PickupLocationPicker value={editForm} zone={zones.find((z) => z.id === editForm.zoneId)} onChange={(point) => setEditForm((f) => ({ ...f, ...point }))} />
             <PickupPhotoField
               existingUrl={editForm.photoUrl}
               previewUrl={editPhotoPreview}
@@ -998,6 +1191,7 @@ export default function ResidentPickupsPage() {
               onClear={clearEditPhoto}
               disabled={busyId === editingId}
             />
+            {editErrors.photo && <p className="ac-field-error">{editErrors.photo}</p>}
 
             <div className="ac-field">
               <label htmlFor="edit-date">Collect on or after</label>
@@ -1045,6 +1239,41 @@ export default function ResidentPickupsPage() {
             </div>
           </form>
         )}
+      </AcModal>
+
+      <AcModal
+        open={cancelId !== null}
+        onClose={() => setCancelId(null)}
+        title="Cancel this pickup request?"
+      >
+        <div style={{ padding: '4px 20px 20px' }}>
+          <p className="ac-sub" style={{ marginTop: 0 }}>
+            This permanently deletes the request and releases the booked visit. This
+            cannot be undone.
+          </p>
+          <div className="ac-actions" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost"
+              onClick={() => setCancelId(null)}
+              disabled={busyId === cancelId}
+            >
+              Keep request
+            </button>
+            <button
+              type="button"
+              className="ac-btn ac-btn-danger"
+              disabled={busyId === cancelId}
+              onClick={async () => {
+                const id = cancelId
+                await handleCancel(id)
+                setCancelId(null)
+              }}
+            >
+              {busyId === cancelId ? 'Cancelling…' : 'Cancel request'}
+            </button>
+          </div>
+        </div>
       </AcModal>
 
       <AcToast message={success} onDone={() => setSuccess(null)} />

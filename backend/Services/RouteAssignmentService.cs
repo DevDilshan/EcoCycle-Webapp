@@ -20,6 +20,23 @@ public class RouteAssignmentService
     }
 
     /// <summary>
+    /// How far back a pending stop is carried onto a collector's round.
+    /// </summary>
+    /// <remarks>
+    /// A week. Past that it stops being a kerbside problem and becomes an office
+    /// one: a stop nobody reached in seven days will not be reached by showing it
+    /// again tomorrow, and by then the resident has usually rung in. What is
+    /// needed is a person deciding -- reschedule, refuse, or apologise -- which a
+    /// collector cannot do.
+    ///
+    /// Deliberately not an automatic Missed after N days. MarkMissed requires a
+    /// reason, because "missed" with no explanation tells an admin nothing and
+    /// cannot be answered to a resident; a timer writing "aged out" would poison
+    /// the very field the Notifier agent reads to explain things to people.
+    /// </remarks>
+    public const int CarryForwardDays = 7;
+
+    /// <summary>
     /// The round in front of the collector now.
     /// </summary>
     /// <remarks>
@@ -35,22 +52,71 @@ public class RouteAssignmentService
     /// Completed and missed stops are not carried, only pending ones. Those two
     /// are finished with; repeating them would grow the round a little longer
     /// every day.
+    ///
+    /// The carry-forward is capped at <see cref="CarryForwardDays"/>. Without a
+    /// cap a stop nobody ever resolved stayed on the round for ever -- rounds
+    /// were carrying stops from the month before -- and showing it again tomorrow
+    /// was never going to get it collected. Past the cap it becomes an office
+    /// problem: GetOverdueStopsAsync surfaces it for an admin to reassign or
+    /// account for. Nothing vanishes; the responsibility moves to whoever can
+    /// actually discharge it.
     /// </remarks>
     public async Task<List<RouteAssignmentDto>> GetTodayRouteForCollectorAsync(Guid collectorId)
     {
         var tomorrow = ServiceClock.TodayPlus(1);
+        var carryFrom = ServiceClock.TodayPlus(-CarryForwardDays);
 
-        return await _context.RouteAssignments
+        var stops = await _context.RouteAssignments
             .AsNoTracking()
+            .Include(r => r.PickupRequest)!
+                .ThenInclude(p => p!.Resident)
+            .Include(r => r.Zone)
             .Where(r => r.CollectorId == collectorId
                 && r.ScheduledDate < tomorrow
                 && (r.ScheduledDate >= ServiceClock.Today
-                    || r.CompletionStatus == RouteCompletionStatus.Pending))
+                    || (r.CompletionStatus == RouteCompletionStatus.Pending
+                        && r.ScheduledDate >= carryFrom)))
             // Oldest first, so anything carried over sits at the top of the
             // round rather than being buried among today's stops.
             .OrderBy(r => r.ScheduledDate)
             .Select(r => MapToDto(r))
             .ToListAsync();
+
+        await AttachCategoriesAsync(stops);
+        return stops;
+    }
+
+    /// <summary>
+    /// Pending stops too old to still be on a collector's round.
+    /// </summary>
+    /// <remarks>
+    /// The other half of the carry-forward cap. A stop drops off the round after
+    /// <see cref="CarryForwardDays"/> days, and lands here instead, so it is
+    /// still somebody's problem -- just the right somebody. An admin can reassign
+    /// it to a collector who will reach it, or mark it missed with a reason the
+    /// resident can be told.
+    ///
+    /// Across every collector, oldest first: this is a queue to be emptied, and
+    /// the stop that has waited longest is the one a resident is most likely to
+    /// be ringing about.
+    /// </remarks>
+    public async Task<List<RouteAssignmentDto>> GetOverdueStopsAsync()
+    {
+        var before = ServiceClock.TodayPlus(-CarryForwardDays);
+
+        var stops = await _context.RouteAssignments
+            .AsNoTracking()
+            .Include(r => r.PickupRequest)!
+                .ThenInclude(p => p!.Resident)
+            .Include(r => r.Zone)
+            .Where(r => r.CompletionStatus == RouteCompletionStatus.Pending
+                && r.ScheduledDate < before)
+            .OrderBy(r => r.ScheduledDate)
+            .Select(r => MapToDto(r))
+            .ToListAsync();
+
+        await AttachCategoriesAsync(stops);
+        return stops;
     }
 
     /// <summary>
@@ -67,18 +133,65 @@ public class RouteAssignmentService
         var from = ServiceClock.TodayPlus(1);
         var to = from.AddDays(Math.Clamp(days, 1, 30));
 
-        return await _context.RouteAssignments
+        var stops = await _context.RouteAssignments
             .AsNoTracking()
+            .Include(r => r.PickupRequest)!
+                .ThenInclude(p => p!.Resident)
+            .Include(r => r.Zone)
             .Where(r => r.CollectorId == collectorId
                 && r.ScheduledDate >= from
                 && r.ScheduledDate < to)
             .OrderBy(r => r.ScheduledDate)
             .Select(r => MapToDto(r))
             .ToListAsync();
+
+        await AttachCategoriesAsync(stops);
+        return stops;
     }
 
+    /// <summary>
+    /// Books a stop, after checking that everything it points at exists and is
+    /// fit to be pointed at.
+    /// </summary>
+    /// <remarks>
+    /// This checked nothing at all. An admin could book a stop against a pickup
+    /// that did not exist, a zone that had been retired, or a resident's profile
+    /// id in place of a collector's -- the last of which puts the round on a
+    /// screen that nobody drives. The database's foreign keys caught the
+    /// non-existent ids as a 500; the wrong-role one it accepted happily.
+    ///
+    /// Thrown as ArgumentException because the caller maps that to a 400 with the
+    /// message, which is what an admin needs to see rather than "an error
+    /// occurred".
+    /// </remarks>
     public async Task<RouteAssignmentDto> CreateAsync(CreateRouteAssignmentDto dto)
     {
+        var pickupExists = await _context.PickupRequests
+            .AnyAsync(p => p.Id == dto.PickupRequestId);
+        if (!pickupExists)
+            throw new ArgumentException("That pickup request no longer exists.");
+
+        await EnsureIsCollectorAsync(dto.CollectorId);
+
+        var zone = await _context.Zones
+            .AsNoTracking()
+            .FirstOrDefaultAsync(z => z.Id == dto.ZoneId);
+        if (zone is null)
+            throw new ArgumentException("That zone no longer exists.");
+        if (!zone.IsActive)
+            throw new ArgumentException(
+                $"{zone.Name} has been retired, so stops cannot be booked in it.");
+
+        // One pending stop per pickup. Booking a second put the same collection
+        // on the round twice, and completing one left the other to be carried
+        // forward for ever as work that had in fact been done.
+        var alreadyBooked = await _context.RouteAssignments
+            .AnyAsync(r => r.PickupRequestId == dto.PickupRequestId
+                && r.CompletionStatus == RouteCompletionStatus.Pending);
+        if (alreadyBooked)
+            throw new ArgumentException(
+                "That pickup is already on a round. Reassign or report the existing stop instead.");
+
         var route = new RouteAssignment
         {
             PickupRequestId = dto.PickupRequestId,
@@ -179,12 +292,18 @@ public class RouteAssignmentService
         var from = date is null ? ServiceClock.Today : ServiceClock.AsServiceDay(date.Value);
         var to = from.AddDays(1);
 
-        return await _context.RouteAssignments
+        var stops = await _context.RouteAssignments
             .AsNoTracking()
+            .Include(r => r.PickupRequest)!
+                .ThenInclude(p => p!.Resident)
+            .Include(r => r.Zone)
             .Where(r => r.ScheduledDate >= from && r.ScheduledDate < to)
             .OrderBy(r => r.ScheduledDate)
             .Select(r => MapToDto(r))
             .ToListAsync();
+
+        await AttachCategoriesAsync(stops);
+        return stops;
     }
 
     /// <summary>
@@ -239,6 +358,10 @@ public class RouteAssignmentService
         {
             ResidentId = pickup.ResidentId,
             ZoneId = pickup.ZoneId,
+            Address = pickup.Address,
+            ContactPhone = pickup.ContactPhone,
+            Latitude = pickup.Latitude,
+            Longitude = pickup.Longitude,
             Description = pickup.Description,
             PreferredDate = ServiceClock.TodayPlus(days),
             IsRecurring = true,
@@ -269,12 +392,25 @@ public class RouteAssignmentService
                 "This stop is already completed, so it cannot be marked missed.");
         }
 
+        // A reason is required, and only the server can insist on it. Both UIs ask
+        // for one, but the endpoint accepted an empty body -- and the Notifier
+        // agent writes the resident's explanation from this field, so a blank
+        // report produced "your collection was missed" with nothing after it.
+        var reason = issueNotes?.Trim();
+        if (string.IsNullOrEmpty(reason))
+        {
+            throw new ArgumentException(
+                "Say why it could not be collected. The resident is told this.");
+        }
+        if (reason.Length > 500)
+        {
+            throw new ArgumentException(
+                "The reason must be 500 characters or fewer.");
+        }
+
         route.CompletionStatus = RouteCompletionStatus.Missed;
         route.CompletedAt = null;
-        if (!string.IsNullOrWhiteSpace(issueNotes))
-        {
-            route.IssueNotes = issueNotes;
-        }
+        route.IssueNotes = reason;
         route.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -282,6 +418,19 @@ public class RouteAssignmentService
         return MapToDto(route);
     }
 
+    /// <summary>
+    /// Moves a stop to another collector.
+    /// </summary>
+    /// <remarks>
+    /// The new collector is checked for the same reason as on create: this
+    /// accepted any id, including a resident's, which quietly moved the stop onto
+    /// a round nobody drives.
+    ///
+    /// Only a pending stop can be moved. Reassigning a completed one rewrote who
+    /// is recorded as having collected it, which is a falsified record rather than
+    /// a plan; a missed one is finished with too, and the pickup is rebooked as
+    /// its own new stop.
+    /// </remarks>
     public async Task<RouteAssignmentDto?> ReassignAsync(Guid id, Guid newCollectorId)
     {
         var route = await _context.RouteAssignments.FirstOrDefaultAsync(r => r.Id == id);
@@ -289,6 +438,17 @@ public class RouteAssignmentService
         {
             return null;
         }
+
+        if (route.CompletionStatus != RouteCompletionStatus.Pending)
+            throw new InvalidOperationException(
+                $"This stop is already marked {route.CompletionStatus.ToString().ToLowerInvariant()}, "
+                + "so it cannot be reassigned.");
+
+        if (route.CollectorId == newCollectorId)
+            throw new InvalidOperationException(
+                "That collector already has this stop.");
+
+        await EnsureIsCollectorAsync(newCollectorId);
 
         route.CollectorId = newCollectorId;
         route.UpdatedAt = DateTime.UtcNow;
@@ -389,6 +549,20 @@ public class RouteAssignmentService
                 "The pickup's zone is inactive or no longer exists, so it cannot be scheduled.");
         }
 
+        // The same guard CreateAsync applies, and for the same reason. This path
+        // did not have it: the Assign button on the pickups list is one click, and
+        // clicking it twice -- or two admins clicking it at once -- put the same
+        // collection on the round twice. Completing one then left the other to be
+        // carried forward for ever as work that had in fact been done.
+        var alreadyBooked = await _context.RouteAssignments
+            .AnyAsync(r => r.PickupRequestId == pickupRequestId
+                && r.CompletionStatus == RouteCompletionStatus.Pending);
+        if (alreadyBooked)
+        {
+            throw new InvalidOperationException(
+                "That pickup is already on a round.");
+        }
+
         // The zone's own collector is the default. When the zone has none, fall
         // back to the least-loaded collector by pending work, which is the same
         // basis the agent router uses.
@@ -444,6 +618,69 @@ public class RouteAssignmentService
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// Fills in each stop's waste category from the pickup's latest classification.
+    /// </summary>
+    /// <remarks>
+    /// A second query rather than a join: the category lives on
+    /// WasteClassifications, PickupRequest has no navigation to them, and adding
+    /// one only to read it back would change the model for no schema gain.
+    ///
+    /// One round trip for the whole list, keyed by pickup id, so a round of
+    /// thirty stops still costs two queries rather than thirty-one.
+    /// </remarks>
+    private async Task AttachCategoriesAsync(List<RouteAssignmentDto> stops)
+    {
+        if (stops.Count == 0) return;
+
+        var pickupIds = stops.Select(s => s.PickupRequestId).Distinct().ToList();
+
+        var latest = await _context.WasteClassifications
+            .AsNoTracking()
+            .Where(c => pickupIds.Contains(c.PickupRequestId))
+            // Newest first, so the first row per pickup is the one that counts.
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new { c.PickupRequestId, c.Category, c.Confidence })
+            .ToListAsync();
+
+        var byPickup = latest
+            .GroupBy(c => c.PickupRequestId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        foreach (var stop in stops)
+        {
+            if (!byPickup.TryGetValue(stop.PickupRequestId, out var c)) continue;
+            stop.Category = c.Category.ToString();
+            stop.Confidence = c.Confidence;
+        }
+    }
+
+    /// <summary>
+    /// Refuses an id that is not a collector's.
+    /// </summary>
+    /// <remarks>
+    /// The role is checked, not merely the existence of the profile. Every id in
+    /// this system is a profiles row, so a resident's id is a perfectly valid
+    /// foreign key -- the database cannot tell the difference, and a round
+    /// assigned to a resident appears on no collector's screen and is never
+    /// driven.
+    /// </remarks>
+    private async Task EnsureIsCollectorAsync(Guid collectorId)
+    {
+        var role = await _context.Profiles
+            .AsNoTracking()
+            .Where(p => p.Id == collectorId)
+            .Select(p => p.Role)
+            .FirstOrDefaultAsync();
+
+        if (role is null)
+            throw new ArgumentException("That collector no longer exists.");
+
+        if (!string.Equals(role, "collector", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException(
+                "Stops can only be assigned to a collector.");
+    }
+
     private static RouteAssignmentDto MapToDto(RouteAssignment route) => new()
     {
         Id = route.Id,
@@ -455,6 +692,33 @@ public class RouteAssignmentService
         CompletedAt = route.CompletedAt,
         IssueNotes = route.IssueNotes,
         UpdatedAt = route.UpdatedAt,
-        CreatedAt = route.CreatedAt
+        CreatedAt = route.CreatedAt,
+
+        // Null unless the caller included the navigations. The three list
+        // queries do; the write paths return ids only, and every client reloads
+        // the round after a write, so the detail arrives with that.
+        ResidentName = route.PickupRequest?.Resident?.FullName,
+        ResidentPhone = route.PickupRequest?.ContactPhone,
+        Address = route.PickupRequest?.Address,
+        Latitude = route.PickupRequest?.Latitude,
+        Longitude = route.PickupRequest?.Longitude,
+        Description = route.PickupRequest?.Description,
+        ZoneName = route.Zone?.Name,
+        ZoneLatitude = route.Zone?.Latitude,
+        ZoneLongitude = route.Zone?.Longitude,
+        IsBulkRequest = route.PickupRequest?.IsBulkRequest ?? false,
+        PhotoUrl = route.PickupRequest?.PhotoUrl,
+        RequestedAt = route.PickupRequest?.CreatedAt,
+        Pickup = route.PickupRequest is { } p ? new RoutePickupDto
+        {
+            Id = p.Id,
+            Address = p.Address,
+            Latitude = p.Latitude,
+            Longitude = p.Longitude,
+            Description = p.Description,
+            PhotoUrl = p.PhotoUrl,
+            ZoneName = route.Zone?.Name,
+            ZoneId = p.ZoneId
+        } : null
     };
 }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../app/eco_app_scope.dart';
 
 import '../services/api.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_loading.dart';
 
 /// Reward catalog and the resident's own redemption requests.
 ///
@@ -19,7 +21,7 @@ class RedeemScreen extends StatefulWidget {
 }
 
 class _RedeemScreenState extends State<RedeemScreen> {
-  final _api = Api();
+  late final Api _api;
   bool _loading = true;
   bool _busy = false;
   String? _error;
@@ -37,6 +39,7 @@ class _RedeemScreenState extends State<RedeemScreen> {
   @override
   void initState() {
     super.initState();
+    _api = EcoAppScope.apiOf(context);
     _load();
   }
 
@@ -50,8 +53,10 @@ class _RedeemScreenState extends State<RedeemScreen> {
         _api.get('/reward-items', query: {'pageSize': '100'}),
         _api.get('/redemptions', query: {'pageSize': '50'}),
       ]);
-      _catalog = (results[0]?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      _requests = (results[1]?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      _catalog =
+          (results[0]?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      _requests =
+          (results[1]?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     } catch (e) {
       _error = _clean(e);
     }
@@ -82,7 +87,8 @@ class _RedeemScreenState extends State<RedeemScreen> {
   Future<void> _request(Map<String, dynamic> item) async {
     final confirmed = await _confirm(
       title: 'Request ${item['name']}?',
-      body: '${item['pointsCost']} points will be set aside until an admin decides. '
+      body:
+          '${item['pointsCost']} points will be set aside until an admin decides. '
           'You can change or cancel it until then.',
       yes: 'Send request',
     );
@@ -106,12 +112,18 @@ class _RedeemScreenState extends State<RedeemScreen> {
           shrinkWrap: true,
           padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
           children: [
-            const Text('Switch to', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            const Text(
+              'Switch to',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+            ),
             const SizedBox(height: 10),
             for (final item in _catalog)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(item['name'] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
+                title: Text(
+                  item['name'] as String,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
                 subtitle: Text('${item['pointsCost']} points'),
                 enabled: _int(item['pointsCost']) <= room && item['stock'] != 0,
                 selected: item['id'] == request['rewardItemId'],
@@ -123,7 +135,10 @@ class _RedeemScreenState extends State<RedeemScreen> {
     );
     if (picked == null || picked == request['rewardItemId']) return;
     await _run(
-      () => _api.put('/redemptions/${request['id']}', body: {'rewardItemId': picked}),
+      () => _api.put(
+        '/redemptions/${request['id']}',
+        body: {'rewardItemId': picked},
+      ),
       'Request updated.',
     );
   }
@@ -136,7 +151,10 @@ class _RedeemScreenState extends State<RedeemScreen> {
       no: 'Keep it',
     );
     if (confirmed != true) return;
-    await _run(() => _api.delete('/redemptions/${request['id']}'), 'Request cancelled.');
+    await _run(
+      () => _api.delete('/redemptions/${request['id']}'),
+      'Request cancelled.',
+    );
   }
 
   Future<bool?> _confirm({
@@ -151,8 +169,14 @@ class _RedeemScreenState extends State<RedeemScreen> {
         title: Text(title),
         content: Text(body),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(no)),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(yes)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(no),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(yes),
+          ),
         ],
       ),
     );
@@ -169,22 +193,36 @@ class _RedeemScreenState extends State<RedeemScreen> {
             child: RefreshIndicator(
               onRefresh: _load,
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
                 children: [
-                  _BalanceCard(balance: widget.balance, reserved: _reserved, available: _available),
+                  _BalanceCard(
+                    balance: widget.balance,
+                    reserved: _reserved,
+                    available: _available,
+                  ),
                   const SizedBox(height: 22),
-                  const Text('Rewards', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                  const Text(
+                    'Rewards',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
                   const SizedBox(height: 10),
                   if (_loading)
                     const Padding(
                       padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator(color: EcoColors.primary)),
+                      child: EcoLoadingState(
+                        title: 'Loading your EcoCycle',
+                        message: 'Bringing your latest details together.',
+                        compact: true,
+                      ),
                     )
                   else if (_error != null)
                     _Notice(text: _error!, onRetry: _load)
                   else ...[
                     if (_catalog.isEmpty)
-                      const _Notice(text: 'No rewards are available yet. Check back soon.')
+                      const _Notice(
+                        text: 'No rewards are available yet. Check back soon.',
+                      )
                     else
                       for (final item in _catalog)
                         _CatalogCard(
@@ -194,7 +232,13 @@ class _RedeemScreenState extends State<RedeemScreen> {
                           onRequest: () => _request(item),
                         ),
                     const SizedBox(height: 18),
-                    const Text('My requests', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    const Text(
+                      'My requests',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     if (_requests.isEmpty)
                       const _Notice(text: 'No redemption requests yet.')
@@ -218,7 +262,11 @@ class _RedeemScreenState extends State<RedeemScreen> {
 }
 
 class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.balance, required this.reserved, required this.available});
+  const _BalanceCard({
+    required this.balance,
+    required this.reserved,
+    required this.available,
+  });
 
   final int balance;
   final int reserved;
@@ -227,22 +275,31 @@ class _BalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget row(String label, String value, {bool strong = false}) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 13, color: EcoColors.body)),
-              Text(
-                value,
-                style: TextStyle(
-                  fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
-                  fontSize: strong ? 18 : 14,
-                  color: strong ? EcoColors.primary : EcoColors.ink,
-                ),
-              ),
-            ],
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 13, color: EcoColors.body),
+            ),
           ),
-        );
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+                fontSize: strong ? 18 : 14,
+                color: strong ? EcoColors.primary : EcoColors.ink,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -273,12 +330,23 @@ class _Notice extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: EcoColors.mintBg, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: EcoColors.mintBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: const TextStyle(fontSize: 13, height: 1.5, color: EcoColors.label)),
-          if (onRetry != null) TextButton(onPressed: onRetry, child: const Text('Try again')),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: EcoColors.label,
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(onPressed: onRetry, child: const Text('Try again')),
         ],
       ),
     );
@@ -319,7 +387,10 @@ class _CatalogCard extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(color: EcoColors.mintBg, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: EcoColors.mintBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
             alignment: Alignment.center,
             child: const Icon(Icons.card_giftcard, color: EcoColors.primary),
           ),
@@ -328,13 +399,26 @@ class _CatalogCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                 Text(
-                  '$cost points${stock == null ? '' : soldOut ? ' · sold out' : ' · $stock left'}',
-                  style: const TextStyle(fontSize: 12, color: EcoColors.body),
+                  item['name'] as String? ?? '',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  '$cost points${stock == null
+                      ? ''
+                      : soldOut
+                      ? ' · sold out'
+                      : ' · $stock left'}',
+                  style: const TextStyle(fontSize: 13, color: EcoColors.body),
                 ),
                 if (description != null && description.isNotEmpty)
-                  Text(description, style: const TextStyle(fontSize: 12, color: EcoColors.muted)),
+                  Text(
+                    description,
+                    style: const TextStyle(fontSize: 13, color: EcoColors.body),
+                  ),
               ],
             ),
           ),
@@ -346,12 +430,19 @@ class _CatalogCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               onTap: locked || busy ? null : onRequest,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 child: Text(
-                  soldOut ? 'Sold out' : locked ? 'Locked' : 'Request',
+                  soldOut
+                      ? 'Sold out'
+                      : locked
+                      ? 'Locked'
+                      : 'Request',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 12,
+                    fontSize: 13,
                     color: locked ? EcoColors.muted : Colors.white,
                   ),
                 ),
@@ -382,7 +473,9 @@ class _RequestCard extends StatelessWidget {
     final status = request['status'] as String? ?? 'Pending';
     final pending = status == 'Pending';
     final note = request['adminNote'] as String?;
-    final created = DateTime.tryParse(request['createdAt'] as String? ?? '')?.toLocal();
+    final created = DateTime.tryParse(
+      request['createdAt'] as String? ?? '',
+    )?.toLocal();
     final (Color fg, Color bg) = switch (status) {
       'Approved' => (EcoColors.primary, EcoColors.mintBg),
       'Rejected' => (EcoColors.danger, EcoColors.dangerBg),
@@ -405,33 +498,59 @@ class _RequestCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   request['reason'] as String? ?? '',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-                child: Text(status, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: fg)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: fg,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
             '${request['points']} points${created == null ? '' : ' · ${DateFormat('d MMM').format(created)}'}',
-            style: const TextStyle(fontSize: 12, color: EcoColors.body),
+            style: const TextStyle(fontSize: 13, color: EcoColors.body),
           ),
           if (note != null && note.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('Admin: $note', style: const TextStyle(fontSize: 12, color: EcoColors.label)),
+            Text(
+              'Admin: $note',
+              style: const TextStyle(fontSize: 13, color: EcoColors.label),
+            ),
           ],
           if (pending) ...[
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
               children: [
-                TextButton(onPressed: busy ? null : onChange, child: const Text('Change')),
+                TextButton(
+                  onPressed: busy ? null : onChange,
+                  child: const Text('Change'),
+                ),
                 TextButton(
                   onPressed: busy ? null : onCancel,
-                  style: TextButton.styleFrom(foregroundColor: EcoColors.danger),
+                  style: TextButton.styleFrom(
+                    foregroundColor: EcoColors.danger,
+                  ),
                   child: const Text('Cancel request'),
                 ),
               ],

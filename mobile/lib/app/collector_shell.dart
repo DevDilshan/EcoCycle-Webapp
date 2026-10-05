@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../screens/collector/route_map_screen.dart';
 import '../screens/collector/route_screen.dart';
-import '../theme/eco_theme.dart';
-import '../utils/user_helpers.dart';
+import '../screens/tabs/profile_tab.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_feature.dart';
+import 'eco_app_scope.dart';
 
 class CollectorShell extends StatefulWidget {
   const CollectorShell({super.key});
@@ -16,101 +15,68 @@ class CollectorShell extends StatefulWidget {
 }
 
 class _CollectorShellState extends State<CollectorShell> {
-  bool _mapView = false;
+  static const _profileTab = 2;
+
+  int _tab = 0;
+  bool _mapVisited = false;
+  final _routeKey = GlobalKey<CollectorRouteScreenState>();
+  final _mapKey = GlobalKey<RouteMapScreenState>();
 
   @override
   Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser!;
+    final user = EcoAppScope.userOf(context)!;
     return EcoScreen(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      // The same bar the resident side uses, without the raised action: a
+      // collector's next step is always a stop on the list, not a new request.
+      bottomNavigationBar: EcoNavigationBar(
+        index: _tab,
+        onChanged: (i) {
+          setState(() {
+            _tab = i;
+            if (i == 1) _mapVisited = true;
+          });
+          if (i == 0) _routeKey.currentState?.reload();
+          if (i == 1) _mapKey.currentState?.reload();
+        },
+        destinations: const [
+          (Icons.route_outlined, Icons.route_rounded, 'Route'),
+          (Icons.map_outlined, Icons.map_rounded, 'Map'),
+          (Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
+        ],
+      ),
+      child: IndexedStack(
+        index: _tab,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      DateFormat('EEE, d MMM').format(DateTime.now()),
-                      style: const TextStyle(fontSize: 12, color: EcoColors.body),
-                    ),
-                    const Text("Today's route", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                  ],
-                ),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: EcoColors.avatarBg,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    initials(user),
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: EcoColors.primary),
-                  ),
-                ),
-              ],
-            ),
+          CollectorRouteScreen(
+            key: _routeKey,
+            collectorId: user.id,
+            onOpenProfile: () => setState(() => _tab = _profileTab),
           ),
-          Expanded(
-            child: _mapView
-                ? RouteMapScreen(collectorId: user.id)
-                : CollectorRouteScreen(collectorId: user.id),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 10, 22, 16),
-            child: Row(
+          if (_mapVisited)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _mapView = false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      decoration: BoxDecoration(
-                        color: _mapView ? const Color(0xFFEEF3EE) : EcoColors.primary,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'List',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: _mapView ? EcoColors.primary : Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
+                const EcoPageHeading(
+                  title: 'Route map',
+                  subtitle: 'Where today’s round takes you.',
                 ),
-                const SizedBox(width: 10),
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _mapView = true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      decoration: BoxDecoration(
-                        color: _mapView ? EcoColors.primary : const Color(0xFFEEF3EE),
-                        borderRadius: BorderRadius.circular(12),
+                  // A Builder, because the bar's height is only known below
+                  // the Scaffold, not from this widget's own context.
+                  child: Builder(
+                    builder: (context) => Padding(
+                      padding: EdgeInsets.only(
+                        bottom: MediaQuery.paddingOf(context).bottom,
                       ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Map view',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: _mapView ? Colors.white : EcoColors.primary,
-                        ),
-                      ),
+                      child: RouteMapScreen(key: _mapKey, collectorId: user.id),
                     ),
                   ),
                 ),
               ],
-            ),
-          ),
+            )
+          else
+            const SizedBox.shrink(),
+          const ProfileTab(),
         ],
       ),
     );

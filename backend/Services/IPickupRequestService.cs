@@ -12,6 +12,9 @@ public interface IPickupRequestService
 
     Task<PickupRequestResponseDto> CreateAsync(Guid residentId, CreatePickupRequestDto dto);
 
+    /// <summary>Run the agent pipeline now and return the updated pickup (admin retry).</summary>
+    Task<(PickupRequestResponseDto? Pickup, string? Error)> RunAgentPipelineNowAsync(Guid pickupRequestId);
+
     // isAdmin = true → sees all; false → scoped to residentId
     Task<PagedResult<PickupRequestResponseDto>> GetListAsync(
         Guid residentId, bool isAdmin, bool isCollector, PickupRequestQueryParams query);
@@ -36,5 +39,6 @@ public enum PickupOperationResult
     Success,
     NotFound,
     Forbidden,
-    NotEditable   // e.g. trying to cancel a request that isn't Pending
+    NotEditable,          // the pickup is already finished, so it cannot be cancelled
+    CancelWindowExpired   // the 30-minute cancellation window has passed
 }

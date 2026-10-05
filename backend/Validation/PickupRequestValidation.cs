@@ -10,6 +10,31 @@ public static class PickupRequestValidation
     public static readonly string[] AllowedIntervals = { "Weekly", "Bi-weekly" };
     public const int MaxFutureDays = 365;
 
+    /// <summary>
+    /// Whether a contact number could be dialled.
+    /// </summary>
+    /// <remarks>
+    /// The separators are stripped before the digits are counted, so a resident
+    /// is not refused over a space or a dash they cannot see. 9 to 15 digits is
+    /// the E.164 range, which accepts a local 0771234567 and an international
+    /// +94771234567 without pinning the form to one country's format.
+    ///
+    /// Deliberately not an exact length. A fixed ten digits reads as correct for
+    /// Sri Lankan mobiles and then refuses the international form of the very
+    /// same number.
+    /// </remarks>
+    public static bool IsDialable(string? phone)
+    {
+        var trimmed = phone?.Trim() ?? "";
+        if (trimmed.Length == 0) return false;
+        // A plus is allowed only as the first character; anywhere else it is not
+        // a separator but a sign the number is malformed.
+        var body = trimmed.StartsWith('+') ? trimmed[1..] : trimmed;
+        if (body.Any(c => !char.IsDigit(c) && c is not (' ' or '-' or '(' or ')'))) return false;
+        var digits = body.Count(char.IsDigit);
+        return digits >= 9 && digits <= 15;
+    }
+
     public static IEnumerable<ValidationResult> Validate(
         string? description, DateTime preferredDate, bool isRecurring, string? recurrenceInterval)
     {

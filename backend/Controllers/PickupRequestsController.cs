@@ -14,15 +14,18 @@ public class PickupRequestsController : ControllerBase
     private readonly IPickupRequestService _service;
     private readonly PickupSchedulingService _scheduling;
     private readonly IComplianceService _complianceService;
+    private readonly IAgentPipelineClient _agent;
 
     public PickupRequestsController(
         IPickupRequestService service,
         IComplianceService complianceService,
-        PickupSchedulingService scheduling)
+        PickupSchedulingService scheduling,
+        IAgentPipelineClient agent)
     {
         _service = service;
         _complianceService = complianceService;
         _scheduling = scheduling;
+        _agent = agent;
     }
 
    // "sub" gets remapped to NameIdentifier by default; check both to be safe
@@ -39,6 +42,22 @@ private Guid CurrentUserId
 }
     private bool IsAdmin => User.IsInRole("admin");
     private bool IsCollector => User.IsInRole("collector");
+
+    // POST /api/pickuprequests/validate-photo — check an uploaded photo is clear
+    // and actually shows waste, before a request is created/edited. Fail-open:
+    // if the agent service is unavailable, it reports the check as not run so the
+    // resident is never blocked by an outage.
+    [HttpPost("validate-photo")]
+    [Authorize(Roles = "resident")]
+    [ProducesResponseType(typeof(ImageValidationDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ValidatePhoto([FromBody] ValidateImageRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PhotoUrl))
+            return BadRequest(new { message = "photoUrl is required." });
+
+        var result = await _agent.ValidateImageAsync(request);
+        return Ok(result ?? new ImageValidationDto { Checked = false, IsClear = true, IsWaste = true });
+    }
 
     // POST /api/pickuprequests/{id}/request-again — the resident says the
     // collection did not happen, so book it onto a round again.
@@ -83,6 +102,26 @@ private Guid CurrentUserId
             // fault, so it answers 400 with the reason rather than a bare 500.
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    // POST /api/pickuprequests/{id}/run-agent-pipeline — re-run AI classification (Pending only)
+    [HttpPost("{id:guid}/run-agent-pipeline")]
+    [Authorize(Roles = "admin,resident")]
+    public async Task<IActionResult> RunAgentPipeline(Guid id)
+    {
+        var existing = await _service.GetByIdAsync(id, CurrentUserId, isAdmin: IsAdmin);
+        if (existing is null) return NotFound();
+        if (existing.Status != "Pending")
+            return Conflict(new { message = "Only pending pickups can be sent through the agent pipeline." });
+
+        var (pickup, error) = await _service.RunAgentPipelineNowAsync(id);
+        if (pickup is null)
+            return NotFound();
+
+        if (!string.IsNullOrEmpty(error))
+            return Ok(new { pickup, message = error, success = false });
+
+        return Ok(new { pickup, message = "Classification complete.", success = true });
     }
 
     // POST /api/pickuprequests/{id}/classify — stub classifier: sets category + moves Pending -> Classified
@@ -163,6 +202,7 @@ private Guid CurrentUserId
             PickupOperationResult.NotFound    => NotFound(),
             PickupOperationResult.Forbidden   => Forbid(),
             PickupOperationResult.NotEditable => Conflict(new { message = "This pickup is already finished, so it cannot be cancelled." }),
+            PickupOperationResult.CancelWindowExpired => Conflict(new { message = "Requests can only be cancelled within 30 minutes of creating them." }),
             _ => StatusCode(500)
         };
     }

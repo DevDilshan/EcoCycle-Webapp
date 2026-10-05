@@ -14,7 +14,12 @@ dependencies:
   flutter_dotenv: ^5.2.1
   intl: ^0.20.2
   google_fonts: ^6.2.1
+  shared_preferences: ^2.5.5
   image_picker: ^1.1.2
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
+  geolocator: ^14.1.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -23,6 +28,21 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800
   assets:
     - .env
     - assets/images/
+    - assets/images/generated/
+    - assets/images/brand/

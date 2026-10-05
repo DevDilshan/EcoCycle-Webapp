@@ -37,11 +37,10 @@ export default function ApprovalsPage() {
   const [busy, setBusy] = useState(false)
 
   const loadCounts = useCallback(async () => {
-    const [pending, approved, rejected] = await Promise.all([
-      apiRequest('/approvals?status=Pending&pageSize=1'),
-      apiRequest('/approvals?status=Approved&pageSize=1'),
-      apiRequest('/approvals?status=Rejected&pageSize=1'),
-    ])
+    // Sequential calls: each auth + DB hit shares Supabase's small session pool.
+    const pending = await apiRequest('/approvals?status=Pending&pageSize=1')
+    const approved = await apiRequest('/approvals?status=Approved&pageSize=1')
+    const rejected = await apiRequest('/approvals?status=Rejected&pageSize=1')
     const next = {
       Pending: pagedTotalCount(pending),
       Approved: pagedTotalCount(approved),

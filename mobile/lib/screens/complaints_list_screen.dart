@@ -1,8 +1,10 @@
+import '../app/eco_app_scope.dart';
 import 'package:flutter/material.dart';
 
 import '../services/api.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_loading.dart';
 import 'new_complaint_screen.dart';
 
 class ComplaintsListScreen extends StatefulWidget {
@@ -13,7 +15,7 @@ class ComplaintsListScreen extends StatefulWidget {
 }
 
 class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
-  final _api = Api();
+  late final Api _api = EcoAppScope.apiOf(context);
   bool _loading = true;
   List<Map<String, dynamic>> _items = [];
 
@@ -26,7 +28,10 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
   Future<void> _load() async {
     try {
       // The list is paged: the complaints are under "items".
-      final json = await _api.get('/complaints', query: {'sortDir': 'desc', 'pageSize': '50'});
+      final json = await _api.get(
+        '/complaints',
+        query: {'sortDir': 'desc', 'pageSize': '50'},
+      );
       final items = json is Map ? json['items'] : json;
       setState(() {
         _items = (items as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -41,18 +46,16 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          EcoBackHeader(
-            title: 'My complaints',
-            subtitle: null,
-          ),
+          EcoBackHeader(title: 'My complaints', subtitle: null),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 22),
             child: EcoPrimaryButton(
               label: 'New complaint',
-              color: EcoColors.danger,
               onPressed: () async {
                 await Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const NewComplaintScreen()),
+                  MaterialPageRoute<void>(
+                    builder: (_) => const NewComplaintScreen(),
+                  ),
                 );
                 _load();
               },
@@ -61,7 +64,11 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
           const SizedBox(height: 12),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: EcoColors.primary))
+                ? const EcoLoadingState(
+                    title: 'Loading your EcoCycle',
+                    message: 'Bringing your latest details together.',
+                    compact: true,
+                  )
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
                     itemCount: _items.length,
@@ -80,24 +87,41 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              spacing: 12,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                Text('#CMP-${(c['id'] as String?)?.substring(0, 4).toUpperCase() ?? '—'}', style: ecoMono()),
+                                Text(
+                                  '#CMP-${(c['id'] as String?)?.substring(0, 4).toUpperCase() ?? '—'}',
+                                  style: ecoMono(),
+                                ),
                                 StatusBadge(
-                                  label: status,
-                                  tone: resolved ? BadgeTone.resolved : BadgeTone.inReview,
+                                  label: status == 'InReview'
+                                      ? 'In review'
+                                      : status,
+                                  tone: resolved
+                                      ? BadgeTone.resolved
+                                      : BadgeTone.inReview,
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
                             Text(
                               c['issueType'] as String? ?? 'Complaint',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
                             ),
                             Text(
                               c['description'] as String? ?? '',
-                              style: const TextStyle(fontSize: 12, color: EcoColors.body, height: 1.5),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: EcoColors.body,
+                                height: 1.5,
+                              ),
                             ),
                           ],
                         ),

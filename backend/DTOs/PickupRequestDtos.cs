@@ -21,6 +21,24 @@ public class CreatePickupRequestDto : IValidatableObject
     [StringLength(300, MinimumLength = 5, ErrorMessage = "Please give a full address.")]
     public string Address { get; set; } = string.Empty;
 
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
+    /// <summary>
+    /// A number the crew can call on the day.
+    /// </summary>
+    /// <remarks>
+    /// Required, for the same reason the address is: an address can be wrong or
+    /// hard to find, and a call from the kerb is the only way to resolve it
+    /// without the stop being written off as missed.
+    ///
+    /// Deliberately not taken from the resident's profile. The person to call is
+    /// whoever will be at the collection, which is not always the account holder.
+    /// </remarks>
+    [Required(ErrorMessage = "A contact number is required so the crew can reach you.")]
+    [StringLength(20, ErrorMessage = "Contact number is too long.")]
+    public string ContactPhone { get; set; } = string.Empty;
+
     public DateTime PreferredDate { get; set; }
 
     /// <summary>
@@ -43,12 +61,25 @@ public class CreatePickupRequestDto : IValidatableObject
     public string? RecurrenceInterval { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-        => PickupRequestValidation.Validate(Description, PreferredDate, IsRecurring, RecurrenceInterval);
+    {
+        foreach (var result in PickupRequestValidation.Validate(
+            Description, PreferredDate, IsRecurring, RecurrenceInterval))
+            yield return result;
+
+        foreach (var result in PickupLocationValidation.Validate(Latitude, Longitude))
+            yield return result;
+
+        if (!string.IsNullOrWhiteSpace(ContactPhone) && !PickupRequestValidation.IsDialable(ContactPhone))
+            yield return new ValidationResult(
+                "Please give a valid contact number, e.g. 0771234567.",
+                new[] { "contactPhone" });
+    }
 }
 
 // What the resident sends to EDIT a pending request
 public class UpdatePickupRequestDto : IValidatableObject
 {
+    public bool ClearLocation { get; set; }
     [StringLength(2048, ErrorMessage = "Photo URL is too long.")]
     [Url(ErrorMessage = "Photo URL must be a valid URL.")]
     public string? PhotoUrl { get; set; }
@@ -58,13 +89,35 @@ public class UpdatePickupRequestDto : IValidatableObject
     [StringLength(300, MinimumLength = 5, ErrorMessage = "Please give a full address.")]
     public string? Address { get; set; }
 
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
+    /// <summary>
+    /// Optional on edit: left null, the stored number is kept.
+    /// </summary>
+    [StringLength(20, ErrorMessage = "Contact number is too long.")]
+    public string? ContactPhone { get; set; }
+
     public DateTime PreferredDate { get; set; }
 
     public bool IsRecurring { get; set; } = false;
     public string? RecurrenceInterval { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-        => PickupRequestValidation.Validate(Description, PreferredDate, IsRecurring, RecurrenceInterval);
+    {
+        foreach (var result in PickupRequestValidation.Validate(
+            Description, PreferredDate, IsRecurring, RecurrenceInterval))
+            yield return result;
+
+        foreach (var result in PickupLocationValidation.Validate(Latitude, Longitude))
+            yield return result;
+
+        // Only when supplied: omitting it on an edit keeps the stored number.
+        if (!string.IsNullOrWhiteSpace(ContactPhone) && !PickupRequestValidation.IsDialable(ContactPhone))
+            yield return new ValidationResult(
+                "Please give a valid contact number, e.g. 0771234567.",
+                new[] { "contactPhone" });
+    }
 }
 
 // What the API RETURNS for a request (full detail)
@@ -75,6 +128,15 @@ public class PickupRequestResponseDto
     public string? PhotoUrl { get; set; }
     public string? Description { get; set; }
     public string? Address { get; set; }
+
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
+    /// <summary>
+    /// The number the crew calls. Null on requests made before this was
+    /// collected.
+    /// </summary>
+    public string? ContactPhone { get; set; }
 
     public DateTime PreferredDate { get; set; }
     public string Status { get; set; } = string.Empty;   // enum as string

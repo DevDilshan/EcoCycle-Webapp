@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 
@@ -53,7 +54,10 @@ class WastePhotoPreview extends StatelessWidget {
                   left: 10,
                   bottom: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(8),
@@ -73,6 +77,14 @@ class WastePhotoPreview extends StatelessWidget {
 
   Widget? _buildImage() {
     if (localPath != null && localPath!.isNotEmpty) {
+      if (kIsWeb) {
+        return Image.network(
+          localPath!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        );
+      }
       return Image.file(
         File(localPath!),
         fit: BoxFit.cover,
@@ -92,7 +104,10 @@ class WastePhotoPreview extends StatelessWidget {
         return Container(
           color: EcoColors.honeydew,
           alignment: Alignment.center,
-          child: const CircularProgressIndicator(color: EcoColors.green, strokeWidth: 2),
+          child: const CircularProgressIndicator(
+            color: EcoColors.green,
+            strokeWidth: 2,
+          ),
         );
       },
       errorBuilder: (_, __, ___) => Container(

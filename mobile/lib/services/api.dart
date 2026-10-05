@@ -22,6 +22,10 @@ class Api {
     return _send('PUT', path, body: body);
   }
 
+  Future<dynamic> patch(String path, {Object? body}) async {
+    return _send('PATCH', path, body: body);
+  }
+
   Future<dynamic> delete(String path) async {
     return _send('DELETE', path);
   }
@@ -60,6 +64,12 @@ class Api {
           headers: headers,
           body: body != null ? jsonEncode(body) : null,
         );
+      case 'PATCH':
+        response = await _client.patch(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
       case 'DELETE':
         response = await _client.delete(uri, headers: headers);
       default:
@@ -78,7 +88,9 @@ class Api {
       final errors = err['errors'];
       if (errors is Map && errors.isNotEmpty) {
         final first = errors.values.first;
-        if (first is List && first.isNotEmpty) serverMessage = first.first.toString();
+        if (first is List && first.isNotEmpty) {
+          serverMessage = first.first.toString();
+        }
       }
     } catch (_) {
       // Body was not JSON; fall through to the generic message.

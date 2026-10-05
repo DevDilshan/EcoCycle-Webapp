@@ -67,6 +67,8 @@ def route_pickup(context: dict) -> dict:
             "candidate is either unequipped for the category or full."
         )
 
+    _validate_options(options)
+
     shown = options[:MAX_OPTIONS_SHOWN]
 
     # One slot and nothing to weigh -- asking a model to choose from a list of
@@ -106,6 +108,54 @@ def route_pickup(context: dict) -> dict:
         "scheduled_date": chosen["date"],
         "reasoning": decision.get("reasoning", ""),
     }
+
+
+# What every slot must carry. The request body is typed as a bare dict on the
+# API, so nothing has checked these before now.
+REQUIRED_OPTION_FIELDS = ("collector_id", "collector_name", "date")
+
+
+def _validate_options(options: list) -> None:
+    """Refuse a slot list that cannot be reasoned about or copied from.
+
+    The backend builds these, so a bad one is a bug rather than bad user input --
+    which is exactly why it should fail loudly and name the field. Without this
+    a missing key surfaced as a KeyError from inside the prompt builder: a 500
+    with a traceback, and no indication which slot was malformed.
+
+    Raises:
+        ValueError: if options is not a list of dicts carrying the fields the
+            prompt and the chosen answer both need.
+    """
+    if not isinstance(options, list):
+        raise ValueError(f"options must be a list, got {type(options).__name__}.")
+
+    for index, option in enumerate(options):
+        if not isinstance(option, dict):
+            raise ValueError(
+                f"Slot {index + 1} must be an object, got {type(option).__name__}."
+            )
+
+        missing = [f for f in REQUIRED_OPTION_FIELDS if not option.get(f)]
+        if missing:
+            raise ValueError(
+                f"Slot {index + 1} is missing {', '.join(missing)}."
+            )
+
+        # Shown to the model as numbers and read back as numbers. A string here
+        # formatted into the prompt without complaint and then sorted wrongly.
+        for field in ("remaining_capacity", "days_away"):
+            value = option.get(field)
+            if value is not None and not isinstance(value, int):
+                raise ValueError(
+                    f"Slot {index + 1}: {field} must be a whole number, "
+                    f"got {value!r}."
+                )
+
+        if option.get("remaining_capacity") is not None and option["remaining_capacity"] < 0:
+            raise ValueError(
+                f"Slot {index + 1}: remaining_capacity cannot be negative."
+            )
 
 
 def _build_prompt(context: dict, options: list) -> str:

@@ -1,9 +1,10 @@
+import '../app/eco_app_scope.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/api.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_loading.dart';
 import 'redeem_screen.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -14,7 +15,7 @@ class LeaderboardScreen extends StatefulWidget {
 }
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
-  final _api = Api();
+  late final Api _api = EcoAppScope.apiOf(context);
   List<Map<String, dynamic>> _entries = [];
   bool _loading = true;
   bool _loadingMore = false;
@@ -32,14 +33,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Future<void> _load() async {
     try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
+      final userId = EcoAppScope.userOf(context)?.id;
       final results = await Future.wait([
         _api.get('/rewards/leaderboard', query: {'limit': '$_limit'}),
-        if (userId != null) _api.get('/rewards/$userId/history', query: {'pageSize': '1'}),
+        if (userId != null)
+          _api.get('/rewards/$userId/history', query: {'pageSize': '1'}),
       ]);
       _entries = (results[0] as List?)?.cast<Map<String, dynamic>>() ?? [];
       if (results.length > 1) {
-        _balance = ((results[1] as Map?)?['currentBalance'] as num?)?.toInt() ?? 0;
+        _balance =
+            ((results[1] as Map?)?['currentBalance'] as num?)?.toInt() ?? 0;
       }
     } catch (_) {}
     if (mounted) {
@@ -63,14 +66,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final userId = EcoAppScope.userOf(context)?.id;
     return EcoScreen(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const EcoBackHeader(title: 'Leaderboard', subtitle: 'Top recyclers'),
           if (_loading)
-            const Expanded(child: Center(child: CircularProgressIndicator(color: EcoColors.primary)))
+            const Expanded(
+              child: EcoLoadingState(
+                title: 'Loading your EcoCycle',
+                message: 'Bringing your latest details together.',
+                compact: true,
+              ),
+            )
           else
             Expanded(
               child: ListView.builder(
@@ -93,10 +102,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   final pts = (e['pointsEarned'] as num?)?.toInt() ?? 0;
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: isMe ? EcoColors.mintBg : Colors.white,
-                      border: Border.all(color: isMe ? EcoColors.primary : EcoColors.cardBorder, width: isMe ? 1.5 : 1),
+                      border: Border.all(
+                        color: isMe ? EcoColors.primary : EcoColors.cardBorder,
+                        width: isMe ? 1.5 : 1,
+                      ),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
@@ -107,7 +122,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                             '$rank',
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
-                              color: isMe ? EcoColors.primary : EcoColors.muted,
+                              color: isMe ? EcoColors.primary : EcoColors.body,
                             ),
                           ),
                         ),
@@ -115,16 +130,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                           width: 32,
                           height: 32,
                           decoration: BoxDecoration(
-                            color: isMe ? EcoColors.primary : EcoColors.avatarBg,
+                            color: isMe
+                                ? EcoColors.primary
+                                : EcoColors.avatarBg,
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             name.isNotEmpty ? name[0].toUpperCase() : '?',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: isMe ? Colors.white : const Color(0xFF4A6A55),
+                              color: isMe
+                                  ? Colors.white
+                                  : const Color(0xFF4A6A55),
                             ),
                           ),
                         ),
@@ -133,13 +152,22 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                           child: Text(
                             isMe ? 'You · $name' : name,
                             style: TextStyle(
-                              fontWeight: isMe ? FontWeight.w700 : FontWeight.w600,
+                              fontWeight: isMe
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
                               fontSize: 13,
                               color: isMe ? EcoColors.primary : EcoColors.ink,
                             ),
                           ),
                         ),
-                        Text('$pts', style: const TextStyle(fontWeight: FontWeight.w800, color: EcoColors.primary, fontSize: 13)),
+                        Text(
+                          '$pts',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: EcoColors.primary,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -160,18 +188,32 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('Your balance', style: TextStyle(fontSize: 12, color: EcoColors.body)),
-                      Text('$_balance pts', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: EcoColors.primary)),
+                      const Text(
+                        'Your balance',
+                        style: TextStyle(fontSize: 13, color: EcoColors.body),
+                      ),
+                      Text(
+                        '$_balance pts',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          color: EcoColors.primary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 FilledButton.icon(
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => RedeemScreen(balance: _balance)),
+                    MaterialPageRoute<void>(
+                      builder: (_) => RedeemScreen(balance: _balance),
+                    ),
                   ),
                   icon: const Icon(Icons.card_giftcard, size: 18),
                   label: const Text('Redeem'),
-                  style: FilledButton.styleFrom(backgroundColor: EcoColors.primary),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: EcoColors.primary,
+                  ),
                 ),
               ],
             ),

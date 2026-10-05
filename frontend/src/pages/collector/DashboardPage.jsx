@@ -8,13 +8,17 @@ import {
   CircleX,
   Clock,
   MapPin,
+  Navigation,
   Package,
+  Phone,
   Route as RouteIcon,
+  TriangleAlert,
 } from 'lucide-react'
 import PageShell from '../../components/admin/AdminPageShell'
 import { AcAlert, AcCard, AcToast } from '../../components/admin/AcUi'
 import { AcCategory, AcCategoryIcon, CATEGORY_LABELS } from '../../components/admin/AcPills'
 import MarkCompleteDrawer from '../../components/collector/MarkCompleteDrawer'
+import RouteMap from '../../components/collector/RouteMap'
 import { useCollectorData } from '../../components/collector/collectorShell'
 import { useAuth } from '../../context/AuthContext'
 import { formatRequestId } from '../../lib/adminUi'
@@ -28,6 +32,7 @@ export default function CollectorDashboardPage() {
   const { user, role } = useAuth()
   const {
     stops, counts, percentDone, nextStop, zones, zoneNames, categories,
+    zonePoints, unmappedCount,
     loading, error, setError, completeStop,
   } = useCollectorData()
 
@@ -41,7 +46,10 @@ export default function CollectorDashboardPage() {
     const q = search.trim().toLowerCase()
     if (!q) return pending
     return pending.filter((stop) => {
-      const text = `${stop.pickup?.description ?? ''} ${stop.pickup?.zoneName ?? ''} ${stop.pickup?.category ?? ''}`
+      const text = [
+        stop.pickup?.description, stop.pickup?.zoneName, stop.pickup?.category,
+        stop.pickup?.residentName, stop.pickup?.address, stop.pickup?.residentPhone,
+      ].filter(Boolean).join(' ')
       return text.toLowerCase().includes(q)
     })
   }, [stops, nextStop, search])
@@ -157,16 +165,36 @@ export default function CollectorDashboardPage() {
                       <p className="ac-id">
                         {formatRequestId(nextStop.id, 'RT')} · {formatRequestId(nextStop.pickupRequestId)}
                       </p>
-                      <h3>{nextStop.pickup?.description || 'Pickup stop'}</h3>
+                      <h3>{nextStop.pickup?.residentName || nextStop.pickup?.description || 'Pickup stop'}</h3>
+                      {nextStop.pickup?.residentName && nextStop.pickup?.description && (
+                        <p className="ac-sub">{nextStop.pickup.description}</p>
+                      )}
                       <div className="c-meta">
+                        {nextStop.carriedOver && (
+                          <span className="ac-pill ac-s-warn">
+                            <TriangleAlert size={13} strokeWidth={2.4} aria-hidden="true" />
+                            Not collected {formatStopDay(nextStop.scheduledDate)}
+                          </span>
+                        )}
                         {nextStop.pickup?.category && (
                           <AcCategory
                             category={nextStop.pickup.category}
                             confidence={nextStop.pickup.confidence}
                           />
                         )}
+                        {/* The address, not just the zone: a zone is a whole
+                            suburb and cannot be driven to. */}
+                        {nextStop.pickup?.address && (
+                          <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{nextStop.pickup.address}</span>
+                        )}
+                        {nextStop.pickup?.residentPhone && (
+                          <a className="c-stop-tel" href={`tel:${nextStop.pickup.residentPhone}`}>
+                            <Phone size={15} strokeWidth={2} aria-hidden="true" />
+                            {nextStop.pickup.residentPhone}
+                          </a>
+                        )}
                         {nextStop.pickup?.zoneName && (
-                          <span><MapPin size={15} strokeWidth={2} aria-hidden="true" />{nextStop.pickup.zoneName}</span>
+                          <span>{nextStop.pickup.zoneName}</span>
                         )}
                         {nextStop.pickup?.isBulkRequest && (
                           <span className="ac-pill ac-s-info">
@@ -188,6 +216,17 @@ export default function CollectorDashboardPage() {
                       <Check size={16} strokeWidth={2.4} aria-hidden="true" />
                       Mark complete
                     </button>
+                    {nextStop.pickup?.address && (
+                      <a
+                        className="ac-btn ac-btn-ghost"
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nextStop.pickup.address)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Navigation size={16} strokeWidth={2} aria-hidden="true" />
+                        Navigate
+                      </a>
+                    )}
                     <Link to="/collector/route" className="ac-btn ac-btn-ghost">
                       <RouteIcon size={16} strokeWidth={2} aria-hidden="true" />
                       Open today&rsquo;s route
@@ -241,6 +280,20 @@ export default function CollectorDashboardPage() {
           </div>
 
           <AcCard
+            title="Route map"
+            subtitle={`Where today&rsquo;s round takes you${unmappedCount > 0
+              ? ` · ${unmappedCount} without a confirmed pickup pin`
+              : ''}`}
+            action={(
+              <Link className="ac-link-btn" to="/collector/map">
+                Full map <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />
+              </Link>
+            )}
+          >
+            <RouteMap stops={stops} zones={zonePoints} nextStopId={nextStop?.id ?? null} />
+          </AcCard>
+
+          <AcCard
             title="Coming up"
             subtitle="The rest of today&rsquo;s pending stops"
             action={(
@@ -257,17 +310,34 @@ export default function CollectorDashboardPage() {
               <ul className="ac-list">
                 {comingUp.map((stop) => (
                   <li className="ac-row" key={stop.id}>
-                    <span className="ac-ic">
-                      <AcCategoryIcon category={stop.pickup?.category} size={18} />
+                    {/* The photo rather than the category icon: it says what is
+                        actually waiting at the kerb. The icon is the fallback. */}
+                    <span className="ac-ic c-up-thumb">
+                      {stop.pickup?.photoUrl
+                        ? <img src={stop.pickup.photoUrl} alt={`Photo for ${stop.pickup?.address || 'this pickup'}`} />
+                        : <AcCategoryIcon category={stop.pickup?.category} size={18} />}
                     </span>
                     <span className="ac-grow">
-                      <strong>{stop.pickup?.description || formatRequestId(stop.pickupRequestId)}</strong>
+                      <strong>{stop.pickup?.residentName || stop.pickup?.description || formatRequestId(stop.pickupRequestId)}</strong>
                       <span className="ac-sub">
                         {[
+                          stop.pickup?.address,
                           stop.pickup?.category ? CATEGORY_LABELS[stop.pickup.category] || stop.pickup.category : null,
                           stop.pickup?.zoneName,
                         ].filter(Boolean).join(' · ') || 'No details available'}
                       </span>
+                      {stop.pickup?.residentPhone && (
+                        <a className="c-stop-tel" href={`tel:${stop.pickup.residentPhone}`}>
+                          <Phone size={13} strokeWidth={2.2} aria-hidden="true" />
+                          {stop.pickup.residentPhone}
+                        </a>
+                      )}
+                      {stop.carriedOver && (
+                        <span className="ac-pill ac-s-warn">
+                          <TriangleAlert size={13} strokeWidth={2.4} aria-hidden="true" />
+                          Not collected {formatStopDay(stop.scheduledDate)}
+                        </span>
+                      )}
                     </span>
                     <span className="ac-time">{formatStopDay(stop.scheduledDate)}</span>
                   </li>

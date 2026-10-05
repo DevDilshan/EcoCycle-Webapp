@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../theme/eco_theme.dart';
 import '../services/pickup_photo_service.dart';
+import '../utils/pickup_approval_ui.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/resident_approval_banner.dart';
 import '../widgets/waste_photo_preview.dart';
 
 class PickupSubmittedScreen extends StatelessWidget {
@@ -24,6 +26,10 @@ class PickupSubmittedScreen extends StatelessWidget {
         pickup['reasoning'] as String? ??
         'Your request is queued for AI classification.';
 
+    // A flagged pickup is not routed to a collector until an admin decides, so
+    // the heading and the next-step line below cannot promise that it will be.
+    final needsReview = showResidentApprovalBanner(pickup);
+
     return EcoScreen(
       child: Column(
         children: [
@@ -40,18 +46,30 @@ class PickupSubmittedScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: const Text('✅', style: TextStyle(fontSize: 30)),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 32,
+                      color: EcoColors.green,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   const Text(
                     'Request submitted',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                   ),
-                  const Text(
-                    'The Classifier Agent analysed your photo',
-                    style: TextStyle(fontSize: 13, color: EcoColors.body),
+                  Text(
+                    needsReview
+                        ? 'Classified, and sent to the team for a decision'
+                        : 'Your photo has been assessed for collection',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: EcoColors.body,
+                    ),
                   ),
                   const SizedBox(height: 16),
+                  ResidentApprovalBanner(pickup: pickup),
                   WastePhotoPreview(
                     height: 120,
                     subtitle: 'waste photo',
@@ -69,13 +87,16 @@ class PickupSubmittedScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 12,
+                          runSpacing: 8,
                           children: [
                             const Text(
                               'Category',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: EcoColors.body,
                               ),
@@ -91,7 +112,7 @@ class PickupSubmittedScreen extends StatelessWidget {
                           const Text(
                             'Confidence',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: EcoColors.body,
                             ),
@@ -123,9 +144,9 @@ class PickupSubmittedScreen extends StatelessWidget {
                         ],
                         const SizedBox(height: 16),
                         const Text(
-                          'Reasoning',
+                          'Assessment notes',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: EcoColors.body,
                           ),
@@ -154,9 +175,17 @@ class PickupSubmittedScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Next: routing agent assigns a collector',
-                        style: ecoMono(),
+                      Expanded(
+                        child: Text(
+                          needsReview
+                              ? 'Next: an admin reviews this request'
+                              : 'Next: we arrange your collection',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            height: 1.5,
+                            color: EcoColors.body,
+                          ),
+                        ),
                       ),
                     ],
                   ),

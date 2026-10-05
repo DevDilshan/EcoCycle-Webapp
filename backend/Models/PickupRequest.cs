@@ -76,6 +76,25 @@ public class PickupRequest
     [MaxLength(300)]
     public string? Address { get; set; }
 
+    // Resident-confirmed pickup pin; older bookings have no coordinates.
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
+    /// <summary>
+    /// A number the crew can call from the kerb, given by the resident on the
+    /// request itself.
+    /// </summary>
+    /// <remarks>
+    /// Kept on the pickup rather than the profile on purpose: the person to call
+    /// is not always the account holder. A resident booking a collection at a
+    /// relative's house needs the crew to reach whoever is actually there.
+    ///
+    /// Nullable because it was added after pickups already existed, so older
+    /// rows carry none; new requests require one.
+    /// </remarks>
+    [MaxLength(20)]
+    public string? ContactPhone { get; set; }
+
     /// <summary>
     /// The message shown to the resident after a failed attempt, written by the
     /// Notifier agent from the collector's shorthand.

@@ -111,6 +111,32 @@ export default function PickupRequestsPage() {
     }
   }
 
+  function mergePickupIntoList(updated) {
+    if (!updated?.id) return
+    setItems((prev) => prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)))
+  }
+
+  async function handleRunAgentPipeline(id) {
+    setBusyId(id)
+    setError(null)
+    setSuccess(null)
+    try {
+      const data = await apiRequest(`/pickuprequests/${id}/run-agent-pipeline`, { method: 'POST' })
+      if (data.pickup) mergePickupIntoList(data.pickup)
+      if (data.success) {
+        setSuccess(data.message || 'Classification complete.')
+        loadCounts()
+      } else {
+        setError(data.message || 'Classification did not complete.')
+        load()
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalCount / 20))
   const openItem = items.find((item) => item.id === openId) || null
   const openProfile = openItem ? catalog.profileMap.get(openItem.residentId) : null
@@ -268,8 +294,8 @@ export default function PickupRequestsPage() {
               <div className="ac-insight">
                 <h4>Not yet classified</h4>
                 <p>
-                  Pickups are classified automatically when a resident submits them. This one was
-                  not, so the agent service was unavailable or skipped it.
+                  Classification runs in the background after submit. If it stays here, the agent
+                  service may be down or still working — try running it again.
                 </p>
               </div>
             )}
@@ -286,6 +312,16 @@ export default function PickupRequestsPage() {
             )}
 
             <div className="ac-actions">
+              {openItem.status === 'Pending' && !openItem.category && (
+                <button
+                  type="button"
+                  className="ac-btn ac-btn-primary"
+                  disabled={busyId === openItem.id}
+                  onClick={() => handleRunAgentPipeline(openItem.id)}
+                >
+                  {busyId === openItem.id ? 'Classifying… (may take 1–2 min)' : 'Run AI classification'}
+                </button>
+              )}
               {openItem.hasApprovalRequest && (
                 <Link
                   to={`/admin/approvals?approval=${openItem.approvalRequestId ?? ''}`}
