@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
+using backend.Validation;
 
 namespace backend.Services;
 
@@ -86,7 +87,7 @@ public class ZoneService
             .Where(z => z.IsActive)
             .OrderBy(z => z.Name)
             .Select(z => new ZoneOptionDto { Id = z.Id, Name = z.Name, CollectionDays = z.CollectionDays,
-                Latitude = z.Latitude, Longitude = z.Longitude })
+                Latitude = z.Latitude, Longitude = z.Longitude, BoundaryGeoJson = z.BoundaryGeoJson })
             .ToListAsync();
     }
 
@@ -102,6 +103,7 @@ public class ZoneService
                 Name = z.Name,
                 Latitude = z.Latitude!.Value,
                 Longitude = z.Longitude!.Value,
+                BoundaryGeoJson = z.BoundaryGeoJson,
             })
             .ToListAsync();
     }
@@ -117,6 +119,7 @@ public class ZoneService
 
     public async Task<ZoneDto> CreateZoneAsync(CreateZoneDto dto)
     {
+        ApplyBoundaryCenter(dto);
         await EnsureAssignableAsync(dto.AssignedCollectorId);
         await EnsureNameIsFreeAsync(dto.Name, excludingId: null);
 
@@ -127,6 +130,9 @@ public class ZoneService
             AssignedCollectorId = dto.AssignedCollectorId,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
+            BoundaryGeoJson = string.IsNullOrWhiteSpace(dto.BoundaryGeoJson) ? null : dto.BoundaryGeoJson,
+            BoundaryReferenceJson = BoundaryReference.Serialize(dto.BoundaryReference),
+            BoundaryCoverageReviewedAt = dto.BoundaryReference == null ? null : DateTime.UtcNow,
             CollectionDays = NormaliseCollectionDays(dto.CollectionDays),
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow
@@ -149,11 +155,16 @@ public class ZoneService
         await EnsureAssignableAsync(dto.AssignedCollectorId);
         await EnsureNameIsFreeAsync(dto.Name, excludingId: id);
 
+        ApplyBoundaryCenter(dto);
+
         zone.Name = dto.Name.Trim();
         zone.Description = dto.Description;
         zone.AssignedCollectorId = dto.AssignedCollectorId;
         zone.Latitude = dto.Latitude;
         zone.Longitude = dto.Longitude;
+        zone.BoundaryGeoJson = string.IsNullOrWhiteSpace(dto.BoundaryGeoJson) ? null : dto.BoundaryGeoJson;
+        zone.BoundaryReferenceJson = BoundaryReference.Serialize(dto.BoundaryReference);
+        zone.BoundaryCoverageReviewedAt = dto.BoundaryReference == null ? null : DateTime.UtcNow;
         zone.CollectionDays = NormaliseCollectionDays(dto.CollectionDays);
         zone.IsActive = dto.IsActive;
         zone.UpdatedAt = DateTime.UtcNow;
@@ -187,6 +198,36 @@ public class ZoneService
     /// a zone -- they choose one per request -- so their open requests are the
     /// only thing that needs moving.
     /// </param>
+    /// <summary>
+    /// Removes a retired zone for good, when nothing was ever booked in it.
+    /// </summary>
+    /// <remarks>
+    /// Retiring is the normal way to stop using a zone. This is for one created
+    /// by mistake or for a test: it has to be retired first, and it is refused
+    /// while any pickup or route stop still names it, because those records
+    /// would lose the zone they happened in.
+    /// </remarks>
+    /// <returns>null when there is no such zone.</returns>
+    /// <exception cref="InvalidOperationException">The zone is active or has history.</exception>
+    public async Task<bool?> DeleteZonePermanentlyAsync(Guid id)
+    {
+        var zone = await _context.Zones.FirstOrDefaultAsync(z => z.Id == id);
+        if (zone is null) return null;
+
+        if (zone.IsActive)
+            throw new InvalidOperationException("Retire the zone first. Only a retired zone can be deleted.");
+
+        var pickups = await _context.PickupRequests.CountAsync(p => p.ZoneId == id);
+        var stops = await _context.RouteAssignments.CountAsync(r => r.ZoneId == id);
+        if (pickups > 0 || stops > 0)
+            throw new InvalidOperationException(
+                $"{zone.Name} cannot be deleted: {pickups} pickup request(s) and {stops} route stop(s) still name it. It stays retired.");
+
+        _context.Zones.Remove(zone);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<ZoneRetirementResult> DeleteZoneAsync(
         Guid id,
         Guid? moveOpenRequestsToZoneId = null)
@@ -362,9 +403,24 @@ public class ZoneService
         AssignedCollectorId = zone.AssignedCollectorId,
         Latitude = zone.Latitude,
         Longitude = zone.Longitude,
+        BoundaryGeoJson = zone.BoundaryGeoJson,
+        BoundaryReference = BoundaryReference.Deserialize(zone.BoundaryReferenceJson),
+        BoundaryCoverageReviewedAt = zone.BoundaryCoverageReviewedAt,
         CollectionDays = zone.CollectionDays,
         IsActive = zone.IsActive,
         UpdatedAt = zone.UpdatedAt,
         CreatedAt = zone.CreatedAt
     };
+
+    private static void ApplyBoundaryCenter(CreateZoneDto dto)
+    {
+        var referenceError = BoundaryReference.Validate(dto);
+        if (referenceError != null) throw new ArgumentException(referenceError);
+        var boundary = ZoneBoundary.Parse(dto.BoundaryGeoJson);
+        if (boundary == null) return;
+        if (dto.Latitude.HasValue && dto.Longitude.HasValue && boundary.Contains(dto.Latitude.Value, dto.Longitude.Value)) return;
+        var center = boundary.MapCenter();
+        dto.Latitude = center.Latitude;
+        dto.Longitude = center.Longitude;
+    }
 }

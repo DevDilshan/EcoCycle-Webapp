@@ -14,6 +14,12 @@ class AppConfig {
 
   /// Set `API_BASE_URL` in `.env` to override (e.g. local dotnet on :5051).
   static String get apiBaseUrl {
+    // Device builds can use the hosted API while a Flutter web preview keeps
+    // its local .env endpoint. localhost on Android refers to the phone itself.
+    const fromBuild = String.fromEnvironment('API_BASE_URL');
+    if (fromBuild.isNotEmpty) {
+      return fromBuild.replaceAll(RegExp(r'/+$'), '');
+    }
     final fromEnv = dotenv.env['API_BASE_URL'];
     if (fromEnv != null && fromEnv.isNotEmpty) {
       return fromEnv.replaceAll(RegExp(r'/+$'), '');
@@ -46,7 +52,9 @@ class AppConfig {
       final parts = anonKey.split('.');
       if (parts.length < 2) return null;
       final normalized = base64Url.normalize(parts[1]);
-      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized))) as Map<String, dynamic>;
+      final payload =
+          jsonDecode(utf8.decode(base64Url.decode(normalized)))
+              as Map<String, dynamic>;
       return payload['ref'] as String?;
     } catch (_) {
       return null;

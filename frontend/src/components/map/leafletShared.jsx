@@ -57,7 +57,7 @@ export function KeepSized() {
  * themselves means the map is framed when the zones first load (or genuinely
  * change) and left alone after that.
  */
-export function FitToMarkers({ points, singleZoom = 13, maxZoom = 13 }) {
+export function FitToMarkers({ points, singleZoom = 13, maxZoom = 13, padding = FIT_PADDING }) {
   const map = useMap()
   const pointsKey = JSON.stringify(points)
   const lastFitted = useRef(null)
@@ -71,10 +71,10 @@ export function FitToMarkers({ points, singleZoom = 13, maxZoom = 13 }) {
       map.setView(points[0], singleZoom)
       return
     }
-    map.fitBounds(L.latLngBounds(points), { padding: FIT_PADDING, maxZoom })
+    map.fitBounds(L.latLngBounds(points), { padding, maxZoom })
     // `points` is intentionally not a dependency; pointsKey stands in for it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, pointsKey, singleZoom, maxZoom])
+  }, [map, pointsKey, singleZoom, maxZoom, padding])
 
   return null
 }

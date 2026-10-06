@@ -32,8 +32,13 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 20000)
+    const request = (path) => apiRequest(path, { signal: controller.signal })
     async function load() {
       try {
         const [
@@ -45,16 +50,17 @@ export default function DashboardPage() {
           recentComplaints,
           approvalQueue,
         ] = await Promise.all([
-          apiRequest('/pickuprequests?pageSize=1'),
-          apiRequest('/pickuprequests?status=Pending&pageSize=1'),
-          apiRequest('/pickuprequests?status=Completed&pageSize=1'),
-          apiRequest('/complaints?status=Open&pageSize=1'),
-          apiRequest('/complaints?pageSize=1'),
-          apiRequest('/complaints?pageSize=4'),
+          request('/pickuprequests?pageSize=1'),
+          request('/pickuprequests?status=Pending&pageSize=1'),
+          request('/pickuprequests?status=Completed&pageSize=1'),
+          request('/complaints?status=Open&pageSize=1'),
+          request('/complaints?pageSize=1'),
+          request('/complaints?pageSize=4'),
           // The real queue, not this browser's localStorage copy: an approval
           // raised on another machine has to count here too.
-          apiRequest('/approvals?status=Pending&pageSize=50'),
+          request('/approvals?status=Pending&pageSize=50'),
         ])
+        if (cancelled) return
 
         const flaggedItems = approvalQueue.items ?? []
         const pendingApprovals = pagedTotalCount(approvalQueue) || flaggedItems.length
@@ -110,14 +116,22 @@ export default function DashboardPage() {
         })
         setRecentActivity(activity)
       } catch (err) {
-        setError(err.message)
+        if (!cancelled) setError(controller.signal.aborted
+          ? 'The dashboard took too long to respond. Please try again.'
+          : err.message)
       } finally {
-        setLoading(false)
+        clearTimeout(timeout)
+        if (!cancelled) setLoading(false)
       }
     }
 
     load()
-  }, [])
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [loadAttempt])
 
   // The map's waiting/due badges come from the same report the Zones page uses.
   useEffect(() => {
@@ -173,6 +187,22 @@ export default function DashboardPage() {
     return (
       <PageShell title="Dashboard" showDate showSearch showBell>
         <p className="ac-empty">Loading dashboard…</p>
+      </PageShell>
+    )
+  }
+
+  if (!stats) {
+    return (
+      <PageShell title="Dashboard" showDate showSearch showBell>
+        <AcCard title="Couldn’t load the dashboard" subtitle="Your data hasn’t loaded yet. Try again to reconnect.">
+          <AcAlert message={error} />
+          <button type="button" className="ac-btn ac-btn-primary" onClick={() => {
+            setLoading(true)
+            setError(null)
+            setLoadAttempt((attempt) => attempt + 1)
+            catalog.refresh()
+          }}>Try again</button>
+        </AcCard>
       </PageShell>
     )
   }

@@ -147,3 +147,7 @@ key.properties
 
 # Supabase CLI local link state
 supabase/.temp/
+
+# Generated Sri Lanka outlines (about 20 MB): served from Supabase Storage,
+# see scripts/upload_boundaries.py. The manifest and README stay for provenance.
+frontend/public/data/sri-lanka-boundaries/*.geojson

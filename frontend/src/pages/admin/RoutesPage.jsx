@@ -7,11 +7,13 @@ import EntitySelect from '../../components/admin/EntitySelect'
 import ZoneCard from '../../components/admin/ZoneCard'
 import CollectorSettingsCard from '../../components/admin/CollectorSettingsCard'
 import ZoneMap from '../../components/admin/ZoneMap'
+import ZoneBoundaryEditor from '../../components/admin/ZoneBoundaryEditor'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
 import { formatRequestId, shortProfileName } from '../../lib/adminUi'
 import { formatCompletionStatus } from '../../lib/collector'
 import { formatStopDay } from '../../lib/collectorUi'
 import { apiRequest } from '../../lib/api'
+import { useConfirm } from '../../hooks/useConfirm'
 import { geocodePlace } from '../../lib/geocode'
 
 const EMPTY_ZONE = {
@@ -20,6 +22,9 @@ const EMPTY_ZONE = {
   assignedCollectorId: '',
   latitude: '',
   longitude: '',
+  boundaryGeoJson: null,
+  boundaryReference: null,
+  confirmCollectionCoverage: false,
   collectionDays: [],
   isActive: true,
 }
@@ -88,6 +93,7 @@ export default function RoutesPage() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [retiring, setRetiring] = useState(null)
+  const [confirmDialog, confirm] = useConfirm()
   const [form, setForm] = useState(EMPTY_ZONE)
   const [editingId, setEditingId] = useState(null)
   const [routeForm, setRouteForm] = useState({
@@ -97,6 +103,7 @@ export default function RoutesPage() {
     scheduledDate: new Date().toISOString().slice(0, 16),
   })
   const [busy, setBusy] = useState(false)
+  const [boundaryDrawing, setBoundaryDrawing] = useState(false)
 
   const loadReportData = useCallback(async () => {
     setLoading(true)
@@ -131,7 +138,7 @@ export default function RoutesPage() {
    * wrong answer presented as a right one.
    */
   useEffect(() => {
-    if (!showForm) return undefined
+    if (!showForm || form.boundaryGeoJson) return undefined
 
     const name = form.name.trim()
     const controller = new AbortController()
@@ -171,7 +178,7 @@ export default function RoutesPage() {
     // Deliberately keyed on the name alone: the form object changes on every
     // field, and re-running this for a collection-day toggle would geocode the
     // same name again.
-  }, [form.name, showForm])
+  }, [form.name, showForm, form.boundaryGeoJson])
 
   // Split rather than sorted: the two groups answer different questions, and a
   // retired zone among the active ones is read as one of them at a glance.
@@ -246,6 +253,9 @@ export default function RoutesPage() {
       assignedCollectorId: zone.assignedCollectorId || '',
       latitude: zone.latitude ?? '',
       longitude: zone.longitude ?? '',
+      boundaryGeoJson: zone.boundaryGeoJson ?? null,
+      boundaryReference: zone.boundaryReference ?? null,
+      confirmCollectionCoverage: Boolean(zone.boundaryCoverageReviewedAt),
       collectionDays: zone.collectionDays ?? [],
       isActive: zone.isActive,
     })
@@ -260,6 +270,7 @@ export default function RoutesPage() {
   }
 
   function resetForm() {
+    setBoundaryDrawing(false)
     setEditingId(null)
     setForm(EMPTY_ZONE)
     setGeo({ status: 'idle', label: '' })
@@ -277,6 +288,8 @@ export default function RoutesPage() {
 
   async function handleZoneSubmit(e) {
     e.preventDefault()
+    if (boundaryDrawing) { setError('Finish or cancel the boundary draft before saving.'); return }
+    if (form.boundaryReference && !form.confirmCollectionCoverage) { setError('Review the outline against council collection coverage before saving.'); return }
     setBusy(true)
     setError(null)
     setSuccess(null)
@@ -287,6 +300,9 @@ export default function RoutesPage() {
         assignedCollectorId: form.assignedCollectorId || null,
         latitude: form.latitude === '' ? null : Number(form.latitude),
         longitude: form.longitude === '' ? null : Number(form.longitude),
+        boundaryGeoJson: form.boundaryGeoJson,
+        boundaryReference: form.boundaryReference,
+        confirmCollectionCoverage: form.confirmCollectionCoverage,
         collectionDays: form.collectionDays,
         isActive: form.isActive,
       }
@@ -315,6 +331,32 @@ export default function RoutesPage() {
   // Routing only ever offers active zones, so those pickups would become
   // unroutable and sit there with nobody told. The backend refuses in that case
   // and says how many there are; the drawer below asks where they should go.
+  // Only for a retired zone nothing was ever booked in; the API refuses the rest
+  // and its message says what still names the zone.
+  async function handleDeleteZone(zone) {
+    const ok = await confirm({
+      title: `Delete ${zone.name}?`,
+      message: 'This removes the retired zone for good. It only works if no pickup or route stop was ever booked in it.',
+      confirmLabel: 'Delete zone',
+      cancelLabel: 'Keep it',
+      danger: true,
+    })
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await apiRequest(`/zones/${zone.id}/permanent`, { method: 'DELETE' })
+      setSuccess(`${zone.name} deleted.`)
+      catalog.refresh()
+      loadReportData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleDeactivateZone(zone, moveTo = null) {
     setBusy(true)
     setError(null)
@@ -762,7 +804,7 @@ export default function RoutesPage() {
           {retiredZones.length > 0 && (
             <AcCard
               title="Retired"
-              subtitle="No longer taking pickups. Kept because earlier rounds and complaints name them"
+              subtitle="No longer taking pickups. Kept because earlier rounds and complaints name them; one that was never used can be deleted"
             >
               <div className="ac-zone-grid">
                 {retiredZones.map((zone) => (
@@ -773,7 +815,7 @@ export default function RoutesPage() {
                     stats={zoneStats.get(zone.id)}
                     busy={busy}
                     onEdit={() => startEdit(zone)}
-                    onDeactivate={(z) => setRetiring({ zone: z, message: null })}
+                    onDelete={handleDeleteZone}
                   />
                 ))}
               </div>
@@ -822,13 +864,14 @@ export default function RoutesPage() {
           <div className="ac-field">
             <label>Place on the map</label>
             <p className="ac-field-hint">
-              {geo.status === 'searching' && 'Looking up the location…'}
-              {geo.status === 'found' && `Found ${geo.label}.`}
-              {geo.status === 'notfound'
+              {form.boundaryGeoJson && 'Map anchor comes from the saved outline.'}
+              {!form.boundaryGeoJson && geo.status === 'searching' && 'Looking up the location…'}
+              {!form.boundaryGeoJson && geo.status === 'found' && `Found ${geo.label}.`}
+              {!form.boundaryGeoJson && geo.status === 'notfound'
                 && 'No matching place found. The zone will be saved without a map pin.'}
-              {geo.status === 'error'
+              {!form.boundaryGeoJson && geo.status === 'error'
                 && 'The location lookup is unavailable. The zone will be saved without a map pin.'}
-              {geo.status === 'idle'
+              {!form.boundaryGeoJson && geo.status === 'idle'
                 && 'Type the zone’s name above and its location is found automatically.'}
             </p>
             {/* The numbers are still shown, read-only: an admin checking why a
@@ -839,6 +882,11 @@ export default function RoutesPage() {
               </p>
             )}
           </div>
+          <ZoneBoundaryEditor value={form.boundaryGeoJson} center={form}
+            reference={form.boundaryReference} coverageConfirmed={form.confirmCollectionCoverage}
+            onCoverageChange={confirmCollectionCoverage => setForm(f => ({ ...f, confirmCollectionCoverage }))}
+            onDrawingChange={setBoundaryDrawing}
+            onChange={(boundaryGeoJson, center, boundaryReference) => setForm(f => ({ ...f, boundaryGeoJson, boundaryReference, confirmCollectionCoverage: false, ...(center ?? {}) }))} />
           <div className="ac-field">
             <label>Collection days</label>
             {/* The days this zone's round actually runs. Leaving them all off
@@ -880,7 +928,7 @@ export default function RoutesPage() {
             Zone is active
           </label>
           <div className="ac-actions">
-            <button type="submit" className="ac-btn ac-btn-primary" disabled={busy}>
+            <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || boundaryDrawing || Boolean(form.boundaryReference && !form.confirmCollectionCoverage)}>
               {editingId ? 'Update zone' : 'Create zone'}
             </button>
             <button type="button" className="ac-btn ac-btn-ghost" onClick={resetForm}>Cancel</button>
@@ -891,6 +939,7 @@ export default function RoutesPage() {
       {/* Keyed on the zone so opening it for a different one starts with no
           destination chosen, rather than carrying over a choice made for the
           zone before it. */}
+      {confirmDialog}
       <RetireZoneDrawer
         key={retiring?.zone?.id ?? 'none'}
         retiring={retiring}

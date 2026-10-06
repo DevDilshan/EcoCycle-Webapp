@@ -23,6 +23,12 @@ public class CreateZoneDto : IValidatableObject
     [Range(-180, 180, ErrorMessage = "Longitude must be between -180 and 180.")]
     public double? Longitude { get; set; }
 
+    [MaxLength(backend.Validation.ZoneBoundary.MaxLength)]
+    public string? BoundaryGeoJson { get; set; }
+
+    public BoundaryReferenceDto? BoundaryReference { get; set; }
+    public bool ConfirmCollectionCoverage { get; set; }
+
     /// <summary>
     /// Days of the week this zone is collected, as DayOfWeek numbers
     /// (0 = Sunday ... 6 = Saturday). Empty means no fixed days.
@@ -33,6 +39,14 @@ public class CreateZoneDto : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
+        var referenceError = backend.Validation.BoundaryReference.Validate(this);
+        if (referenceError != null)
+            yield return new ValidationResult(referenceError, new[] { "boundaryReference" });
+        string? boundaryError = null;
+        try { backend.Validation.ZoneBoundary.Parse(BoundaryGeoJson); }
+        catch (ArgumentException ex) { boundaryError = ex.Message; }
+        if (boundaryError != null)
+            yield return new ValidationResult(boundaryError, new[] { "boundaryGeoJson" });
         // [Required] above already rejects null, empty and whitespace-only, and
         // when it fires this method is never reached at all. What it cannot say is
         // that one character is not a place name -- "D" saved happily and then sat

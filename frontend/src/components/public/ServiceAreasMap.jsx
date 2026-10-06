@@ -7,6 +7,8 @@ import { isTouchDevice } from '../map/mapConfig'
 import { publicRequest } from '../../lib/api'
 import { pickupPoint } from '../../lib/mapLocation'
 import { filterServiceAreas } from '../../lib/serviceAreaSearch'
+import ZoneBoundaryLayer from '../map/ZoneBoundaryLayer'
+import { boundaryPoints } from '../../lib/zoneBoundary'
 
 /**
  * "Where we collect": the active zones on OpenStreetMap, for visitors.
@@ -56,7 +58,11 @@ function loadZones() {
 function AreaCamera({ selected, points, reset }) {
   const map = useMap()
   useEffect(() => {
-    if (selected) map.setView(pickupPoint(selected), 14, { animate: false })
+    if (selected) {
+      const outline = boundaryPoints(selected)
+      if (outline.length) map.fitBounds(outline, { padding: [35, 35], maxZoom: 16, animate: false })
+      else map.setView(pickupPoint(selected), 14, { animate: false })
+    }
     else if (reset > 0) {
       if (points.length === 1) map.setView(points[0], 13)
       else map.fitBounds(points, { padding: [40, 40], maxZoom: 13 })
@@ -75,7 +81,7 @@ export default function ServiceAreasMap() {
   const [query, setQuery] = useState('')
   const mappedZones = useMemo(() => (zones ?? []).filter((zone) => pickupPoint(zone)), [zones])
   const filteredZones = useMemo(() => filterServiceAreas(mappedZones, query), [mappedZones, query])
-  const points = useMemo(() => mappedZones.map(pickupPoint), [mappedZones])
+  const points = useMemo(() => mappedZones.flatMap(z => boundaryPoints(z).length ? boundaryPoints(z) : [pickupPoint(z)]), [mappedZones])
   const selected = mappedZones.find((zone) => zone.id === selectedId)
 
   useEffect(() => {
@@ -161,6 +167,7 @@ export default function ServiceAreasMap() {
           <OsmTileLayer onError={() => setTileState('error')} onLoad={() => setTileState('ready')} />
           <KeepSized />
           <AreaCamera selected={selected} points={points} reset={reset} />
+          <ZoneBoundaryLayer zones={mappedZones} selectedId={selectedId} onSelect={zone => { setSelectedId(zone.id); setReset(v => v + 1) }} />
 
           {mappedZones.map((zone) => (
             <Marker
@@ -169,10 +176,11 @@ export default function ServiceAreasMap() {
               icon={truckIcon}
               title={zone.name}
               alt={zone.name}
+              eventHandlers={{ click: () => { setSelectedId(zone.id); setReset(v => v + 1) } }}
             >
               <Popup>
                 <strong>{zone.name}</strong>
-                <span>Now serving this area</span>
+                <span>{zone.boundaryGeoJson ? 'Collection boundary shown in green' : 'Area center · boundary not mapped yet'}</span>
               </Popup>
             </Marker>
           ))}
@@ -180,7 +188,7 @@ export default function ServiceAreasMap() {
         {tileState !== 'ready' && <div className="eco-map-status" role="status">{tileState === 'error' ? 'Some map tiles could not load. Area selections are still available.' : 'Loading the street map…'}</div>}
       </div>
       </div>
-      <p className="eco-map-help"><Mouse size={16} aria-hidden="true" />Scroll over the map to zoom. On a phone, pinch with two fingers or use + / −.</p>
+      <p className="eco-map-help"><Mouse size={16} aria-hidden="true" />Green outlines show mapped collection areas. Pins without an outline show area centers. Scroll to zoom; on a phone, pinch or use + / −.</p>
     </>
   )
 }

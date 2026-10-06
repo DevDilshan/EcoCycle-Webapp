@@ -26,6 +26,48 @@ public class ZoneServiceTests
             NullLogger<PickupSchedulingService>.Instance),
         NullLogger<ZoneService>.Instance);
 
+    [Fact]
+    public async Task AdministrativeReferenceRequiresCoverageReviewAndRoundTripsAfterReview()
+    {
+        const string geometry = "{\"type\":\"Polygon\",\"coordinates\":[[[79.84,6.9],[79.9,6.9],[79.9,6.95],[79.84,6.95],[79.84,6.9]]]}";
+        var dto = new CreateZoneDto {
+            Name = "Reviewed collection area", BoundaryGeoJson = geometry,
+            BoundaryReference = new BoundaryReferenceDto { DatasetId = "lka-cod-ab-v03", AreaCode = "LK1103", AreaName = "Colombo", AdministrativeLevel = 3 }
+        };
+        await Assert.ThrowsAsync<ArgumentException>(() => Service.CreateZoneAsync(dto));
+        Assert.Empty(await _db.Zones.ToListAsync());
+        dto.ConfirmCollectionCoverage = true;
+        var created = await Service.CreateZoneAsync(dto);
+        Assert.Equal("LK1103", created.BoundaryReference!.AreaCode);
+        Assert.NotNull(created.BoundaryCoverageReviewedAt);
+        dto.ConfirmCollectionCoverage = false;
+        dto.BoundaryReference.AdjustedByAdmin = true;
+        await Assert.ThrowsAsync<ArgumentException>(() => Service.UpdateZoneAsync(created.Id, dto));
+        Assert.False((await Service.GetZoneByIdAsync(created.Id))!.BoundaryReference!.AdjustedByAdmin);
+        dto.ConfirmCollectionCoverage = true;
+        await Service.UpdateZoneAsync(created.Id, dto);
+        Assert.True((await Service.GetZoneByIdAsync(created.Id))!.BoundaryReference!.AdjustedByAdmin);
+        dto.BoundaryReference = null;
+        dto.BoundaryGeoJson = null;
+        await Service.UpdateZoneAsync(created.Id, dto);
+        var cleared = await Service.GetZoneByIdAsync(created.Id);
+        Assert.Null(cleared!.BoundaryReference);
+        Assert.Null(cleared.BoundaryCoverageReviewedAt);
+    }
+
+    [Fact]
+    public async Task BoundarySavesDerivesAnAnchorAndIsAvailableToPublicAndResidentMaps()
+    {
+        const string json = "{\"type\":\"Polygon\",\"coordinates\":[[[79.84,6.9],[79.9,6.9],[79.9,6.95],[79.84,6.95],[79.84,6.9]]]}";
+        var created = await Service.CreateZoneAsync(new CreateZoneDto { Name = "Demo area", BoundaryGeoJson = json });
+        Assert.Equal(json, created.BoundaryGeoJson);
+        Assert.NotNull(created.Latitude);
+        Assert.Equal(json, Assert.Single(await Service.GetPublicZonesAsync()).BoundaryGeoJson);
+        Assert.Equal(json, Assert.Single(await Service.GetSelectableZonesAsync()).BoundaryGeoJson);
+        await Service.UpdateZoneAsync(created.Id, new CreateZoneDto { Name = "Demo area", Latitude = created.Latitude, Longitude = created.Longitude });
+        Assert.Null((await Service.GetZoneByIdAsync(created.Id))!.BoundaryGeoJson);
+    }
+
     // The agent service as the backend sees it when it is down: every call
     // answers null. Nothing these tests cover should need it.
     private sealed class UnreachableAgentClient : IAgentPipelineClient
@@ -137,6 +179,35 @@ public class ZoneServiceTests
             .Select(p => p.Name)
             .ToArray();
 
-        Assert.Equal(new[] { "Id", "Name", "Latitude", "Longitude" }, propertyNames);
+        Assert.Equal(new[] { "Id", "Name", "Latitude", "Longitude", "BoundaryGeoJson" }, propertyNames);
+    }
+
+    [Fact]
+    public async Task A_retired_zone_with_no_history_can_be_deleted_for_good()
+    {
+        var zone = AddZone("Made by mistake", isActive: false);
+
+        Assert.True(await Service.DeleteZonePermanentlyAsync(zone.Id));
+        Assert.False(_db.Zones.Any(z => z.Id == zone.Id));
+        Assert.Null(await Service.DeleteZonePermanentlyAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task An_active_zone_or_one_with_pickups_is_never_deleted()
+    {
+        var active = AddZone("Still in use");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Service.DeleteZonePermanentlyAsync(active.Id));
+
+        var used = AddZone("Has history", isActive: false);
+        _db.PickupRequests.Add(new PickupRequest
+        {
+            ResidentId = Guid.NewGuid(), ZoneId = used.Id, PhotoUrl = "https://example.com/p.jpg",
+            Description = "Old pickup", Status = PickupStatus.Completed,
+        });
+        _db.SaveChanges();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Service.DeleteZonePermanentlyAsync(used.Id));
+        Assert.Contains("1 pickup request(s)", error.Message);
+        Assert.True(_db.Zones.Any(z => z.Id == used.Id));
     }
 }

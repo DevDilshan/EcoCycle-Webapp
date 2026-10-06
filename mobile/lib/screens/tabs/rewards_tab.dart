@@ -23,6 +23,8 @@ class RewardsTabState extends State<RewardsTab> {
   bool _loading = true;
   bool _failed = false;
   int _balance = 0;
+  int _pendingCount = 0;
+  int _reserved = 0;
   List<Map<String, dynamic>> _history = [];
   bool _showAllHistory = false;
   @override
@@ -39,15 +41,27 @@ class RewardsTabState extends State<RewardsTab> {
     });
     try {
       final userId = EcoAppScope.userOf(context)!.id;
-      final history = await _api.get(
-        '/rewards/$userId/history',
-        query: {'pageSize': '20'},
-      );
+      final results = await Future.wait([
+        _api.get('/rewards/$userId/history', query: {'pageSize': '20'}),
+        _api.get(
+          '/redemptions',
+          query: {'pageSize': '100', 'status': 'Pending'},
+        ),
+      ]);
+      final history = results[0];
+      final pending = ((results[1]?['items'] as List?) ?? [])
+          .where((r) => r['status'] == 'Pending')
+          .toList();
       if (!mounted) return;
       setState(() {
         _balance = (history?['currentBalance'] as num?)?.toInt() ?? 0;
         _history =
             (history?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _pendingCount = pending.length;
+        _reserved = pending.fold<int>(
+          0,
+          (sum, r) => sum + ((r['points'] as num?)?.toInt() ?? 0),
+        );
       });
     } catch (_) {
       if (mounted) setState(() => _failed = true);
@@ -67,8 +81,8 @@ class RewardsTabState extends State<RewardsTab> {
       padding: EdgeInsets.only(bottom: ecoNavClearance(context)),
       children: [
         const EcoPageHeading(
-          title: 'Small steps. Big rewards.',
-          subtitle: 'Good choices deserve something good.',
+          title: 'Your recycling rewards',
+          subtitle: 'Earn from pickups. Choose something useful.',
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -85,6 +99,17 @@ class RewardsTabState extends State<RewardsTab> {
                 EcoLoadError(onRetry: reload)
               else ...[
                 EcoPointsCard(balance: _balance),
+                if (_reserved > 0) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    '$_reserved points set aside for pending requests.',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: EcoColors.body,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 EcoPrimaryButton(
                   label: 'Explore rewards',
@@ -92,11 +117,60 @@ class RewardsTabState extends State<RewardsTab> {
                   onPressed: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => RedeemScreen(balance: _balance),
+                        builder: (_) => RewardCatalogScreen(balance: _balance),
                       ),
                     );
                     if (mounted) reload();
                   },
+                ),
+                const SizedBox(height: 12),
+                EcoCard(
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => RewardRequestsScreen(balance: _balance),
+                      ),
+                    );
+                    if (mounted) reload();
+                  },
+                  child: Row(
+                    children: [
+                      const EcoIconTile(
+                        icon: Icons.receipt_long_outlined,
+                        size: 44,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'My reward requests',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _pendingCount == 0
+                                  ? 'Track delivery and collection codes'
+                                  : '$_pendingCount waiting for approval',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                height: 1.4,
+                                color: EcoColors.body,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: EcoColors.green,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 EcoCard(

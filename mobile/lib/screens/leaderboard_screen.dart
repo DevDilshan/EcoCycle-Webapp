@@ -206,11 +206,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 FilledButton.icon(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => RedeemScreen(balance: _balance),
+                      builder: (_) => RewardCatalogScreen(balance: _balance),
                     ),
                   ),
                   icon: const Icon(Icons.card_giftcard, size: 18),
-                  label: const Text('Redeem'),
+                  label: const Text('Rewards'),
                   style: FilledButton.styleFrom(
                     backgroundColor: EcoColors.primary,
                   ),

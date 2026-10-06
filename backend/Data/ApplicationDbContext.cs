@@ -130,6 +130,9 @@ public class ApplicationDbContext : DbContext
             .HasIndex(r => new { r.ResidentId, r.Status });
         modelBuilder.Entity<RedemptionRequest>()
             .HasIndex(r => r.Status);
+        modelBuilder.Entity<RedemptionRequest>()
+            .HasIndex(r => r.CollectionCode)
+            .IsUnique();
 
         modelBuilder.Entity<ComplianceViolation>()
             .HasOne(v => v.Resident)

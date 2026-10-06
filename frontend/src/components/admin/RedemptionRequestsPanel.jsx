@@ -5,6 +5,7 @@ import { AcStatusPill } from './AcPills'
 import FormModal from '../FormModal'
 import { apiRequest, formatDate } from '../../lib/api'
 import { hasErrors, validateReview } from '../../lib/rewardValidation'
+import { deliveryOf, redemptionPillStatus } from '../../lib/redemption'
 
 const FILTERS = [
   { key: '', label: 'All' },
@@ -15,10 +16,20 @@ const FILTERS = [
 
 const STATUS_LABELS = { Approved: 'Approved', Pending: 'Pending', Rejected: 'Rejected' }
 
+// An approved request with a code is still owed to the resident until it is handed over.
+function statusLabel(item) {
+  if (item.status === 'Approved' && item.collectionCode) {
+    return item.fulfilledAt ? deliveryOf(item).done : deliveryOf(item).adminWaiting
+  }
+  return STATUS_LABELS[item.status]
+}
+
 /**
  * Admin review of residents' redemption requests: filter by status, search by
- * resident or item, then approve (points leave the ledger) or decline. Each
- * decision opens a pop-up with a note field; declining requires a note.
+ * resident, item or collection code, then approve (points leave the ledger and
+ * the resident gets a collection code) or decline. Each decision opens a pop-up
+ * with a note field; declining requires a note. Once the reward has been
+ * collected, emailed or posted, the matching Mark button closes the request.
  */
 export default function RedemptionRequestsPanel({ onError, onSuccess, onChanged }) {
   const [status, setStatus] = useState('Pending')
@@ -87,11 +98,25 @@ export default function RedemptionRequestsPanel({ onError, onSuccess, onChanged 
     }
   }
 
+  async function markFulfilled(request) {
+    setBusy(true)
+    try {
+      await apiRequest(`/redemptions/${request.id}/fulfil`, { method: 'POST' })
+      onSuccess?.(`${request.reason} for ${request.residentName}: ${deliveryOf(request).done.toLowerCase()}.`)
+      await load()
+      onChanged?.()
+    } catch (err) {
+      onError?.(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const items = data?.items ?? []
   const approving = reviewing?.action === 'approve'
 
   return (
-    <AcCard title="Requests" subtitle="Approve to deduct the points, or decline with a note">
+    <AcCard title="Requests" subtitle="Approve to deduct the points and issue a code, or decline with a note">
       <FormModal
         open={Boolean(reviewing)}
         onClose={closeReview}
@@ -102,7 +127,7 @@ export default function RedemptionRequestsPanel({ onError, onSuccess, onChanged 
           <form className="ac-form" onSubmit={submitReview} noValidate>
             <p className="ac-foot">
               {approving
-                ? `${reviewing.request.points.toLocaleString()} points are deducted from the resident's balance and one item comes off the shelf.`
+                ? `${reviewing.request.points.toLocaleString()} points are deducted from the resident's balance, one item comes off the shelf, and the resident gets a code. This reward is: ${deliveryOf(reviewing.request).option.toLowerCase()}.`
                 : 'Nothing is deducted. The resident sees your note.'}
             </p>
             <div className="ac-field">
@@ -134,7 +159,7 @@ export default function RedemptionRequestsPanel({ onError, onSuccess, onChanged 
           <Search size={15} aria-hidden="true" />
           <input
             type="search"
-            placeholder="Search resident or item"
+            placeholder="Search resident, item or code"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             aria-label="Search redemption requests"
@@ -156,9 +181,25 @@ export default function RedemptionRequestsPanel({ onError, onSuccess, onChanged 
                   {item.reason} · {formatDate(item.createdAt)}
                   {item.adminNote ? ` · Note: ${item.adminNote}` : ''}
                 </small>
+                <small style={{ display: 'block' }}>
+                  {deliveryOf(item).option}
+                  {item.delivery === 'Email' ? ` · ${item.residentEmail}` : ''}
+                  {item.delivery === 'Post' && item.deliveryAddress ? ` · ${item.deliveryAddress}` : ''}
+                </small>
+                {item.collectionCode && (
+                  <small style={{ display: 'block' }}>
+                    Code <code>{item.collectionCode}</code>
+                    {item.fulfilledAt ? ` · ${deliveryOf(item).done.toLowerCase()} ${formatDate(item.fulfilledAt)}` : ''}
+                  </small>
+                )}
               </span>
               <span className="ac-v">{item.points.toLocaleString()} pts</span>
-              <AcStatusPill status={item.status} label={STATUS_LABELS[item.status]} />
+              <AcStatusPill status={redemptionPillStatus(item)} label={statusLabel(item)} />
+              {item.status === 'Approved' && item.collectionCode && !item.fulfilledAt && (
+                <button type="button" className="ac-btn ac-btn-primary ac-btn-sm" disabled={busy} onClick={() => markFulfilled(item)}>
+                  {deliveryOf(item).action}
+                </button>
+              )}
               {item.status === 'Pending' && (
                 <span style={{ display: 'flex', gap: 6 }}>
                   <button type="button" className="ac-btn ac-btn-primary ac-btn-sm" disabled={busy} onClick={() => openReview(item, 'approve')}>

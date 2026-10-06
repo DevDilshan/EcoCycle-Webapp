@@ -7,39 +7,38 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const applySession = async (nextSession) => {
-    if (!nextSession) {
-      setSession(null)
-      return
-    }
-
-    const { data: { session: refreshed } } = await supabase.auth.refreshSession()
-    const activeSession = refreshed ?? nextSession
-
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (!error && user) {
-      setSession({ ...activeSession, user })
-      return
-    }
-
-    setSession(activeSession)
-  }
-
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      applySession(session).finally(() => setLoading(false))
+    let active = true
+    let authEventReceived = false
+    // Supabase manages token refresh. Refreshing inside this listener can
+    // recursively emit TOKEN_REFRESHED and stall subsequent auth operations.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active) return
+      authEventReceived = true
+      setSession(nextSession)
+      setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(session)
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      // A delayed initial read must not restore a session after SIGNED_OUT.
+      if (!active || authEventReceived) return
+      setSession(initialSession)
+      setLoading(false)
+    }).catch(() => {
+      if (!active || authEventReceived) return
+      setSession(null)
+      setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signIn = (email, password) =>
-    supabase.auth.signInWithPassword({ email, password }).then(async (result) => {
-      if (result.data.session) await applySession(result.data.session)
+    supabase.auth.signInWithPassword({ email, password }).then((result) => {
+      if (result.data.session) setSession(result.data.session)
       return result
     })
 

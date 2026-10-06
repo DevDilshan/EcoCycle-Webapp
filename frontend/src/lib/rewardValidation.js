@@ -2,6 +2,8 @@
 // (the API validates again and stays the authority) so a mistake is explained
 // next to the field instead of coming back as a failed request.
 
+import { validRewardImage } from './rewardImages'
+
 const MAX_POINTS = 100000
 
 function isWholeNumber(value) {
@@ -9,7 +11,7 @@ function isWholeNumber(value) {
 }
 
 /** Reward item form: name, cost, optional stock, description. */
-export function validateRewardItem({ name, pointsCost, stock, description }) {
+export function validateRewardItem({ name, pointsCost, stock, description, imageUrl }) {
   const errors = {}
 
   if (!String(name ?? '').trim()) errors.name = 'Give the item a name.'
@@ -25,6 +27,8 @@ export function validateRewardItem({ name, pointsCost, stock, description }) {
   }
 
   if (String(description ?? '').length > 500) errors.description = 'Keep the description under 500 characters.'
+  if (String(imageUrl ?? '').length > 2048 || !validRewardImage(imageUrl))
+    errors.imageUrl = 'Choose a catalog image or enter a valid HTTPS image URL.'
 
   return errors
 }

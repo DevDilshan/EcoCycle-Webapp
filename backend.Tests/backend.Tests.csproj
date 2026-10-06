@@ -25,6 +25,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\backend\backend.csproj" />
+    <None Include="..\test-data\zone-boundaries.json" Link="zone-boundaries.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\test-data\sri-lanka-boundary-sample.json" Link="sri-lanka-boundary-sample.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

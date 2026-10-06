@@ -19,6 +19,52 @@ public class RewardItemServiceTests
         new() { Name = name, PointsCost = cost, Stock = stock, IsActive = active };
 
     [Fact]
+    public async Task Image_selection_round_trips_and_can_return_to_name_matching()
+    {
+        var dto = Dto("Reusable tote bag", 5, 17);
+        dto.ImageUrl = "  https://example.com/tote.webp  ";
+        var created = await Service.CreateAsync(dto);
+        Assert.Equal("https://example.com/tote.webp", created.ImageUrl);
+        Assert.Equal(created.ImageUrl, (await Service.GetByIdAsync(created.Id, false))!.ImageUrl);
+        dto.ImageUrl = "/images/rewards/tote.webp";
+        Assert.Equal(dto.ImageUrl, (await Service.UpdateAsync(created.Id, dto))!.ImageUrl);
+        dto.ImageUrl = null;
+        var automatic = await Service.UpdateAsync(created.Id, dto);
+        Assert.Equal("/images/rewards/tote.webp", automatic!.ImageUrl);
+        Assert.Null((await _db.RewardItems.FindAsync(created.Id))!.ImageUrl);
+        Assert.Equal(17, automatic.Stock);
+        Assert.Equal(5, automatic.PointsCost);
+        dto.ImageUrl = "";
+        Assert.Equal("", (await Service.UpdateAsync(created.Id, dto))!.ImageUrl);
+        Assert.Equal("", (await Service.GetByIdAsync(created.Id, false))!.ImageUrl);
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:image/svg+xml;base64,abc")]
+    [InlineData("http://example.com/a.webp")]
+    [InlineData("https://user:password@example.com/a.webp")]
+    [InlineData("/images/rewards/../../other.webp")]
+    public async Task Unsafe_image_references_are_rejected_without_creating_an_item(string image)
+    {
+        var dto = Dto();
+        dto.ImageUrl = image;
+        await Assert.ThrowsAsync<ArgumentException>(() => Service.CreateAsync(dto));
+        Assert.Empty(await _db.RewardItems.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Legacy_catalog_gets_artwork_without_changing_saved_records()
+    {
+        var legacy = new RewardItem { Name = "Home compost bin (220 L)", PointsCost = 250, Stock = 15 };
+        _db.RewardItems.Add(legacy);
+        await _db.SaveChangesAsync();
+        var listed = await Service.GetListAsync(false, new RewardItemQueryParams());
+        Assert.Equal("/images/rewards/compost-bin.webp", listed.Items.Single().ImageUrl);
+        Assert.Null((await _db.RewardItems.FindAsync(legacy.Id))!.ImageUrl);
+    }
+
+    [Fact]
     public async Task Create_saves_the_trimmed_item()
     {
         var created = await Service.CreateAsync(Dto("  Grocery voucher  ", 100, stock: 5));
