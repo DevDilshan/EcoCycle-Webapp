@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import { AdminShellContext } from '../admin/adminShell'
+import { AdminCatalogProvider } from '../../hooks/useAdminCatalog'
 
 export default function AdminLayout() {
   const [navOpen, setNavOpen] = useState(false)
@@ -21,19 +22,21 @@ export default function AdminLayout() {
 
   return (
     <AdminShellContext.Provider value={shell}>
-      {/* admin-theme is kept so existing rules that other admin markup still
-          relies on keep working; admin-console is what the redesign targets. */}
-      <div className="admin-console admin-theme">
-        <Sidebar isOpen={navOpen} onNavigate={closeNav} />
-        <div className="ac-main">
-          <Outlet />
+      <AdminCatalogProvider>
+        {/* admin-theme is kept so existing rules that other admin markup still
+            relies on keep working; admin-console is what the redesign targets. */}
+        <div className="admin-console admin-theme">
+          <Sidebar isOpen={navOpen} onNavigate={closeNav} />
+          <div className="ac-main">
+            <Outlet />
+          </div>
         </div>
-      </div>
-      <div
-        className={`ac-scrim${navOpen ? ' is-open' : ''}`}
-        onClick={closeNav}
-        aria-hidden="true"
-      />
+        <div
+          className={`ac-scrim${navOpen ? ' is-open' : ''}`}
+          onClick={closeNav}
+          aria-hidden="true"
+        />
+      </AdminCatalogProvider>
     </AdminShellContext.Provider>
   )
 }

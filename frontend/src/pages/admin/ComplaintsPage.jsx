@@ -49,10 +49,10 @@ export default function ComplaintsPage() {
       if (statusFilter) query.set('status', statusFilter)
       const data = await apiRequest(`/complaints?${query}`)
       setItems(data.items)
-      await loadCounts()
+      setLoading(false)
+      void loadCounts()
     } catch (err) {
       setError(err.message)
-    } finally {
       setLoading(false)
     }
   }, [statusFilter, loadCounts])

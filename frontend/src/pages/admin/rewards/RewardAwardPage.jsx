@@ -3,7 +3,7 @@ import { Award, Users, Zap } from 'lucide-react'
 import RewardsSubPage from '../../../components/admin/RewardsSubPage'
 import EntitySelect from '../../../components/admin/EntitySelect'
 import { AcCard, AcKpi } from '../../../components/admin/AcUi'
-import { useAdminCatalog } from '../../../hooks/useAdminCatalog'
+import { catalogPickupsPending, useAdminCatalog } from '../../../hooks/useAdminCatalog'
 import { pickupLabel, toSelectOptions } from '../../../lib/catalog'
 import { apiRequest } from '../../../lib/api'
 import { hasErrors, validateAward } from '../../../lib/rewardValidation'
@@ -11,7 +11,7 @@ import { hasErrors, validateAward } from '../../../lib/rewardValidation'
 const EMPTY = { residentId: '', pickupRequestId: '', pointsEarned: 50, reason: '' }
 
 export default function RewardAwardPage() {
-  const catalog = useAdminCatalog(['Classified', 'Approved', 'Scheduled', 'Completed'])
+  const catalog = useAdminCatalog()
   const [form, setForm] = useState(EMPTY)
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState({})
@@ -149,7 +149,7 @@ export default function RewardAwardPage() {
               {errors.reason && <p className="ac-field-error" role="alert">{errors.reason}</p>}
             </div>
           </div>
-          <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
+          <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalogPickupsPending(catalog)}>
             Award points
           </button>
         </form>
