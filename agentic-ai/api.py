@@ -17,6 +17,7 @@ backend can always tell a dead service from a rejected request.
 
 import os
 import secrets
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -26,9 +27,10 @@ from agents.notifier_agent import explain_decision, explain_missed_collection
 from agents.routing_agent import route_pickup
 from orchestrator import route_approved_pickup, run_pipeline
 
-load_dotenv()
+# Always load agentic-ai/.env, even when uvicorn is started from the repo root.
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
-INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
+INTERNAL_API_KEY = (os.getenv("INTERNAL_API_KEY") or "").strip()
 
 app = FastAPI(
     title="EcoCycle Agent Pipeline",
