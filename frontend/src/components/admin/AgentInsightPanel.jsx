@@ -1,4 +1,4 @@
-import { MessageSquare, ScanSearch, ShieldCheck, Sparkles } from 'lucide-react'
+import { ScanSearch, ShieldCheck, Sparkles } from 'lucide-react'
 
 const NOTIFIER_RECOMMENDATION_LABELS = {
   approve: 'Suggest approve',
@@ -106,12 +106,7 @@ export default function AgentInsightPanel({ insight, note, loading }) {
           <p className="ac-insight-muted">No notifier summary (pickup may predate the agent pipeline).</p>
         )}
         {insight.residentNotification?.trim() && (
-          <p className="ac-insight-draft-inline">
-            <MessageSquare size={14} strokeWidth={2} aria-hidden="true" />
-            <span>
-              <strong>Draft for resident:</strong> {insight.residentNotification.trim()}
-            </span>
-          </p>
+          <p className="ac-insight-resident-draft">{insight.residentNotification.trim()}</p>
         )}
       </section>
     </div>

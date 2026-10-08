@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calendar, Camera, Flag, MapPin, UserRound } from 'lucide-react'
 import { formatCompactDate, formatRequestId, inferCategory } from '../../lib/adminUi'
 import AgentInsightPanel from './AgentInsightPanel'
+import { notifierResidentDraft } from '../../lib/approvalNotifierDraft'
+import {
+  RESIDENT_MESSAGE_MAX,
+  validateRejectionReason,
+} from '../../lib/approvalResidentMessage'
 import { AcCategory, AcStatusPill } from './AcPills'
 
 export default function FlaggedApprovalCard({
@@ -16,19 +21,34 @@ export default function FlaggedApprovalCard({
   onApprove,
   onReject,
 }) {
-  // Reject needs a reason, so the field opens in place rather than in a browser
-  // prompt: the admin can still see the flag and the photo while typing it.
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  const [reasonError, setReasonError] = useState(null)
 
-  // Prefer the category the agents actually decided on; fall back to guessing
-  // from the description only when there is no agent result.
+  useEffect(() => {
+    setReasonError(null)
+    setRejecting(false)
+    setReason(notifierResidentDraft(detail))
+  }, [approval.id])
+
+  useEffect(() => {
+    const draft = notifierResidentDraft(detail)
+    if (!draft) return
+    setReason((prev) => (prev.trim() ? prev : draft))
+  }, [detail?.agentInsight?.residentNotification])
+
   const category =
     detail?.agentInsight?.category || pickup?.category || inferCategory(pickup?.description)
   const title = pickup?.description?.slice(0, 80) || approval.flagReason || 'Flagged pickup request'
+
   function submitReject() {
     const trimmed = reason.trim()
-    if (!trimmed) return
+    const error = validateRejectionReason(trimmed)
+    if (error) {
+      setReasonError(error)
+      return
+    }
+    setReasonError(null)
     onReject(approval.id, trimmed)
     setReason('')
     setRejecting(false)
@@ -75,7 +95,7 @@ export default function FlaggedApprovalCard({
             </p>
             {approval.reviewNotes ? (
               <p>
-                <strong>{approval.status === 'Rejected' ? 'Rejection reason' : 'Admin notes'}:</strong>{' '}
+                <strong>{approval.status === 'Rejected' ? 'Message to resident' : 'Admin notes'}:</strong>{' '}
                 {approval.reviewNotes}
               </p>
             ) : (
@@ -99,31 +119,55 @@ export default function FlaggedApprovalCard({
                 type="button"
                 className="ac-btn ac-btn-danger"
                 disabled={busy}
-                onClick={() => setRejecting((open) => !open)}
+                onClick={() => {
+                  setRejecting((open) => {
+                    const next = !open
+                    if (next) {
+                      const draft = notifierResidentDraft(detail)
+                      if (draft) {
+                        setReason((prev) => (prev.trim() ? prev : draft))
+                      }
+                    }
+                    return next
+                  })
+                }}
                 aria-expanded={rejecting}
               >
                 Reject
               </button>
             </div>
 
-            <div className={`ac-reject-box${rejecting ? ' is-open' : ''}`}>
-              <label className="ac-sr-only" htmlFor={`reject-${approval.id}`}>Rejection reason</label>
-              <input
+            <div className={`ac-reject-box${rejecting ? ' is-open' : ''}${reasonError ? ' has-error' : ''}`}>
+              <label htmlFor={`reject-${approval.id}`}>Why is this being rejected?</label>
+              <p className="ac-field-hint">
+                Pre-filled from the Notifier draft when available. Residents see this on their pickup.
+              </p>
+              <textarea
                 id={`reject-${approval.id}`}
+                rows={4}
+                maxLength={RESIDENT_MESSAGE_MAX}
                 value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    submitReject()
-                  }
+                onChange={(event) => {
+                  const next = event.target.value
+                  setReason(next)
+                  if (reasonError) setReasonError(validateRejectionReason(next))
                 }}
-                placeholder="Why is this being rejected?"
+                placeholder="Explain clearly what the household should know."
               />
+              <div className="ac-reject-meta">
+                <span className={reason.length > RESIDENT_MESSAGE_MAX ? 'is-over' : undefined}>
+                  {reason.length.toLocaleString()} / {RESIDENT_MESSAGE_MAX.toLocaleString()}
+                </span>
+              </div>
+              {reasonError ? (
+                <p className="ac-reject-error" role="alert">
+                  {reasonError}
+                </p>
+              ) : null}
               <button
                 type="button"
                 className="ac-btn ac-btn-danger"
-                disabled={busy || !reason.trim()}
+                disabled={busy || !!validateRejectionReason(reason)}
                 onClick={submitReject}
               >
                 Confirm reject

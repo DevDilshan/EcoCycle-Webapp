@@ -158,7 +158,9 @@ public class ApprovalService : IApprovalService
         var routingWarning = await TryRouteApprovedPickupAsync(entity);
 
         await WriteDecisionMessageAsync(
-            entity, approved: true, reason: dto.Notes ?? entity.FlagReason);
+            entity,
+            approved: true,
+            reason: dto.Notes ?? entity.FlagReason);
 
         var response = ToDto(entity);
         response.RoutingWarning = routingWarning;
@@ -323,35 +325,32 @@ public class ApprovalService : IApprovalService
     /// Stores the resident-facing wording of an admin's decision.
     /// </summary>
     /// <remarks>
-    /// The Notifier already drafts a resident message when a pickup is flagged,
-    /// and nothing has ever delivered it -- it was written, stored, shown to the
-    /// admin and dropped. Where that draft exists it is used as-is, because it
-    /// was written for exactly this moment and costs nothing to reuse. A
-    /// rejection has no draft, since the flag assumed the pickup would go ahead,
-    /// so that one is written now.
+    /// On approve, reuses the Notifier draft from the pipeline when present;
+    /// otherwise asks the agent service to phrase the decision. Rejections copy
+    /// the admin's rejection reason straight onto the pickup for the resident.
     ///
     /// Best-effort: the decision itself is already saved, and losing the
     /// friendly wording must not lose the decision.
     /// </remarks>
-    private async Task WriteDecisionMessageAsync(ApprovalRequest entity, bool approved, string? reason)
+    private async Task WriteDecisionMessageAsync(
+        ApprovalRequest entity,
+        bool approved,
+        string? reason)
     {
+        if (!approved) return;
+
         var pickup = entity.PickupRequest;
-        if (pickup is null || string.IsNullOrWhiteSpace(reason)) return;
+        if (pickup is null) return;
 
         try
         {
-            string? message = null;
+            string? message = ReadStoredResidentNotification(entity.PipelineResultJson);
 
-            if (approved)
-            {
-                message = ReadStoredResidentNotification(entity.PipelineResultJson);
-            }
-
-            if (string.IsNullOrWhiteSpace(message))
+            if (string.IsNullOrWhiteSpace(message) && !string.IsNullOrWhiteSpace(reason))
             {
                 var written = await _agents.ExplainDecisionAsync(new DTOs.ExplainDecisionRequestDto
                 {
-                    Approved = approved,
+                    Approved = true,
                     Reason = reason,
                     Description = pickup.Description ?? string.Empty
                 });
@@ -449,11 +448,13 @@ public class ApprovalService : IApprovalService
         if (entity.PickupRequest is not null)
         {
             entity.PickupRequest.Status = PickupStatus.Rejected;
+            var residentText = dto.Reason.Trim();
+            entity.PickupRequest.ResidentMessage = residentText.Length > ApprovalMessageLimits.ResidentMessageMax
+                ? residentText[..ApprovalMessageLimits.ResidentMessageMax]
+                : residentText;
         }
 
         await _db.SaveChangesAsync();
-
-        await WriteDecisionMessageAsync(entity, approved: false, reason: dto.Reason);
 
         return ToDto(entity);
     }

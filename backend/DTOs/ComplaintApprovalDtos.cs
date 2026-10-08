@@ -4,6 +4,12 @@ using backend.Models;
 
 namespace backend.DTOs;
 
+public static class ApprovalMessageLimits
+{
+    public const int ResidentMessageMin = 10;
+    public const int ResidentMessageMax = 1000;
+}
+
 public class CreateComplaintDto
 {
     [Required(ErrorMessage = "Pickup request is required.")]
@@ -70,11 +76,22 @@ public class ApprovalQueryParams
     }
 }
 
-public class RejectApprovalDto
+public class RejectApprovalDto : IValidatableObject
 {
     [Required]
-    [MaxLength(2000)]
+    [MaxLength(ApprovalMessageLimits.ResidentMessageMax)]
     public string Reason { get; set; } = string.Empty;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        var text = Reason?.Trim() ?? string.Empty;
+        if (text.Length < ApprovalMessageLimits.ResidentMessageMin)
+        {
+            yield return new ValidationResult(
+                $"Rejection reason must be at least {ApprovalMessageLimits.ResidentMessageMin} characters.",
+                [nameof(Reason)]);
+        }
+    }
 }
 
 public class ApproveApprovalDto
@@ -125,7 +142,7 @@ public class AgentInsightDto
     public string? Recommendation { get; set; }
     public string? AdminSummary { get; set; }
 
-    /// <summary>Draft message for the resident, for the admin to send or edit.</summary>
+    /// <summary>Notifier draft shown to the resident when the pickup is approved.</summary>
     public string? ResidentNotification { get; set; }
 
     /// <summary>Why the notifier recommended what it did.</summary>

@@ -48,6 +48,8 @@ String residentApprovalBannerBody(Map<String, dynamic> pickup) {
   final flag = (pickup['flagReason'] as String?)?.trim();
 
   if (approval == 'rejected') {
+    final resident = (pickup['residentMessage'] as String?)?.trim();
+    if (resident != null && resident.isNotEmpty) return resident;
     return notes?.isNotEmpty == true
         ? notes!
         : 'This request was reviewed and cannot be scheduled as submitted.';
