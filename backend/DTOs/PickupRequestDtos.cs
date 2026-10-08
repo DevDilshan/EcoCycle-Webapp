@@ -71,7 +71,7 @@ public class CreatePickupRequestDto : IValidatableObject
 
         if (!string.IsNullOrWhiteSpace(ContactPhone) && !PickupRequestValidation.IsDialable(ContactPhone))
             yield return new ValidationResult(
-                "Please give a valid contact number, e.g. 0771234567.",
+                "Phone number must be 10 digits starting with 0, e.g. 0771234567.",
                 new[] { "contactPhone" });
     }
 }
@@ -115,7 +115,7 @@ public class UpdatePickupRequestDto : IValidatableObject
         // Only when supplied: omitting it on an edit keeps the stored number.
         if (!string.IsNullOrWhiteSpace(ContactPhone) && !PickupRequestValidation.IsDialable(ContactPhone))
             yield return new ValidationResult(
-                "Please give a valid contact number, e.g. 0771234567.",
+                "Phone number must be 10 digits starting with 0, e.g. 0771234567.",
                 new[] { "contactPhone" });
     }
 }

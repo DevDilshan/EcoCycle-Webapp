@@ -83,18 +83,11 @@ const DAY_NAMES = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 
 const ALLOWED_INTERVALS = ['Weekly', 'Bi-weekly']
 const MAX_FUTURE_DAYS = 365
 
-// Whether a contact number could be dialled. Separators are stripped before the
-// digits are counted, so a resident is not refused over a space they cannot see.
-// 9 to 15 digits is the E.164 range, so a local 0771234567 and an international
-// +94771234567 are both accepted. Mirrors PickupRequestValidation.IsDialable.
+// A valid local mobile number: exactly ten digits starting with 0 (e.g.
+// 0771234567). No spaces, dashes or country code. Mirrors
+// PickupRequestValidation.IsDialable on the backend.
 function isDialable(phone) {
-  const trimmed = (phone || '').trim()
-  if (!trimmed) return false
-  // A plus is allowed only as the first character.
-  const body = trimmed.startsWith('+') ? trimmed.slice(1) : trimmed
-  if (/[^0-9\s\-()]/.test(body)) return false
-  const digits = body.replace(/[^0-9]/g, '').length
-  return digits >= 9 && digits <= 15
+  return /^0\d{9}$/.test((phone || '').trim())
 }
 
 // When the bulky allowance next resets: the 1st of next month. The server
@@ -129,7 +122,7 @@ function validatePickupForm(form, { requireZone = false, collectionDays = [], bu
     if (!phone) {
       errors.contactPhone = 'Please give a number the crew can call.'
     } else if (!isDialable(phone)) {
-      errors.contactPhone = 'Please give a valid contact number, e.g. 0771234567.'
+      errors.contactPhone = 'Phone number must be 10 digits starting with 0, e.g. 0771234567.'
     }
   }
   const desc = (form.description || '').trim()

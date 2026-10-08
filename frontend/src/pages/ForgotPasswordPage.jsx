@@ -57,8 +57,8 @@ export default function ForgotPasswordPage() {
                 If an account exists for {email}, a reset link is on its way. Check your inbox
                 (and your spam folder), then follow the link to choose a new password.
               </p>
-              <Link className="eco-btn eco-btn-primary eco-btn-block eco-btn-lg" to="/login">
-                <span>Back to login</span>
+              <Link className="eco-btn eco-btn-primary eco-btn-block eco-btn-lg" to="/">
+                <span>Back to homepage</span>
               </Link>
             </div>
           ) : (

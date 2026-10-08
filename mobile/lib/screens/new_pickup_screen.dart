@@ -152,18 +152,11 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
 
   int? get _bulkRemaining => _bulkAllowance?['remaining'] as int?;
 
-  /// Whether a contact number could be dialled. Separators are stripped before
-  /// the digits are counted, so a resident is not refused over a space they
-  /// cannot see. 9 to 15 digits is the E.164 range, so a local 0771234567 and an
-  /// international +94771234567 are both accepted.
+  /// A valid local mobile number: exactly ten digits starting with 0 (e.g.
+  /// 0771234567). No spaces, dashes or country code. Mirrors
+  /// PickupRequestValidation.IsDialable on the backend.
   static bool _isDialable(String phone) {
-    final trimmed = phone.trim();
-    if (trimmed.isEmpty) return false;
-    // A plus is allowed only as the first character.
-    final body = trimmed.startsWith('+') ? trimmed.substring(1) : trimmed;
-    if (RegExp(r'[^0-9\s\-()]').hasMatch(body)) return false;
-    final digits = body.replaceAll(RegExp(r'[^0-9]'), '').length;
-    return digits >= 9 && digits <= 15;
+    return RegExp(r'^0\d{9}$').hasMatch(phone.trim());
   }
 
   /// When the bulky allowance next resets: the 1st of next month. The server
@@ -420,7 +413,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     if (phone.isEmpty) {
       if (!_isEditing) phoneErr = 'Please give a number the crew can call.';
     } else if (!_isDialable(phone)) {
-      phoneErr = 'Please give a valid contact number, e.g. 0771234567.';
+      phoneErr = 'Phone number must be 10 digits starting with 0, e.g. 0771234567.';
     }
 
     setState(() {

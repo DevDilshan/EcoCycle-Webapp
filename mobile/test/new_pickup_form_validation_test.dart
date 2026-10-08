@@ -94,7 +94,7 @@ void main() {
     await _submit(tester);
 
     expect(
-      find.text('Please give a valid contact number, e.g. 0771234567.'),
+      find.text('Phone number must be 10 digits starting with 0, e.g. 0771234567.'),
       findsOneWidget,
     );
     // The "missing number" message must NOT show -- a number was given.

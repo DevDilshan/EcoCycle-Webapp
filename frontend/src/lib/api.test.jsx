@@ -22,8 +22,10 @@ afterEach(() => {
 
 describe('apiUrl', () => {
   it('prefixes /api and normalises the leading slash', () => {
-    expect(apiUrl('/pickuprequests')).toBe('/api/pickuprequests')
-    expect(apiUrl('pickuprequests')).toBe('/api/pickuprequests')
+    // Base-URL-agnostic: base is empty locally (Vite proxy) but set in a
+    // configured/deployed build, so assert the /api suffix either way.
+    expect(apiUrl('/pickuprequests')).toMatch(/\/api\/pickuprequests$/)
+    expect(apiUrl('pickuprequests')).toMatch(/\/api\/pickuprequests$/)
   })
 })
 
