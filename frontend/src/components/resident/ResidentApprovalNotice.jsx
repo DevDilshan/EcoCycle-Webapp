@@ -12,13 +12,14 @@ export default function ResidentApprovalNotice({ pickup }) {
   const status = pickup.approvalStatus
   const flagReason = pickup.flagReason?.trim()
   const reviewNotes = pickup.approvalReviewNotes?.trim()
+  const residentMessage = pickup.residentMessage?.trim()
   const reviewedAt = pickup.approvalReviewedAt
 
   if (status === 'Rejected') {
     return (
       <div className="r-notice is-bad" role="alert">
         <strong>Pickup not approved</strong>
-        <p>{reviewNotes || 'This request was reviewed and cannot be scheduled as submitted.'}</p>
+        <p>{residentMessage || reviewNotes || 'This request was reviewed and cannot be scheduled as submitted.'}</p>
         {flagReason && <p>Originally flagged: {flagReason}</p>}
         {reviewedAt && <p>Reviewed {formatCompactDate(reviewedAt)}</p>}
       </div>

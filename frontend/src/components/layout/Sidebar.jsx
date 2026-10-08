@@ -185,7 +185,10 @@ export default function Sidebar({ isOpen = false, onNavigate, readOnly = false }
       <div className="ac-side-foot">
         <div className="ac-agent-card">
           <strong><span className="ac-dot-live" aria-hidden="true" /> Agents running</strong>
-          <p>Classifier, Router, Validator and Notifier handle every request.</p>
+          <p>
+            Classifier labels waste; Policy validator checks rules; Router assigns collectors;
+            Notifier drafts review text when a pickup is flagged.
+          </p>
         </div>
         <div className="ac-me-row">
           <NavLink to="/admin/account" className="ac-me" onClick={onNavigate}>

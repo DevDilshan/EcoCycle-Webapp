@@ -1,21 +1,40 @@
-import { Sparkles } from 'lucide-react'
+import { ScanSearch, ShieldCheck, Sparkles } from 'lucide-react'
 
-const RECOMMENDATION_LABELS = {
-  approve: 'Validator suggests approving',
-  reject: 'Validator suggests rejecting',
-  request_revision: 'Validator suggests asking for a revision',
+const NOTIFIER_RECOMMENDATION_LABELS = {
+  approve: 'Suggest approve',
+  reject: 'Suggest reject',
+  request_revision: 'Suggest ask resident to revise',
+}
+
+const POLICY_RULE_LABELS = {
+  HAZARDOUS_CATEGORY: 'Hazardous waste (policy)',
+  EXCESSIVE_BULK_PICKUPS: 'Bulk pickup monthly limit (policy)',
+  LOW_CLASSIFICATION_CONFIDENCE: 'Low classification confidence',
+  POSSIBLE_CONTAMINATION: 'Possible contamination (text review)',
+  CATEGORY_DESCRIPTION_MISMATCH: 'Description vs category mismatch (text review)',
+  PROHIBITED_ITEMS_MENTIONED: 'Prohibited items mentioned (text review)',
+  MIXED_WASTE_CONCERN: 'Mixed waste concern (text review)',
+}
+
+function labelPolicyRule(code) {
+  if (!code) return code
+  if (POLICY_RULE_LABELS[code]) return POLICY_RULE_LABELS[code]
+  if (code.startsWith('LOW_CLASSIFICATION_CONFIDENCE')) {
+    return POLICY_RULE_LABELS.LOW_CLASSIFICATION_CONFIDENCE
+  }
+  return code
 }
 
 /**
- * What the agent pipeline decided about a flagged pickup, for the admin review
- * screen. `insight` is the agentInsight object from GET /api/approvals/{id};
- * `note` is agentResultNote, set only when there is no insight to show.
+ * Pipeline breakdown for a flagged pickup on the admin review screen.
+ * Classifier = category; Policy validator = rule codes (no LLM); Notifier = review draft (LLM).
+ * `insight` is agentInsight from GET /api/approvals/{id}; `note` when pipeline JSON is missing.
  */
 export default function AgentInsightPanel({ insight, note, loading }) {
   if (loading) {
     return (
       <div className="ac-insight">
-        <p>Loading the agent analysis…</p>
+        <p>Loading pipeline insight…</p>
       </div>
     )
   }
@@ -23,31 +42,73 @@ export default function AgentInsightPanel({ insight, note, loading }) {
   if (!insight) {
     return (
       <div className="ac-insight">
-        <p>{note || 'No agent analysis available for this request.'}</p>
+        <p>{note || 'No pipeline insight stored for this request.'}</p>
       </div>
     )
   }
 
-  const recommendation = RECOMMENDATION_LABELS[insight.recommendation]
-  // Confidence arrives as 0..1 from the classifier.
   const confidencePct = Math.round((insight.confidence ?? 0) * 100)
-
-  // AdminSummary is written for exactly this panel; the classifier reasoning is
-  // the fallback when the pipeline did not produce one.
-  const body = insight.adminSummary || insight.classificationReasoning
+  const notifierLabel = NOTIFIER_RECOMMENDATION_LABELS[insight.recommendation]
+  const notifierBody = insight.adminSummary?.trim()
+  const classifierBody = insight.classificationReasoning?.trim()
+  const policyRules = insight.violatedRules?.length
+    ? insight.violatedRules.map(labelPolicyRule)
+    : []
 
   return (
     <div className="ac-insight">
-      <h4>
-        <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
-        {recommendation || 'Validator analysis'}
-      </h4>
-      {body && <p>{body}</p>}
-      <p className="ac-insight-meta">
-        {insight.category || 'Unclassified'} · {confidencePct}% confident ·{' '}
-        {insight.imageUsed ? 'photo analysed' : 'text only'}
-        {insight.violatedRules?.length ? ` · ${insight.violatedRules.join(', ')}` : null}
-      </p>
+      <p className="ac-insight-intro">Three pipeline steps relevant to this review:</p>
+
+      <section className="ac-insight-block">
+        <h4>
+          <ScanSearch size={15} strokeWidth={2} aria-hidden="true" />
+          Classifier
+        </h4>
+        <p className="ac-insight-meta">
+          {insight.category || 'Unclassified'} · {confidencePct}% confident ·{' '}
+          {insight.imageUsed ? 'photo analysed' : 'description only'}
+        </p>
+        {classifierBody && <p>{classifierBody}</p>}
+      </section>
+
+      <section className="ac-insight-block">
+        <h4>
+          <ShieldCheck size={15} strokeWidth={2} aria-hidden="true" />
+          Policy validator
+        </h4>
+        {policyRules.length > 0 ? (
+          <ul className="ac-insight-rules">
+            {policyRules.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="ac-insight-muted">No policy rule violations recorded (may still be flagged for low confidence).</p>
+        )}
+        {insight.policyLlmReasoning?.trim() && (
+          <p className="ac-insight-llm-note">
+            <strong>Policy review note:</strong> {insight.policyLlmReasoning.trim()}
+          </p>
+        )}
+      </section>
+
+      <section className="ac-insight-block">
+        <h4>
+          <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
+          Notifier
+          {notifierLabel ? ` · ${notifierLabel}` : null}
+        </h4>
+        {notifierBody ? (
+          <p>{notifierBody}</p>
+        ) : insight.recommendationReasoning?.trim() ? (
+          <p>{insight.recommendationReasoning.trim()}</p>
+        ) : (
+          <p className="ac-insight-muted">No notifier summary (pickup may predate the agent pipeline).</p>
+        )}
+        {insight.residentNotification?.trim() && (
+          <p className="ac-insight-resident-draft">{insight.residentNotification.trim()}</p>
+        )}
+      </section>
     </div>
   )
 }
