@@ -85,6 +85,7 @@ void main() {
     'Pickup pin': () => const PickupLocationScreen(),
     'Rewards': () => const EcoScreen(child: RewardsTab()),
     'Reward catalog': () => const RedeemScreen(balance: 1240),
+    'Reward requests': () => const RewardRequestsScreen(balance: 1240),
     'Leaderboard': () => const LeaderboardScreen(),
     'Profile': () => const EcoScreen(child: ProfileTab()),
     'Complaints': () => const ComplaintsListScreen(),

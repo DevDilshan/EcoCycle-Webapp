@@ -344,5 +344,149 @@ public class RedemptionServiceTests
     {
         Assert.Null(await Service.ApproveAsync(Guid.NewGuid(), _admin, new ReviewRedemptionDto()));
         Assert.Null(await Service.RejectAsync(Guid.NewGuid(), _admin, new ReviewRedemptionDto { AdminNote = "x" }));
+        Assert.Null(await Service.FulfilAsync(Guid.NewGuid()));
+    }
+
+    // ---- delivery -----------------------------------------------------
+
+    private RewardItem AddDelivered(RewardDelivery delivery, int cost = 10)
+    {
+        var item = AddItem(cost, delivery.ToString());
+        item.Delivery = delivery;
+        _db.SaveChanges();
+        return item;
+    }
+
+    [Fact]
+    public async Task A_posted_item_needs_an_address_and_keeps_it()
+    {
+        GivePoints(100);
+        var item = AddDelivered(RewardDelivery.Post);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            Service.CreateAsync(_resident, new CreateRedemptionDto { RewardItemId = item.Id }));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            Service.CreateAsync(_resident, new CreateRedemptionDto { RewardItemId = item.Id, DeliveryAddress = "No 5" }));
+
+        var created = await Service.CreateAsync(_resident,
+            new CreateRedemptionDto { RewardItemId = item.Id, DeliveryAddress = "  12 Galle Road, Colombo 03  " });
+        var approved = await Service.ApproveAsync(created.Id, _admin, new ReviewRedemptionDto());
+
+        Assert.Equal(RewardDelivery.Post, approved!.Delivery);
+        Assert.Equal("12 Galle Road, Colombo 03", approved.DeliveryAddress);
+        Assert.Equal(RedemptionService.DefaultDeliveryInstructions(RewardDelivery.Post), approved.DeliveryInstructions);
+    }
+
+    [Fact]
+    public async Task An_emailed_item_ignores_any_address_and_names_the_account_email()
+    {
+        GivePoints(100);
+        var item = AddDelivered(RewardDelivery.Email);
+
+        var created = await Service.CreateAsync(_resident,
+            new CreateRedemptionDto { RewardItemId = item.Id, DeliveryAddress = "12 Galle Road, Colombo 03" });
+        var approved = await Service.ApproveAsync(created.Id, _admin, new ReviewRedemptionDto());
+
+        Assert.Null(approved!.DeliveryAddress);
+        Assert.Equal("res@test.com", approved.ResidentEmail);
+        Assert.Equal(RedemptionService.DefaultDeliveryInstructions(RewardDelivery.Email), approved.DeliveryInstructions);
+    }
+
+    [Fact]
+    public async Task Switching_item_follows_the_new_items_delivery()
+    {
+        GivePoints(100);
+        var posted = AddDelivered(RewardDelivery.Post);
+        var created = await Service.CreateAsync(_resident, Create(10, "Collect me"));
+
+        // No address on file yet, so a posted item cannot be chosen without one.
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            Service.UpdateAsync(created.Id, _resident, new UpdateRedemptionDto { RewardItemId = posted.Id }));
+
+        var switched = await Service.UpdateAsync(created.Id, _resident,
+            new UpdateRedemptionDto { RewardItemId = posted.Id, DeliveryAddress = "12 Galle Road, Colombo 03" });
+        Assert.Equal(RewardDelivery.Post, switched!.Delivery);
+
+        var back = await Service.UpdateAsync(created.Id, _resident, Switch(10));
+        Assert.Equal(RewardDelivery.Collect, back!.Delivery);
+        Assert.Null(back.DeliveryAddress);
+    }
+
+    // ---- collection ---------------------------------------------------
+
+    [Fact]
+    public async Task Approve_issues_a_code_and_the_items_collection_instructions()
+    {
+        GivePoints(100);
+        var item = AddItem(40);
+        item.DeliveryInstructions = "  Counter 3, Town Hall, weekdays 9 to 4.  ";
+        _db.SaveChanges();
+        var created = await Service.CreateAsync(_resident, new CreateRedemptionDto { RewardItemId = item.Id });
+
+        Assert.Null(created.CollectionCode);
+        Assert.Null(created.DeliveryInstructions);
+
+        var approved = await Service.ApproveAsync(created.Id, _admin, new ReviewRedemptionDto());
+
+        Assert.Matches("^ECO-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$", approved!.CollectionCode);
+        Assert.Equal("Counter 3, Town Hall, weekdays 9 to 4.", approved.DeliveryInstructions);
+        Assert.Null(approved.FulfilledAt);
+    }
+
+    [Fact]
+    public async Task Approve_falls_back_to_default_instructions_and_codes_differ()
+    {
+        GivePoints(100);
+        var first = await Service.CreateAsync(_resident, Create(10, "A"));
+        var second = await Service.CreateAsync(_resident, Create(10, "B"));
+
+        var a = await Service.ApproveAsync(first.Id, _admin, new ReviewRedemptionDto());
+        var b = await Service.ApproveAsync(second.Id, _admin, new ReviewRedemptionDto());
+
+        Assert.Equal(RedemptionService.DefaultDeliveryInstructions(RewardDelivery.Collect), a!.DeliveryInstructions);
+        Assert.NotEqual(a.CollectionCode, b!.CollectionCode);
+    }
+
+    [Fact]
+    public async Task A_rejected_request_gets_no_code()
+    {
+        GivePoints(100);
+        var created = await Service.CreateAsync(_resident, Create(40));
+
+        var rejected = await Service.RejectAsync(created.Id, _admin, new ReviewRedemptionDto { AdminNote = "No" });
+
+        Assert.Null(rejected!.CollectionCode);
+        Assert.Null(rejected.DeliveryInstructions);
+    }
+
+    [Fact]
+    public async Task Collect_works_once_and_only_on_an_approved_request()
+    {
+        GivePoints(100);
+        var pending = await Service.CreateAsync(_resident, Create(10, "A"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Service.FulfilAsync(pending.Id));
+
+        await Service.ApproveAsync(pending.Id, _admin, new ReviewRedemptionDto());
+        var collected = await Service.FulfilAsync(pending.Id);
+
+        Assert.NotNull(collected!.FulfilledAt);
+        Assert.Equal(RedemptionStatus.Approved, collected.Status);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Service.FulfilAsync(pending.Id));
+        Assert.Equal(90, Balance());
+    }
+
+    [Fact]
+    public async Task Admin_can_find_a_request_by_its_code()
+    {
+        GivePoints(100);
+        var first = await Service.CreateAsync(_resident, Create(10, "A"));
+        var second = await Service.CreateAsync(_resident, Create(10, "B"));
+        var approved = await Service.ApproveAsync(first.Id, _admin, new ReviewRedemptionDto());
+        await Service.ApproveAsync(second.Id, _admin, new ReviewRedemptionDto());
+
+        var found = await Service.GetListAsync(_admin, isAdmin: true,
+            new RedemptionQueryParams { Search = approved!.CollectionCode!.ToLower() });
+
+        Assert.Equal(first.Id, Assert.Single(found.Items).Id);
     }
 }

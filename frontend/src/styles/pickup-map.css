@@ -1,5 +1,31 @@
 .pickup-map-canvas, .collector-map-canvas { position: relative; overflow: hidden; border-radius: 18px; border: 1px solid #d9e4dc; isolation: isolate; }
 .pickup-map-canvas { height: 260px; }
+.pickup-map-fit-zone { position: absolute; z-index: 1000; bottom: 28px; left: 12px; border: 1px solid #d9e4dc; border-radius: 10px; padding: 8px 12px; background: white; color: #00563b; font: inherit; font-size: 12px; cursor: pointer; }
+.zone-editor-map { height: 300px; margin: 12px 0; }
+.zone-editor-map.is-drawing .leaflet-container { cursor: crosshair; }
+.administrative-picker { display: grid; gap: 10px; padding: 14px; background: white; border: 1px solid #d9e4dc; border-radius: 14px; min-width: 0; }
+.administrative-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.administrative-picker .ac-field { display: grid; gap: 6px; min-width: 0; }
+.administrative-picker input, .administrative-picker select { width: 100%; box-sizing: border-box; min-width: 0; }
+.administrative-results { max-height: 230px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #d9e4dc; border-radius: 10px; }
+.administrative-result { display: grid; gap: 4px; width: 100%; text-align: left; padding: 12px; background: white; color: #00563b; border: 0; border-bottom: 1px solid #e4ece5; cursor: pointer; font: inherit; overflow-wrap: anywhere; }
+.administrative-result span { font-size: 12px; color: #4a5d53; }
+.administrative-result:hover, .administrative-result.is-selected { background: #e5f4e6; }
+.administrative-result:focus-visible { outline: 2px solid #00563b; outline-offset: -3px; }
+.zone-reference-notice { background: #e5f4e6; color: #174b36; border-radius: 12px; padding: 14px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.zone-review-check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.zone-review-check input { flex: 0 0 auto; margin: 5px 0 0; width: 18px; height: 18px; accent-color: #00563b; }
+@media (max-width: 480px) { .administrative-filters { grid-template-columns: 1fr; } .administrative-picker { padding: 10px; } }
+.zone-boundary-editor { display: grid; gap: 8px; min-width: 0; padding: 16px; background: #f3f8ef; border: 1px solid #d9e4dc; border-radius: 18px; }
+.zone-boundary-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.zone-import { position: relative; overflow: hidden; cursor: pointer; }
+.zone-import input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.zone-import:focus-within { outline: 2px solid #00563b; outline-offset: 3px; }
+.zone-corner span { display: block; width: 18px; height: 18px; border: 3px solid white; border-radius: 50%; background: #00563b; box-shadow: 0 0 0 2px #00563b; }
+.zone-boundary-editor summary { cursor: pointer; color: #00563b; padding: 8px 0; }
+.zone-boundary-editor textarea { width: 100%; box-sizing: border-box; }
+.zone-map-status { margin: 8px 0; color: #00563b; font-size: 13px; line-height: 1.5; }
+.zone-map-status.is-outside { color: #b42318; }
 .collector-map-canvas { height: clamp(290px, 48vh, 520px); }
 .pickup-map-canvas .leaflet-container, .collector-map-canvas .leaflet-container { width: 100%; height: 100%; font-family: inherit; }
 .collector-route-map { padding: 20px; border: 1px solid #d9e4dc; border-radius: 24px; background: #fff; margin-bottom: 24px; }

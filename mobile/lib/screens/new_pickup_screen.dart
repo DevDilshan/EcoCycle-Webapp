@@ -14,6 +14,7 @@ import '../widgets/eco_components.dart';
 import 'pickup_submitted_screen.dart';
 import 'pickup_location_screen.dart';
 import '../services/map_location.dart';
+import '../services/zone_boundary.dart';
 import 'package:latlong2/latlong.dart';
 
 class NewPickupScreen extends StatefulWidget {
@@ -248,15 +249,23 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
 
   Future<void> _choosePoint() async {
     final zone = _zones.where((z) => z['id'] == _zoneId).firstOrNull;
-    final point = await Navigator.of(context).push<LatLng>(
+    final choice = await Navigator.of(context).push<PickupLocationChoice>(
       MaterialPageRoute(
         builder: (_) => PickupLocationScreen(
           point: _point,
           center: zone == null ? null : pickupPoint(zone),
+          zones: _zones,
+          zoneId: _zoneId,
+          allowZoneChange: !_isEditing,
         ),
       ),
     );
-    if (point != null && mounted) setState(() => _point = point);
+    if (choice != null && mounted) {
+      setState(() {
+        _point = choice.point;
+        if (!_isEditing && choice.zoneId != null) _zoneId = choice.zoneId;
+      });
+    }
   }
 
   @override
@@ -380,6 +389,14 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       } else if (addr.length > 300) {
         addressErr = 'Address must be 300 characters or fewer.';
       }
+    }
+
+    final selectedBoundary = ZoneBoundary.fromZone(
+      _zones.where((z) => z['id'] == _zoneId).firstOrNull,
+    );
+    if (_point != null && selectedBoundary?.contains(_point!) == false) {
+      zoneErr =
+          'The pickup pin is outside this collection zone. Move it inside the outline.';
     }
 
     // Required on create: the classifier reads the photo, and without one the

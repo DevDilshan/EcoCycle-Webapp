@@ -1,15 +1,25 @@
-# ♻️ EcoCycle
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/ecocycle-logo-light.svg">
+  <img src="frontend/public/brand/ecocycle-logo.svg" alt="EcoCycle" width="340">
+</picture>
+
+# EcoCycle
 
 **AI-assisted waste-pickup platform for residents, collectors and council admins.**
 
-Residents book a pickup with a photo. A pipeline of four AI agents classifies the waste, checks it against business rules and picks a collector and day. Anything risky pauses for an admin to approve. Collectors work their round on web or mobile, and residents earn reward points when their waste is collected.
+![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white) ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black) ![Flutter](https://img.shields.io/badge/Flutter-3-02569B?logo=flutter&logoColor=white) ![Python](https://img.shields.io/badge/Python-FastAPI-009688?logo=fastapi&logoColor=white) ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white) ![OpenAI](https://img.shields.io/badge/OpenAI-gpt--4o--mini-412991?logo=openai&logoColor=white)
 
-![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)
-![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=black)
-![Flutter](https://img.shields.io/badge/Flutter-3-02569B?logo=flutter&logoColor=white)
-![Python](https://img.shields.io/badge/Python-FastAPI-009688?logo=fastapi&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)
-![OpenAI](https://img.shields.io/badge/OpenAI-gpt--4o--mini-412991?logo=openai&logoColor=white)
+[![Backend CI](https://github.com/DevDilshan/EcoCycle-Webapp/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/DevDilshan/EcoCycle-Webapp/actions/workflows/backend-ci.yml)
+
+[✨ Features](#-features) · [🏗️ Architecture](#-architecture) · [🚀 Running locally](#-running-locally) · [🌐 API](#-api) · [🧪 Testing](#-testing) · [🚢 Deploying](#-deploying)
+
+[💻 Web app](frontend/README.md) · [📱 Mobile app](mobile/README.md)
+
+</div>
+
+Residents book a pickup with a photo. A pipeline of four AI agents classifies the waste, checks it against business rules and picks a collector and day. Anything risky pauses for an admin to approve. Collectors work their round on web or mobile, and residents earn reward points when their waste is collected.
 
 ---
 
@@ -33,9 +43,10 @@ Residents book a pickup with a photo. A pipeline of four AI agents classifies th
 | Feature | Who uses it | What it does |
 |---|---|---|
 | 📦 **Pickup Requests** | Resident | Book a pickup with a photo, address, contact number and zone. The photo is checked by AI vision. Pickups can be one-off or recurring. |
-| 🚛 **Route & Dispatch** | Admin, Collector | Admins set up zones, collection days and collector capacity. Collectors see today's stops, upcoming stops, overdue stops and a route map, and mark each stop collected or not collected. |
+| 🚛 **Route & Dispatch** | Admin, Collector | Admins set up zones, draw each zone's collection outline, and set collection days and collector capacity. Collectors see today's stops, upcoming stops, overdue stops and a route map, and mark each stop collected or not collected. |
 | 🚩 **Complaints & Approvals** | Admin, Resident | Flagged pickups wait in an approval queue showing the AI's reasoning. Residents raise complaints and track their status. |
-| 🎁 **Recycling & Rewards** | Resident, Admin | Points are awarded automatically when a stop is completed. Residents redeem catalogue items, and admins approve the redemptions. |
+| 🎁 **Recycling & Rewards** | Resident, Admin | Points are awarded automatically when a stop is completed. Residents redeem catalogue items that are collected in person, emailed or posted. An approved request gets a one-time code, and the admin records the hand-over. |
+| 🗺️ **Collection areas** | Everyone | Zone outlines are drawn on the landing page, the admin maps, the collector route map and the pickup pin picker. A pin outside the chosen zone is refused. |
 
 **Clients:** a React web app (resident, collector and admin consoles) and a Flutter mobile app (resident and collector). Both use the same API and the same Supabase login, with email or Google.
 
@@ -68,13 +79,13 @@ flowchart LR
 | API | ASP.NET Core 8, EF Core, Npgsql | Business rules, scheduling, validation, auth |
 | AI agents | Python, FastAPI | Classifier, Validator, Routing and Notifier agents |
 | Data | Supabase PostgreSQL | 12 application tables |
-| Auth & files | Supabase Auth (email + Google), Supabase Storage | JWTs, pickup photos |
+| Auth & files | Supabase Auth (email + Google), Supabase Storage | JWTs, pickup photos, reward pictures, area outlines |
 
 ---
 
 ## 🔄 How a pickup flows
 
-1. **Submit.** The resident uploads a photo, and AI vision checks that it's a clear photo of waste. If that check can't run, submission still goes ahead (fail-open). The pickup is then saved as `Pending`.
+1. **Submit.** The resident uploads a photo and can drop a pin, which must fall inside the chosen zone's outline when it has one. Then and AI vision checks that it's a clear photo of waste. If that check can't run, submission still goes ahead (fail-open). The pickup is then saved as `Pending`.
 2. **Prepare.** The API works out the **legal slots**: collectors who can carry this type of waste, have capacity left, and serve that zone on that day, over the next 14 days.
 3. **Agent pipeline** (`/run-pipeline`):
    - 🧠 **Classifier** (AI). Puts the waste in one of 6 categories, with a confidence score, using the photo and the description. It falls back to the text alone if photo analysis fails.
@@ -100,7 +111,9 @@ backend/         ⚙️  ASP.NET Core 8 Web API – shared by web and mobile
 backend.Tests/   🧪 xUnit tests (unit, API, database, end-to-end, performance)
 agentic-ai/      🤖 Python FastAPI service running the four AI agents
 supabase/        🗄️  SQL for storage buckets and signup role rules
-scripts/         🔧 Helper scripts
+scripts/         🔧 Helper scripts (agent check, area outline preparation and upload)
+docs/            📚 Notes on collection boundaries
+test-data/       🧩 Shared geometry cases checked by .NET, JavaScript and Dart
 ```
 
 ---
@@ -177,7 +190,7 @@ Each app reads its own **gitignored** `.env`. Copy the `.env.example` next to it
 | `SUPABASE_CONNECTION_STRING` | PostgreSQL connection string (session pooler) |
 | `SUPABASE_URL` | Supabase project URL, used as the JWT issuer and for JWKS |
 | `SUPABASE_JWT_SECRET` | Legacy JWT secret, required at startup |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-side admin key, used only for account deletion |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side admin key, used for account deletion and reward picture upload |
 | `AGENT_SERVICE_URL` | Agent service URL (default `http://localhost:8000`) |
 | `INTERNAL_API_KEY` | Shared secret sent to the agent service |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated web origins (default `http://localhost:5173`) |
@@ -204,6 +217,7 @@ Each app reads its own **gitignored** `.env`. Copy the `.env.example` next to it
 | `VITE_SUPABASE_ANON_KEY` | Supabase public key (never the secret key) |
 | `VITE_SUPABASE_PICKUP_BUCKET` | Storage bucket for pickup photos |
 | `VITE_API_BASE_URL` | Backend origin. Leave empty locally. |
+| `VITE_BOUNDARY_DATA_URL` | Optional. Where the Sri Lanka area outlines are served from. Defaults to the project's `boundary-data` bucket. |
 
 </details>
 
@@ -230,11 +244,11 @@ Every endpoint is under `/api` and needs a Supabase JWT, sent as `Authorization:
 | 📦 Pickups | `POST /pickuprequests`, `POST /pickuprequests/validate-photo`, `POST /pickuprequests/{id}/run-agent-pipeline`, `GET /pickuprequests`, `PUT`/`DELETE /pickuprequests/{id}` |
 | 🚩 Approvals (admin) | `GET /approvals`, `POST /approvals/{id}/approve`, `/reject`, `/request-revision` |
 | 🚛 Routes | `GET /routes/{collectorId}/today`, `/upcoming`, `PATCH /routes/{id}/complete`, `/missed`, `GET /routes/day`, `/overdue`, `/load-report`, `/zone-load`, `POST /routes/assign/{pickupId}`, `PUT /routes/{id}/reassign` |
-| 🗺️ Zones | `GET /zones`, `/zones/selectable`, `/zones/public`, `POST`, `PUT`, `DELETE /zones/{id}` (retire) |
+| 🗺️ Zones | `GET /zones`, `/zones/selectable`, `/zones/public`, `POST`, `PUT`, `DELETE /zones/{id}` (retire), `DELETE /zones/{id}/permanent` (a retired zone nothing was booked in) |
 | 💬 Complaints | `POST /complaints`, `GET /complaints`, `PUT`/`DELETE /complaints/{id}` |
 | 🎁 Rewards | `GET /rewards/leaderboard`, `GET /rewards/{residentId}/history`, admin corrections |
-| 🛍️ Catalogue | `GET /reward-items`, admin `POST`/`PUT`/`DELETE` |
-| 🎟️ Redemptions | `POST /redemptions`, `GET /redemptions`, admin `POST /redemptions/{id}/approve` / `/reject` |
+| 🛍️ Catalogue | `GET /reward-items`, admin `POST`/`PUT`/`DELETE`, admin `POST /reward-items/image` (picture upload) |
+| 🎟️ Redemptions | `POST /redemptions`, `GET /redemptions`, admin `POST /redemptions/{id}/approve` / `/reject` / `/fulfil` (collected, emailed or posted) |
 | 👤 Profiles | `GET /profiles?role=resident\|collector\|admin` |
 
 **Pickup statuses:** `Pending` → `Classified` → (`Approved`) → `Scheduled` → `Completed`, or `Rejected`.
@@ -247,9 +261,9 @@ Every endpoint is under `/api` and needs a Supabase JWT, sent as `Authorization:
 
 | Suite | Command | Notes |
 |---|---|---|
-| Backend (xUnit) | `dotnet test backend.Tests` | 280 tests. PostgreSQL integration tests are skipped without a live database. |
-| Web (Vitest) | `cd frontend && npm test` | Pickups, auth guard, API client, map helpers |
-| Mobile | `cd mobile && flutter test` | Form validation, layout, maps, auth screens |
+| Backend (xUnit) | `dotnet test backend.Tests` | 321 tests. The 17 PostgreSQL integration tests are skipped without a live database. |
+| Web (Vitest) | `cd frontend && npm test` | Pickups, auth guard, API client, map helpers, zone outlines, reward slip |
+| Mobile | `cd mobile && flutter test` | Form validation, layout, maps, auth screens, zone outlines, reward catalogue |
 | Agents | `cd agentic-ai && python -m pytest` | Classifier evaluation and vision checks. Some scripts need a live OpenAI key. |
 | Lint | `cd frontend && npm run lint` · `cd mobile && flutter analyze` | |
 
@@ -264,7 +278,7 @@ Every endpoint is under `/api` and needs a Supabase JWT, sent as `Authorization:
 | Web | Vercel | `frontend/vercel.json` rewrites all routes to `index.html`. Set `VITE_API_BASE_URL` to the deployed API. |
 | API | Render (Docker) | [`backend/Dockerfile`](backend/Dockerfile), `Root Directory = backend`. Binds `0.0.0.0:$PORT`. |
 | Agents | Render (Docker) | [`agentic-ai/Dockerfile`](agentic-ai/Dockerfile), `Root Directory = agentic-ai`. Runs `uvicorn api:app --host 0.0.0.0 --port $PORT`. |
-| Database, auth and storage | Supabase | Run the SQL in [`supabase/`](supabase/) for the photo bucket and signup role rules. |
+| Database, auth and storage | Supabase | Run the SQL in [`supabase/`](supabase/) for the photo bucket and signup role rules. Reward pictures use the `reward-images` bucket and area outlines the `boundary-data` bucket (`python scripts/upload_boundaries.py`). |
 
 Set every Configuration variable in the host's environment. Both services read real environment variables when no `.env` file is present.
 
@@ -274,8 +288,9 @@ Set every Configuration variable in the host's environment. Both services read r
 
 ## ⚠️ Known gaps
 
-- **The live database has columns not in the migrations.** These are the `Zones` boundary columns, and the delivery columns on `RewardItems` and `RedemptionRequests`. A fresh `dotnet ef database update` won't create them until those migrations are pushed.
 - **Map pins are approximate** unless the resident pins an exact spot. Street addresses aren't geocoded.
+- **Zone outlines are administrative divisions**, used as a starting point. They are not verified council collection areas.
+- **Emailed rewards are sent by hand.** The app records that an admin emailed the reward; it does not send the email.
 - **Status updates are pulled.** There are no push notifications or realtime updates yet.
 - **Zone locations are looked up** through OpenStreetMap Nominatim from the admin's browser. At higher volume this should move server-side with caching.
 - **`RewardRules` (C#) duplicates the Python Validator's bulky-limit rule.** Remove it once nothing depends on `POST /rewards/validate/{pickupRequestId}`.

@@ -6,6 +6,9 @@ import { FitToMarkers, KeepSized, OsmTileLayer } from '../map/leafletShared'
 import { FALLBACK_CENTRE } from '../map/mapConfig'
 import { deviceLocation, pickupDirections, pickupPoint } from '../../lib/mapLocation'
 import '../../styles/pickup-map.css'
+import ZoneBoundaryLayer from '../map/ZoneBoundaryLayer'
+import { boundaryPoints } from '../../lib/zoneBoundary'
+import { apiRequest } from '../../lib/api'
 
 function Controls({ points, selected, onError }) {
   const map = useMap()
@@ -33,12 +36,22 @@ function Controls({ points, selected, onError }) {
   </>
 }
 
-export default function CollectorRouteMap({ stops, positions, onOpen, onComplete, onMissed }) {
+export default function CollectorRouteMap({ stops, positions, onOpen, onComplete, onMissed, zones: suppliedZones }) {
   const [selectedId, setSelectedId] = useState(null)
   const [error, setError] = useState('')
+  const [loadedZones, setLoadedZones] = useState([])
+  useEffect(() => {
+    if (suppliedZones) return
+    let cancelled = false
+    apiRequest('/zones/selectable').then(data => { if (!cancelled) setLoadedZones(Array.isArray(data) ? data : []) })
+      .catch(() => { if (!cancelled) setError('Collection boundaries could not load. Stop pins and directions still work.') })
+    return () => { cancelled = true }
+  }, [suppliedZones])
+  const zoneIds = new Set(stops.map(s => s.zoneId ?? s.pickup?.zoneId))
+  const zones = (suppliedZones ?? loadedZones).filter(z => zoneIds.has(z.id))
   const selected = stops.find((s) => s.id === selectedId) ?? stops.find((s) => s.pending) ?? stops[0]
   const pinned = stops.filter((s) => pickupPoint(s.pickup))
-  const points = pinned.map((s) => pickupPoint(s.pickup))
+  const points = [...pinned.map((s) => pickupPoint(s.pickup)), ...zones.flatMap(boundaryPoints)]
   const directions = pickupDirections(selected?.pickup)
   return <section className="collector-route-map" aria-label="Today's stop map">
     <div className="pickup-map-heading"><strong>Today on the map</strong><span>{pinned.length} of {stops.length} stops pinned</span></div>
@@ -46,6 +59,7 @@ export default function CollectorRouteMap({ stops, positions, onOpen, onComplete
       <MapContainer center={points[0] ?? FALLBACK_CENTRE} zoom={14} scrollWheelZoom>
         <OsmTileLayer onError={() => setError('Map tiles unavailable. Stop details and directions still work.')} />
         <KeepSized /><FitToMarkers points={points} singleZoom={16} maxZoom={16} />
+        <ZoneBoundaryLayer zones={zones} />
         <Controls points={points} selected={selectedId ? pickupPoint(selected?.pickup) : null} onError={setError} />
         {pinned.map((stop) => <Marker key={stop.id} position={pickupPoint(stop.pickup)}
           icon={L.divIcon({ className: 'pickup-stop-marker', iconSize: [40, 40],
@@ -57,6 +71,7 @@ export default function CollectorRouteMap({ stops, positions, onOpen, onComplete
       </MapContainer>
     </div>
     {error && <p role="status" className="pickup-map-notice">{error}</p>}
+    {zones.some(z => z.boundaryGeoJson) && <p className="zone-map-status">Green outlines show the collection zones for this route.</p>}
     {!pinned.length && <p className="pickup-map-notice">These bookings have no pickup pins yet. Directions use the saved addresses.</p>}
     <div className="pickup-map-stop-list" aria-label="Select a stop">
       {stops.map((stop) => <button type="button" key={stop.id} aria-pressed={selected?.id === stop.id}

@@ -21,6 +21,7 @@ import { uploadPickupPhoto } from '../../lib/pickupPhoto'
 import PickupPhotoField from '../../components/resident/PickupPhotoField'
 import CollectionDayPicker from '../../components/resident/CollectionDayPicker'
 import PickupLocationPicker from '../../components/map/PickupLocationPicker'
+import { zoneContains } from '../../lib/zoneBoundary'
 import ResidentApprovalNotice from '../../components/resident/ResidentApprovalNotice'
 import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
 import { COLLECTION_WINDOW_LABEL } from '../../lib/collectorUi'
@@ -460,6 +461,9 @@ export default function ResidentPickupsPage() {
     })
     setCreateErrors(errs)
     if (Object.keys(errs).length > 0) return      // client-side gate
+    if (zoneContains(zones.find(z => z.id === createForm.zoneId), createForm) === false) {
+      setError('The pickup pin is outside your collection zone. Move it inside or choose the correct zone.'); return
+    }
 
     setCreateFlowPhase('submitting')
     setError(null)
@@ -545,6 +549,9 @@ export default function ResidentPickupsPage() {
     const errs = validatePickupForm(editForm)
     setEditErrors(errs)
     if (Object.keys(errs).length > 0) return      // client-side gate
+    if (zoneContains(zones.find(z => z.id === editForm.zoneId), editForm) === false) {
+      setError('The pickup pin is outside this collection zone. Move it inside the outline.'); return
+    }
 
     const id = editingId
     setBusyId(id)
@@ -772,7 +779,7 @@ export default function ResidentPickupsPage() {
                 rather than the control offering only the few that are. A
                 resident can then see that their zone is Mondays and Sundays,
                 which a list of eight dates hides. */}
-            <PickupLocationPicker value={createForm} zone={zones.find((z) => z.id === createForm.zoneId)} onChange={(point) => setCreateForm((f) => ({ ...f, ...point }))} />
+            <PickupLocationPicker value={createForm} zone={zones.find((z) => z.id === createForm.zoneId)} zones={zones} onChange={(point) => setCreateForm((f) => ({ ...f, ...point }))} />
             <CollectionDayPicker
               id="pickup-date"
               value={createForm.preferredDate}
@@ -1183,7 +1190,7 @@ export default function ResidentPickupsPage() {
             <div className="ac-field"><label htmlFor="edit-pickup-phone">Contact number</label>
               <input id="edit-pickup-phone" type="tel" value={editForm.contactPhone} maxLength={20} onChange={(e) => setEditForm((f) => ({ ...f, contactPhone: e.target.value }))} />
             </div>
-            <PickupLocationPicker value={editForm} zone={zones.find((z) => z.id === editForm.zoneId)} onChange={(point) => setEditForm((f) => ({ ...f, ...point }))} />
+            <PickupLocationPicker value={editForm} zone={zones.find((z) => z.id === editForm.zoneId)} autoSelect={false} onChange={(point) => setEditForm((f) => ({ ...f, ...point }))} />
             <PickupPhotoField
               existingUrl={editForm.photoUrl}
               previewUrl={editPhotoPreview}

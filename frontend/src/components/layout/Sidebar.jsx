@@ -40,7 +40,7 @@ const menuItems = [
   { to: '/admin/compliance', label: 'Compliance', Icon: ChartColumn },
 ]
 
-export default function Sidebar({ isOpen = false, onNavigate }) {
+export default function Sidebar({ isOpen = false, onNavigate, readOnly = false }) {
   const { user, session, signOut } = useAuth()
   const [approvalCount, setApprovalCount] = useState(0)
   const [redemptionCount, setRedemptionCount] = useState(0)
@@ -192,7 +192,7 @@ export default function Sidebar({ isOpen = false, onNavigate }) {
             <span className="ac-avatar" aria-hidden="true">{profileInitials(displayName)}</span>
             <span>{displayName}<small>Municipal Admin</small></span>
           </NavLink>
-          <button type="button" className="ac-logout" onClick={signOut} aria-label="Log out">
+          <button type="button" className="ac-logout" onClick={signOut} disabled={readOnly} aria-label="Log out">
             <LogOut size={18} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>

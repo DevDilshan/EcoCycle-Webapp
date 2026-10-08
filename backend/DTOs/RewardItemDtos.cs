@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using backend.Models;
 
 namespace backend.DTOs;
 
@@ -11,12 +13,22 @@ public class SaveRewardItemDto
     [MaxLength(500)]
     public string? Description { get; set; }
 
+    [MaxLength(2048)]
+    public string? ImageUrl { get; set; }
+
     [Range(1, 100000)]
     public int PointsCost { get; set; }
 
     // Leave empty for unlimited.
     [Range(0, 1000000)]
     public int? Stock { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RewardDelivery Delivery { get; set; } = RewardDelivery.Collect;
+
+    // Where and how a resident gets this item after approval.
+    [MaxLength(300)]
+    public string? DeliveryInstructions { get; set; }
 
     public bool IsActive { get; set; } = true;
 }
@@ -26,8 +38,12 @@ public class RewardItemResponseDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? ImageUrl { get; set; }
     public int PointsCost { get; set; }
     public int? Stock { get; set; }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RewardDelivery Delivery { get; set; }
+    public string? DeliveryInstructions { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

@@ -10,6 +10,18 @@ class MobilePreviewApi extends Api {
     assert(kDebugMode);
   }
   static const residentId = 'preview-resident';
+  // Illustrative service outline for read-only map review, not a city border.
+  static const demoZones = <Map<String, dynamic>>[
+    {
+      'id': 'preview-zone',
+      'name': 'Demo collection area',
+      'isActive': true,
+      'latitude': 6.917,
+      'longitude': 79.875,
+      'boundaryGeoJson':
+          '{"type":"Polygon","coordinates":[[[79.858,6.902],[79.888,6.902],[79.888,6.935],[79.858,6.935],[79.858,6.902]]]}',
+    },
+  ];
   static User user({bool collector = false}) => User(
     id: collector ? 'preview-collector' : residentId,
     appMetadata: const {},
@@ -24,6 +36,7 @@ class MobilePreviewApi extends Api {
   final pickups = <Map<String, dynamic>>[
     {
       'id': 'preview-pickup-1',
+      'zoneId': 'preview-zone',
       'address': '12 Park Road, Colombo 07',
       'latitude': 6.9108,
       'longitude': 79.8696,
@@ -41,6 +54,7 @@ class MobilePreviewApi extends Api {
     },
     {
       'id': 'preview-pickup-2',
+      'zoneId': 'preview-zone',
       'address': '4 Lake Drive, Colombo 08',
       'latitude': 6.9174,
       'longitude': 79.8812,
@@ -56,6 +70,7 @@ class MobilePreviewApi extends Api {
     },
     {
       'id': 'preview-pickup-3',
+      'zoneId': 'preview-zone',
       'address': '31 Station Road, Colombo 04',
       'description': 'Paper & packaging',
       'category': 'Recyclable',
@@ -72,15 +87,7 @@ class MobilePreviewApi extends Api {
       return {'limit': 2, 'used': 0, 'remaining': 2};
     }
     if (path == '/zones/selectable') {
-      return [
-        {
-          'id': 'preview-zone',
-          'name': 'Colombo',
-          'isActive': true,
-          'latitude': 6.9271,
-          'longitude': 79.8612,
-        },
-      ];
+      return demoZones;
     }
     if (path == '/pickuprequests') return {'items': pickups};
     if (path.startsWith('/pickuprequests/')) {
@@ -137,6 +144,8 @@ class MobilePreviewApi extends Api {
             'description': 'A practical companion for your next shop.',
             'pointsCost': 250,
             'stock': 12,
+            'imageUrl': '/images/rewards/tote.webp',
+            'delivery': 'Collect',
           },
           {
             'id': 'preview-reward-2',
@@ -144,6 +153,48 @@ class MobilePreviewApi extends Api {
             'description': 'Refill, reuse and keep going.',
             'pointsCost': 800,
             'stock': 4,
+            'imageUrl': '/images/rewards/water-bottle.webp',
+            'delivery': 'Collect',
+          },
+          {
+            'id': 'preview-reward-seeds',
+            'name': 'Herb seed packet',
+            'description':
+                'Basil, coriander and chilli seeds for your kitchen garden.',
+            'pointsCost': 100,
+            'stock': 20,
+            'imageUrl': '/images/rewards/herb-seeds.webp',
+            'delivery': 'Post',
+            'deliveryInstructions':
+                'Sent to the postal address you provide after approval.',
+          },
+          {
+            'id': 'preview-reward-voucher',
+            'name': 'Supermarket e-voucher',
+            'description': 'A little help with your next grocery shop.',
+            'pointsCost': 500,
+            'stock': 50,
+            'imageUrl': '/images/rewards/grocery-voucher.webp',
+            'delivery': 'Email',
+          },
+          {
+            'id': 'preview-reward-solar',
+            'name': 'Solar garden light kit',
+            'description': 'Four solar-powered lights for a brighter garden.',
+            'pointsCost': 1500,
+            'stock': 6,
+            'imageUrl': '/images/rewards/solar-lights.webp',
+            'delivery': 'Post',
+          },
+          {
+            'id': 'preview-reward-compost',
+            'name': 'Compost starter kit',
+            'description':
+                'Start turning kitchen scraps into something useful.',
+            'pointsCost': 300,
+            'stock': 0,
+            'imageUrl': '/images/rewards/compost-kit.webp',
+            'delivery': 'Collect',
           },
         ],
       };
@@ -157,6 +208,29 @@ class MobilePreviewApi extends Api {
             'reason': 'Reusable tote bag',
             'points': 250,
             'status': 'Pending',
+            'createdAt': DateTime.now().toIso8601String(),
+          },
+          {
+            'id': 'preview-redemption-collect',
+            'reason': 'Grocery voucher',
+            'points': 120,
+            'status': 'Approved',
+            'delivery': 'Collect',
+            'collectionCode': 'ECO-7F3K-92QD',
+            'deliveryInstructions':
+                'Show this code at Counter 3, Town Hall, weekdays 9 am to 4 pm.',
+            'createdAt': DateTime.now().toIso8601String(),
+          },
+          {
+            'id': 'preview-redemption-post',
+            'reason': 'Seed starter kit',
+            'points': 90,
+            'status': 'Approved',
+            'delivery': 'Post',
+            'collectionCode': 'ECO-B6NZ-P4GC',
+            'deliveryAddress': '12 Galle Road, Colombo 03',
+            'deliveryInstructions':
+                'We will post this reward to the address you gave within 7 working days.',
             'createdAt': DateTime.now().toIso8601String(),
           },
         ],

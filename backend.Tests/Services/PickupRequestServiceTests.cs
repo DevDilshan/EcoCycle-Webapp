@@ -22,6 +22,26 @@ public class PickupRequestServiceTests
     private readonly Guid _resident = Guid.NewGuid();
     private readonly Guid _otherResident = Guid.NewGuid();
 
+    [Fact]
+    public async Task RejectsOutsidePinsOnCreateAndEditBeforeChangingStoredData()
+    {
+        var zone = AddActiveZone();
+        zone.BoundaryGeoJson = "{\"type\":\"Polygon\",\"coordinates\":[[[79.84,6.9],[79.9,6.9],[79.9,6.95],[79.84,6.95],[79.84,6.9]]]}";
+        await _db.SaveChangesAsync();
+        var dto = new CreatePickupRequestDto { ZoneId = zone.Id, Description = "Paper", PreferredDate = DateTime.UtcNow.AddDays(2), Latitude = 6.97, Longitude = 79.91 };
+        await Assert.ThrowsAsync<ArgumentException>(() => Service.CreateAsync(_resident, dto));
+        Assert.Empty(_db.PickupRequests);
+        dto.Latitude = 6.91; dto.Longitude = 79.85;
+        var saved = await Service.CreateAsync(_resident, dto);
+        await Assert.ThrowsAsync<ArgumentException>(() => Service.UpdateAsync(saved.Id, _resident, false,
+            new UpdatePickupRequestDto { Description = "Changed", PreferredDate = dto.PreferredDate, Latitude = 6.97, Longitude = 79.91 }));
+        Assert.Equal("Paper", (await _db.PickupRequests.FindAsync(saved.Id))!.Description);
+        Assert.Equal(6.91, (await _db.PickupRequests.FindAsync(saved.Id))!.Latitude);
+        dto.Latitude = null; dto.Longitude = null;
+        await Service.CreateAsync(_resident, dto); // Address-only booking remains possible.
+        Assert.Equal(2, await _db.PickupRequests.CountAsync());
+    }
+
     private PickupRequestService Service => new(
         _db,
         new StubAgentClient(),

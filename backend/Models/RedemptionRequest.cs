@@ -52,6 +52,24 @@ public class RedemptionRequest
 
     public DateTime? ReviewedAt { get; set; }
 
+    // Copied from the item when it is requested, like the name and cost.
+    public RewardDelivery Delivery { get; set; } = RewardDelivery.Collect;
+
+    // Where to post the item. Only asked for, and only kept, for posted items.
+    [MaxLength(300)]
+    public string? DeliveryAddress { get; set; }
+
+    // Issued on approval. Shown at the counter to collect, or quoted as a reference.
+    [MaxLength(16)]
+    public string? CollectionCode { get; set; }
+
+    // The item's instructions, copied on approval so they survive item edits.
+    [MaxLength(300)]
+    public string? DeliveryInstructions { get; set; }
+
+    // Set when an admin hands over, emails or posts the item; once only.
+    public DateTime? FulfilledAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

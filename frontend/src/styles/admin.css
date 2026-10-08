@@ -1852,6 +1852,11 @@
 
 .admin-console .ac-nav-main .ac-count { margin-left: auto; }
 
+/* Keep the link on its row's palette; the legacy .admin-theme a:hover
+   rule otherwise turns Rewards dark green on the green sidebar. */
+.admin-console .ac-nav-main:hover,
+.admin-console .ac-nav-main:focus-visible { color: inherit; }
+
 .admin-console .ac-nav-chevron-btn {
   display: grid;
   place-items: center;
@@ -1885,4 +1890,35 @@
 @media (prefers-reduced-motion: reduce) {
   .admin-console .ac-nav-chevron,
   .admin-console .ac-nav-collapse { transition: none; }
+}
+
+/* Collection slip on an approved redemption */
+.admin-console .ac-ticket {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0 2px 46px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--line-strong);
+  background: rgba(0, 86, 59, 0.04);
+}
+.admin-console .ac-ticket-ic { flex: none; color: var(--green); display: grid; place-items: center; }
+.admin-console .ac-ticket-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.admin-console .ac-ticket-body small { color: var(--ink); opacity: 0.7; }
+.admin-console .ac-ticket-code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--green);
+  user-select: all;
+}
+.admin-console .ac-ticket-how { color: var(--ink); }
+.admin-console .ac-ticket-to { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.admin-console .ac-ticket-done { border-style: solid; color: var(--ink); gap: 8px; padding: 9px 14px; }
+.admin-console .ac-ticket-done svg { flex: none; color: var(--green); }
+@media (max-width: 560px) {
+  .admin-console .ac-ticket { margin-left: 0; flex-wrap: wrap; }
 }

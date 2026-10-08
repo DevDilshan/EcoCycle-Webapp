@@ -1,62 +1,98 @@
-# EcoCycle Mobile (simple)
+<div align="center">
 
-Minimal Flutter resident app: Supabase login, list pickups, schedule a pickup, view reward balance.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../frontend/public/brand/ecocycle-logo-light.svg">
+  <img src="../frontend/public/brand/ecocycle-logo.svg" alt="EcoCycle" width="340">
+</picture>
 
-## Pickup and collector maps
+# EcoCycle Mobile
 
-Residents can confirm an optional pickup pin when booking or editing a pending
-request. Collectors see numbered pins for their assigned stops, select a stop,
-open its details, or launch driving directions in Google Maps. Older requests
-use their full address for directions until a pin is added. Zone centers only
-set the booking map's initial view.
+**The Flutter app for residents and collectors.**
 
-Run the updated backend and apply `AddPickupCoordinates` with
-`dotnet ef database update` from `backend/`. Both web and Flutter clients use the
-same saved coordinates. Recurring bookings retain the address and pin; changing
-an address clears the old pin so it can be confirmed again.
+![Flutter](https://img.shields.io/badge/Flutter-3-02569B?logo=flutter&logoColor=white) ![Dart](https://img.shields.io/badge/Dart-3.8-0175C2?logo=dart&logoColor=white) ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)
 
-The map uses OpenStreetMap tiles with attribution and Flutter Map's built-in
-caching. Location permission is requested only when **Use my location** or
-**My location** is pressed. Denial still allows manual pin selection. A custom
-tile URL can be supplied using `--dart-define=MAP_TILE_URL=...`; the website
-uses `VITE_MAP_TILE_URL`.
+[🚀 Run it](#-run-it) · [📱 What's inside](#-whats-inside) · [📍 Maps](#-maps) · [🧪 Tests](#-tests) · [⬅️ Back to the project](../README.md)
 
-For a physical phone, set `API_BASE_URL` to a backend address the phone can
-reach. A phone's `localhost` refers to the phone itself. For an Android
-emulator talking to the development machine use `http://10.0.2.2:5051/api`.
+</div>
 
-Read-only development previews:
+## ♻️ About
 
-- Flutter: `http://127.0.0.1:5186/?preview=collector` (open the Map tab).
-- Website: `http://127.0.0.1:5173/?preview=map`.
+The mobile app uses the same API and the same Supabase sign-in as the web app, with email or Google. Admin work stays on the web.
 
-Both previews use sample stops and cannot update real collections. Flutter
-previews require a debug build; website previews are removed from production.
+| Role | What they do |
+|---|---|
+| 🏠 **Resident** | Book a pickup with the camera and a map pin, follow its status, browse the reward catalogue, redeem points and see the collection code, raise complaints |
+| 🚛 **Collector** | See today's route, open a stop, get directions, mark it collected or not collected with a reason |
 
-## Setup
+A first-time user sees a short onboarding once per device.
 
-1. Install [Flutter](https://docs.flutter.dev/get-started/install).
-2. Copy env and fill in keys (same Supabase project as the web app):
+---
 
-   ```bash
-   cp .env.example .env
-   ```
+## 🚀 Run it
 
-3. **API URL** — defaults to `https://ecocycle-webapp.onrender.com/api`. Override `API_BASE_URL` in `.env` for a local backend.
+```bash
+cp .env.example .env        # first time only, then fill in the Supabase values
+flutter pub get
+flutter run
+```
 
-4. Install deps and run:
+Set `API_BASE_URL` in `.env` to an address the device can reach. A phone's `localhost` is the phone itself.
 
-   ```bash
-   flutter pub get
-   flutter run
-   ```
+| Device | `API_BASE_URL` |
+|---|---|
+| Android emulator | `http://10.0.2.2:5051/api` |
+| iOS simulator / Flutter web | `http://localhost:5051/api` |
+| Physical phone | your computer's network address, or the deployed API |
+| Release build | your deployed API URL + `/api` |
 
-## Structure
+A build can also take the address on the command line, which overrides `.env`:
+
+```bash
+flutter build apk --dart-define=API_BASE_URL=https://your-api.example.com/api
+```
+
+---
+
+## 📱 What's inside
 
 ```
 lib/
-  main.dart           # App + auth gate
-  config/app_config.dart
-  services/api.dart   # JWT calls to .NET API
-  screens/            # login + home
+  main.dart       🚪 App entry and theme
+  app/            🧭 Sign-in gate, resident and collector shells, shared app scope
+  screens/        📄 Sign-in, pickups, pickup location, rewards, complaints, collector route
+  widgets/        🧩 Shared components, the map, reward cards and artwork
+  services/       🔌 API client, zone outline geometry, photo upload, onboarding flag
+  theme/          🎨 Colours and typography
+  debug/          🔍 Development-only previews
+assets/images/    🖼️ Brand, onboarding and reward artwork
 ```
+
+**Development previews** show a screen with sample data and no sign-in. They work only in a debug build on Flutter web:
+
+| Preview | Add to the address |
+|---|---|
+| 🏠 Resident screens | `?preview=resident` |
+| 🚛 Collector screens | `?preview=collector` |
+| 🔐 Sign-in screens | `?preview=login`, `?preview=register`, `?preview=forgot-password` |
+| 📐 Layout audit | `?preview=ui-audit` |
+
+---
+
+## 📍 Maps
+
+Residents can confirm a pickup pin when booking or editing a pending request. When the chosen zone has an outline, it is drawn on the map and a pin outside it cannot be confirmed. A pin that falls inside exactly one outline selects that zone.
+
+Collectors see numbered pins for their stops over the zone outlines, can open a stop, and can launch driving directions. Older requests without a pin use their address for directions.
+
+The map uses OpenStreetMap tiles with attribution and Flutter Map's built-in caching. Location permission is asked for only when **Use my location** or **My location** is pressed, and refusing it still allows a manual pin. A custom tile address can be supplied with `--dart-define=MAP_TILE_URL=...`.
+
+---
+
+## 🧪 Tests
+
+```bash
+flutter analyze
+flutter test
+```
+
+The tests cover form validation, the sign-in screens, onboarding, the profile screen, map and zone outline logic, the reward catalogue and redeem flow, and layouts at small phone sizes with enlarged text.

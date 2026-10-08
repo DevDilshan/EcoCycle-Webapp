@@ -2,6 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/eco_theme.dart';
+import '../services/zone_boundary.dart';
+
+class EcoZoneBoundaries extends StatelessWidget {
+  const EcoZoneBoundaries({
+    super.key,
+    required this.zones,
+    this.selectedId,
+    this.outside = false,
+  });
+  final List<Map<String, dynamic>> zones;
+  final String? selectedId;
+  final bool outside;
+  @override
+  Widget build(BuildContext context) => PolygonLayer(
+    polygons: zones.expand((zone) {
+      final boundary = ZoneBoundary.fromZone(zone);
+      final selected = zone['id'] == selectedId;
+      final color = outside && selected
+          ? const Color(0xffb42318)
+          : EcoColors.green;
+      return (boundary?.polygons ?? []).map(
+        (rings) => Polygon(
+          points: rings.first,
+          holePointsList: rings.skip(1).toList(),
+          color: color.withValues(alpha: selected ? .16 : .07),
+          borderColor: color,
+          borderStrokeWidth: selected ? 3 : 2,
+        ),
+      );
+    }).toList(),
+  );
+}
 
 class EcoMapTiles extends StatefulWidget {
   const EcoMapTiles({super.key, this.onError});

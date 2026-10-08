@@ -14,6 +14,11 @@ public class ZoneDto
 
     public double? Longitude { get; set; }
 
+    public string? BoundaryGeoJson { get; set; }
+
+    public BoundaryReferenceDto? BoundaryReference { get; set; }
+    public DateTime? BoundaryCoverageReviewedAt { get; set; }
+
     /// <summary>Collection days as DayOfWeek numbers; empty means no fixed days.</summary>
     public List<int> CollectionDays { get; set; } = [];
 
@@ -38,6 +43,7 @@ public class PublicZoneDto
     public string Name { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
+    public string? BoundaryGeoJson { get; set; }
 }
 
 /// <summary>
@@ -50,6 +56,7 @@ public class PublicZoneDto
 /// </remarks>
 public class ZoneOptionDto
 {
+    public string? BoundaryGeoJson { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     public Guid Id { get; set; }

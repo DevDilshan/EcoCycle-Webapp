@@ -57,7 +57,12 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
+builder.Services.AddScoped(services => new RewardImageStorage(
+    services.GetRequiredService<IHttpClientFactory>().CreateClient(),
+    Environment.GetEnvironmentVariable("SUPABASE_URL"),
+    Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY")));
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ProfileRoleCache>();
 
 // Pickup requests
 builder.Services.AddScoped<backend.Services.IPickupRequestService, backend.Services.PickupRequestService>();
@@ -175,19 +180,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 if (Guid.TryParse(context.Principal.FindFirst("sub")?.Value, out var userId))
                 {
                     var services = context.HttpContext.RequestServices;
-                    var cache = services.GetRequiredService<IMemoryCache>();
-                    role = await cache.GetOrCreateAsync($"role:{userId}", async entry =>
+                    var cache = services.GetRequiredService<ProfileRoleCache>();
+                    role = await cache.GetAsync(userId, async () =>
                     {
-                        // Cached role lookup: each miss opens a pooler connection.
-                        // Supabase session mode allows ~15 clients for the whole project.
-                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
-
                         var db = services.GetRequiredService<NpgsqlDataSource>();
                         await using var command = db.CreateCommand(
                             "SELECT role::text FROM public.profiles WHERE id = $1");
                         command.Parameters.AddWithValue(userId);
                         return NormalizeRole(await command.ExecuteScalarAsync() as string);
-                    }) ?? "resident";
+                    });
                 }
 
                 identity.AddClaim(new Claim(ClaimTypes.Role, role));

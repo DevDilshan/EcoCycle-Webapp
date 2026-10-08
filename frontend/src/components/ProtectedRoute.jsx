@@ -25,8 +25,8 @@ export default function ProtectedRoute({ children, requiredRole }) {
         <div className="auth-card">
           <h1>Access denied</h1>
           <p className="auth-subtitle">
-            Your account does not have {label} access. Ask a team member to set{' '}
-            <code>app_metadata.role</code> to <code>{label}</code> in Supabase.
+            Your account does not have {label} access. Contact an administrator
+            if you need access to this page.
           </p>
           <a href={getHomePath(role)} className="btn-primary">Go to your dashboard</a>
         </div>
