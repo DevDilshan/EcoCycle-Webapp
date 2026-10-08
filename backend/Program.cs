@@ -9,11 +9,14 @@ using Npgsql;
 using backend.Data;
 using backend.Services;
 
-// Repo-root .env first, then backend/.env wins (pool size, agent URL, keys).
-LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"));
-LoadEnvFile(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
-
 var builder = WebApplication.CreateBuilder(args);
+
+// Repo-root .env first, then backend/.env wins (pool size, agent URL, keys).
+// Use ContentRootPath (the backend project folder), not GetCurrentDirectory(), so
+// INTERNAL_API_KEY loads when the IDE or `dotnet run --project backend` starts
+// with cwd at the repo root.
+LoadEnvFile(Path.Combine(builder.Environment.ContentRootPath, "..", ".env"));
+LoadEnvFile(Path.Combine(builder.Environment.ContentRootPath, ".env"));
 
 var connectionStringSupabase = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING")
     ?? throw new InvalidOperationException("SUPABASE_CONNECTION_STRING not found in environment/.env file");
@@ -84,7 +87,7 @@ builder.Services.AddScoped<backend.Services.IApprovalService, backend.Services.A
 var agentServiceUrl = Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
     ?? "http://127.0.0.1:8000"; // not "localhost": uvicorn listens on IPv4 only, and
                                 // Windows spends ~2s trying ::1 first
-var agentServiceKey = Environment.GetEnvironmentVariable("INTERNAL_API_KEY");
+var agentServiceKey = Environment.GetEnvironmentVariable("INTERNAL_API_KEY")?.Trim();
 
 if (string.IsNullOrWhiteSpace(agentServiceKey))
     Console.WriteLine(
