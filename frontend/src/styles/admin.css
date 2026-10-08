@@ -809,6 +809,13 @@
 }
 
 .admin-console .ac-insight-meta { margin: 6px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+.admin-console .ac-insight-intro { margin: 0 0 10px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.admin-console .ac-insight-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0, 0, 0, 0.06); }
+.admin-console .ac-insight-block:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+.admin-console .ac-insight-muted { color: var(--muted); font-size: 13px; }
+.admin-console .ac-insight-rules { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.admin-console .ac-insight-draft-inline { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; font-size: 13px; }
+.admin-console .ac-insight-llm-note { margin: 8px 0 0; font-size: 13px; color: var(--ink); }
 
 /* The card an admin followed a link to, so it is findable after the scroll. */
 .admin-console .ac-approval-target .ac-approval { box-shadow: var(--sh-md), inset 0 0 0 2px var(--celadon); }

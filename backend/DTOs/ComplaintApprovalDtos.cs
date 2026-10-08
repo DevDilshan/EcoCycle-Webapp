@@ -130,6 +130,9 @@ public class AgentInsightDto
 
     /// <summary>Why the notifier recommended what it did.</summary>
     public string? RecommendationReasoning { get; set; }
+
+    /// <summary>Policy validator text review — why fuzzy rules fired (if any).</summary>
+    public string? PolicyLlmReasoning { get; set; }
 }
 
 public class ApprovalResponseDto

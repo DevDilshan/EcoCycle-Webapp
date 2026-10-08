@@ -26,8 +26,6 @@ export default function FlaggedApprovalCard({
   const category =
     detail?.agentInsight?.category || pickup?.category || inferCategory(pickup?.description)
   const title = pickup?.description?.slice(0, 80) || approval.flagReason || 'Flagged pickup request'
-  const draft = detail?.agentInsight?.residentNotification
-
   function submitReject() {
     const trimmed = reason.trim()
     if (!trimmed) return
@@ -69,12 +67,6 @@ export default function FlaggedApprovalCard({
           note={detail?.agentResultNote}
           loading={detailLoading}
         />
-
-        {draft && !readOnly && (
-          <p className="ac-draft">
-            <strong>Draft message to the resident:</strong> {draft}
-          </p>
-        )}
 
         {readOnly && (
           <div className="ac-review-outcome">

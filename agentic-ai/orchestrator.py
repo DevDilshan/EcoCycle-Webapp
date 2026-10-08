@@ -29,7 +29,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from agents.classifier_agent import classify_waste
 from agents.notifier_agent import evaluate_approval_request
 from agents.routing_agent import route_pickup
-from agents.validator_agent import validate_pickup
+from agents.validator_agent import validate_pickup_full
 
 # Below this, the classifier is guessing enough that a human should look even
 # when no business rule was broken. Must stay in step with
@@ -85,10 +85,12 @@ def run_pipeline(pickup_request: dict) -> dict:
     )
     category = classification["category"]
 
-    # 2. Validator: does the category break a business rule? No LLM call here,
-    #    so it is deterministic and free -- run it before spending anything.
-    validation = validate_pickup(
+    # 2. Policy validator: deterministic rules, then optional LLM policy pass.
+    validation = validate_pickup_full(
         category=category,
+        description=str(description).strip(),
+        classification_reasoning=classification.get("reasoning") or "",
+        confidence=float(classification.get("confidence") or 0),
         resident_history=pickup_request.get("resident_history") or [],
         today=pickup_request.get("today"),
     )

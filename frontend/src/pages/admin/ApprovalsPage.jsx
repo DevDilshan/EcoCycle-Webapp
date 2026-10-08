@@ -181,7 +181,7 @@ export default function ApprovalsPage() {
     && !approvals.some((item) => item.id === targetId)
 
   const pageDescription = isPendingView
-    ? `${counts.Pending} request${counts.Pending === 1 ? '' : 's'} awaiting your decision`
+    ? `${counts.Pending} request${counts.Pending === 1 ? '' : 's'} awaiting your decision — Classifier & policy validator flagged these; Notifier suggestions are advisory only`
     : statusFilter === 'Approved'
       ? `${counts.Approved} approved decision${counts.Approved === 1 ? '' : 's'} on record`
       : `${counts.Rejected} rejected decision${counts.Rejected === 1 ? '' : 's'} on record`

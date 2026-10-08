@@ -100,6 +100,9 @@ public class ApprovalService : IApprovalService
                 ClassificationReasoning = result.Classification.Reasoning,
                 ImageUsed = result.Classification.ImageUsed,
                 ViolatedRules = result.Validation.ViolatedRules,
+                PolicyLlmReasoning = result.Validation.LlmReview is { Skipped: false } review
+                    ? review.Reasoning
+                    : null,
                 Recommendation = result.Approval?.Recommendation,
                 AdminSummary = result.Approval?.AdminSummary,
                 ResidentNotification = result.Approval?.ResidentNotification,

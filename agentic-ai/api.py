@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from agents.notifier_agent import explain_decision, explain_missed_collection
 from agents.routing_agent import route_pickup
+from agents.validator_agent import validate_pickup, validate_pickup_full
 from orchestrator import route_approved_pickup, run_pipeline
 
 # Always load agentic-ai/.env, even when uvicorn is started from the repo root.
@@ -118,6 +119,35 @@ def post_validate_image(request: ValidateImageRequest) -> dict:
     from vision_llm import validate_waste_image
 
     return validate_waste_image(request.photo_url)
+
+
+class ValidatePickupRequest(BaseModel):
+    """Policy validation on an already-classified pickup (rules + optional LLM)."""
+
+    category: str
+    description: str
+    classification_reasoning: str = ""
+    confidence: float = 1.0
+    resident_history: list[dict] | None = None
+    rules_only: bool = False
+
+
+@app.post("/validate-pickup", dependencies=[Depends(require_internal_key)])
+def post_validate_pickup(request: ValidatePickupRequest) -> dict:
+    """Run the Policy validator alone (deterministic rules and optional LLM pass)."""
+    try:
+        history = request.resident_history or []
+        if request.rules_only:
+            return validate_pickup(request.category, history)
+        return validate_pickup_full(
+            category=request.category,
+            description=request.description,
+            classification_reasoning=request.classification_reasoning,
+            confidence=request.confidence,
+            resident_history=history,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/run-pipeline", dependencies=[Depends(require_internal_key)])
