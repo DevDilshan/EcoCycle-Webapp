@@ -7,29 +7,30 @@ namespace backend.Tests.Validation;
 // "validation" evidence for the backend testing requirement.
 public class PickupRequestValidationTests
 {
-    // --- IsDialable: a contact number the crew could actually ring. ---
-    // 9..15 digits (E.164), a leading + allowed, spaces/dashes/parens ignored.
+    // --- IsDialable: a valid local mobile number. ---
+    // Exactly ten digits starting with 0 (e.g. 0771234567); nothing else.
 
     [Theory]
     [InlineData("0771234567")]        // local 10-digit mobile
-    [InlineData("+94771234567")]      // international form of the same number
-    [InlineData("077 123 4567")]      // spaces are separators, not digits
-    [InlineData("077-123-4567")]      // dashes too
-    [InlineData("(077) 123 4567")]    // parens too
-    [InlineData("123456789")]         // exactly 9 digits -- lower bound
-    [InlineData("123456789012345")]   // exactly 15 digits -- upper bound
-    public void IsDialable_accepts_valid_numbers(string phone)
+    [InlineData("0712345678")]        // any 10 digits starting with 0
+    [InlineData("0119876543")]        // land line form, still 10 digits from 0
+    [InlineData(" 0771234567 ")]      // surrounding whitespace is trimmed
+    public void IsDialable_accepts_ten_digits_starting_with_zero(string phone)
         => Assert.True(PickupRequestValidation.IsDialable(phone));
 
     [Theory]
     [InlineData("")]                   // empty
     [InlineData("   ")]                // whitespace only
-    [InlineData("12345678")]           // 8 digits -- below the floor
-    [InlineData("1234567890123456")]   // 16 digits -- above the ceiling
-    [InlineData("077ABC4567")]         // letters are not separators
-    [InlineData("077+1234567")]        // a plus anywhere but the front is malformed
+    [InlineData("771234567")]          // 9 digits, no leading 0
+    [InlineData("077123456")]          // only 9 digits
+    [InlineData("07712345678")]        // 11 digits -- too long
+    [InlineData("1771234567")]         // 10 digits but does not start with 0
+    [InlineData("+94771234567")]       // country code not accepted
+    [InlineData("077 123 4567")]       // spaces not allowed
+    [InlineData("077-123-456")]        // dashes not allowed
+    [InlineData("077ABC4567")]         // letters not allowed
     [InlineData(null)]                 // null must not throw
-    public void IsDialable_rejects_bad_numbers(string? phone)
+    public void IsDialable_rejects_anything_else(string? phone)
         => Assert.False(PickupRequestValidation.IsDialable(phone));
 
     // --- Validate: description, preferred date and recurrence together. ---

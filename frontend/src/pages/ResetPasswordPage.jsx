@@ -14,6 +14,7 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState(null)
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -74,11 +75,7 @@ export default function ResetPasswordPage() {
           <h1>Set a new password</h1>
 
           {done ? (
-            <p
-              className="eco-alert"
-              role="status"
-              style={{ background: '#e8f5e9', color: '#1b5e20' }}
-            >
+            <p className="eco-auth-sub" role="status">
               Password updated. Redirecting you to login…
             </p>
           ) : !ready ? (
@@ -131,15 +128,26 @@ export default function ResetPasswordPage() {
                 <div className="eco-input-wrap">
                   <Lock size={18} strokeWidth={2} aria-hidden="true" />
                   <input
-                    className="eco-input"
+                    className="eco-input eco-input-has-toggle"
                     id="confirm-password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showConfirm ? 'text' : 'password'}
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                     placeholder="Re-enter your new password"
                     autoComplete="new-password"
                     required
                   />
+                  <button
+                    className="eco-input-toggle"
+                    type="button"
+                    onClick={() => setShowConfirm((shown) => !shown)}
+                    aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                    aria-pressed={showConfirm}
+                  >
+                    {showConfirm
+                      ? <EyeOff size={18} strokeWidth={2} aria-hidden="true" />
+                      : <Eye size={18} strokeWidth={2} aria-hidden="true" />}
+                  </button>
                 </div>
               </div>
 
