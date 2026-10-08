@@ -3,12 +3,12 @@ import { FlaskConical, Package, ScanSearch } from 'lucide-react'
 import RewardsSubPage from '../../../components/admin/RewardsSubPage'
 import EntitySelect from '../../../components/admin/EntitySelect'
 import { AcCard, AcKpi } from '../../../components/admin/AcUi'
-import { useAdminCatalog } from '../../../hooks/useAdminCatalog'
+import { catalogPickupsPending, useAdminCatalog } from '../../../hooks/useAdminCatalog'
 import { pickupLabel, toSelectOptions } from '../../../lib/catalog'
 import { apiRequest } from '../../../lib/api'
 
 export default function RewardCheckPage() {
-  const catalog = useAdminCatalog(['Classified'])
+  const catalog = useAdminCatalog()
   const [pickupId, setPickupId] = useState('')
   const [result, setResult] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -45,7 +45,7 @@ export default function RewardCheckPage() {
           <AcKpi
             label="Classified pickups"
             icon={<ScanSearch size={18} strokeWidth={2} aria-hidden="true" />}
-            value={catalog.loading ? '—' : classified.length.toLocaleString()}
+            value={catalogPickupsPending(catalog) ? '—' : classified.length.toLocaleString()}
             foot="Available to check"
           />
           <AcKpi
@@ -77,7 +77,7 @@ export default function RewardCheckPage() {
               required
             />
           </div>
-          <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
+          <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalogPickupsPending(catalog)}>
             Run check
           </button>
         </form>
