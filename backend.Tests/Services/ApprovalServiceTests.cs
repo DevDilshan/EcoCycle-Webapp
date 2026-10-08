@@ -147,10 +147,25 @@ public class ApprovalServiceTests
     }
 
     [Fact]
+    public async Task RejectAsync_stores_reason_as_resident_message()
+    {
+        var (pickup, approval) = AddPendingApproval();
+        const string reason = "This item cannot be collected as submitted. Please contact support.";
+
+        await Service.RejectAsync(
+            approval.Id,
+            _admin,
+            new RejectApprovalDto { Reason = reason });
+
+        var reloaded = await _db.PickupRequests.FindAsync(pickup.Id);
+        Assert.Equal(reason, reloaded!.ResidentMessage);
+    }
+
+    [Fact]
     public async Task ApproveAsync_non_pending_throws()
     {
         var (_, approval) = AddPendingApproval();
-        await Service.RejectAsync(approval.Id, _admin, new RejectApprovalDto { Reason = "Not allowed" });
+        await Service.RejectAsync(approval.Id, _admin, new RejectApprovalDto { Reason = "Not allowed for collection." });
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             Service.ApproveAsync(approval.Id, _admin, new ApproveApprovalDto()));

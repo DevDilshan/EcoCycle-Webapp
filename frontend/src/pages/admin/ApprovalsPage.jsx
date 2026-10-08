@@ -7,6 +7,11 @@ import FlaggedApprovalCard from '../../components/admin/FlaggedApprovalCard'
 import { useAdminCatalog } from '../../hooks/useAdminCatalog'
 import { formatRequestId, shortProfileName } from '../../lib/adminUi'
 import { APPROVALS_UPDATED_EVENT, notifyApprovalsUpdated } from '../../lib/approvalEvents'
+import { notifierResidentDraft } from '../../lib/approvalNotifierDraft'
+import {
+  RESIDENT_MESSAGE_MAX,
+  validateRejectionReason,
+} from '../../lib/approvalResidentMessage'
 import { apiRequest } from '../../lib/api'
 import { pagedTotalCount } from '../../lib/paging'
 
@@ -33,7 +38,11 @@ export default function ApprovalsPage() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [warning, setWarning] = useState(null)
-  const [approvalForm, setApprovalForm] = useState({ approvalId: '', notes: '', reason: '' })
+  const [rejectReasonError, setRejectReasonError] = useState(null)
+  const [approvalForm, setApprovalForm] = useState({
+    approvalId: '',
+    reason: '',
+  })
   const [busy, setBusy] = useState(false)
 
   const loadCounts = useCallback(async () => {
@@ -181,7 +190,7 @@ export default function ApprovalsPage() {
     && !approvals.some((item) => item.id === targetId)
 
   const pageDescription = isPendingView
-    ? `${counts.Pending} request${counts.Pending === 1 ? '' : 's'} awaiting your decision`
+    ? `${counts.Pending} request${counts.Pending === 1 ? '' : 's'} awaiting your decision — Classifier & policy validator flagged these; Notifier suggestions are advisory only`
     : statusFilter === 'Approved'
       ? `${counts.Approved} approved decision${counts.Approved === 1 ? '' : 's'} on record`
       : `${counts.Rejected} rejected decision${counts.Rejected === 1 ? '' : 's'} on record`
@@ -192,7 +201,7 @@ export default function ApprovalsPage() {
       ? 'No approved approvals yet.'
       : 'No rejected approvals yet.'
 
-  async function approveById(id, notes = '') {
+  async function approveById(id) {
     setBusy(true)
     setError(null)
     setSuccess(null)
@@ -200,14 +209,14 @@ export default function ApprovalsPage() {
     try {
       const result = await apiRequest(`/approvals/${id}/approve`, {
         method: 'POST',
-        body: JSON.stringify({ notes: notes || undefined }),
+        body: JSON.stringify({}),
       })
       if (result?.routingWarning) {
         setWarning(`Approved, but not scheduled: ${result.routingWarning}`)
       } else {
         setSuccess('Approved and assigned to a collector.')
       }
-      setApprovalForm({ approvalId: '', notes: '', reason: '' })
+      setApprovalForm({ approvalId: '', reason: '' })
       const counts = await refreshApprovals()
       if (counts) notifyApprovalsUpdated(counts.Pending)
     } catch (err) {
@@ -218,8 +227,9 @@ export default function ApprovalsPage() {
   }
 
   async function rejectById(id, reason) {
-    if (!reason?.trim()) {
-      setError('Rejection reason is required.')
+    const messageError = validateRejectionReason(reason)
+    if (messageError) {
+      setError(messageError)
       return
     }
     setBusy(true)
@@ -231,7 +241,7 @@ export default function ApprovalsPage() {
         body: JSON.stringify({ reason }),
       })
       setSuccess('Approval request rejected.')
-      setApprovalForm({ approvalId: '', notes: '', reason: '' })
+      setApprovalForm({ approvalId: '', reason: '' })
       const counts = await refreshApprovals()
       if (counts) notifyApprovalsUpdated(counts.Pending)
     } catch (err) {
@@ -241,14 +251,32 @@ export default function ApprovalsPage() {
     }
   }
 
+  useEffect(() => {
+    const id = approvalForm.approvalId
+    if (!id) return
+    const draft = notifierResidentDraft(details[id])
+    if (!draft) return
+    setApprovalForm((f) => {
+      if (f.approvalId !== id || f.reason.trim()) return f
+      return { ...f, reason: draft }
+    })
+  }, [approvalForm.approvalId, details])
+
   async function handleApprove(e) {
     e.preventDefault()
-    await approveById(approvalForm.approvalId, approvalForm.notes)
+    setRejectReasonError(null)
+    await approveById(approvalForm.approvalId)
   }
 
   async function handleReject(e) {
     e.preventDefault()
-    await rejectById(approvalForm.approvalId, approvalForm.reason)
+    const messageError = validateRejectionReason(approvalForm.reason)
+    if (messageError) {
+      setRejectReasonError(messageError)
+      return
+    }
+    setRejectReasonError(null)
+    await rejectById(approvalForm.approvalId, approvalForm.reason.trim())
   }
 
   function getPickup(approval) {
@@ -336,7 +364,10 @@ export default function ApprovalsPage() {
                   id="approval-select"
                   label="Pending approval"
                   value={approvalForm.approvalId}
-                  onChange={(value) => setApprovalForm({ ...approvalForm, approvalId: value })}
+                  onChange={(value) => {
+                    setRejectReasonError(null)
+                    setApprovalForm({ approvalId: value, reason: '' })
+                  }}
                   options={approvalOptions}
                   placeholder="Select an approval request…"
                 />
@@ -348,24 +379,28 @@ export default function ApprovalsPage() {
                   </p>
                 )}
               </div>
-              <div className="ac-two">
-                <div className="ac-field">
-                  <label htmlFor="approval-notes">Approve notes (optional)</label>
-                  <input
-                    id="approval-notes"
-                    value={approvalForm.notes}
-                    onChange={(e) => setApprovalForm({ ...approvalForm, notes: e.target.value })}
-                  />
-                </div>
-                <div className="ac-field">
-                  <label htmlFor="approval-reason">Reject reason</label>
-                  <input
-                    id="approval-reason"
-                    value={approvalForm.reason}
-                    onChange={(e) => setApprovalForm({ ...approvalForm, reason: e.target.value })}
-                    placeholder="Required when rejecting"
-                  />
-                </div>
+              <div className={`ac-field${rejectReasonError ? ' has-error' : ''}`}>
+                <label htmlFor="approval-reason">Why is this being rejected?</label>
+                <p className="ac-field-hint">
+                  Required when rejecting. Pre-filled from the Notifier draft when available; residents see this on their pickup.
+                </p>
+                <textarea
+                  id="approval-reason"
+                  rows={4}
+                  maxLength={RESIDENT_MESSAGE_MAX}
+                  value={approvalForm.reason}
+                  onChange={(e) => {
+                    const reason = e.target.value
+                    setApprovalForm({ ...approvalForm, reason })
+                    if (rejectReasonError) setRejectReasonError(validateRejectionReason(reason))
+                  }}
+                  placeholder="Explain clearly what the household should know."
+                />
+                {rejectReasonError ? (
+                  <p className="ac-field-error" role="alert">
+                    {rejectReasonError}
+                  </p>
+                ) : null}
               </div>
               <div className="ac-actions">
                 <button

@@ -93,7 +93,7 @@ export default function DashboardPage() {
             icon: <Flag size={18} strokeWidth={2} aria-hidden="true" />,
             text: (
               <>
-                <strong>{formatRequestId(item.pickupRequestId)}</strong> flagged by the Validator
+                <strong>{formatRequestId(item.pickupRequestId)}</strong> flagged for admin review
                 {item.flagReason ? ` — ${item.flagReason}` : null}
               </>
             ),
@@ -174,7 +174,7 @@ export default function DashboardPage() {
   const pipeline = [
     { name: 'Classified', value: stats?.classified ?? 0, Icon: ScanSearch },
     { name: 'Routed', value: stats?.routed ?? 0, Icon: Route },
-    { name: 'Validated', value: stats?.validated ?? 0, Icon: ShieldCheck },
+    { name: 'Collected', value: stats?.validated ?? 0, Icon: ShieldCheck },
     { name: 'Flagged', value: stats?.flagged ?? 0, Icon: Flag, flag: true },
   ]
   const pipelineMax = Math.max(...pipeline.map((stage) => stage.value), 1)
@@ -260,7 +260,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="ac-grid ac-g-2-1">
-        <AcCard title="Agent pipeline" subtitle="Requests moving through the four agents">
+        <AcCard
+          title="Pickup pipeline"
+          subtitle="Classifier → policy validator → notifier → router"
+        >
           <div className="ac-pipe">
             {pipeline.map(({ name, value, Icon, flag }) => (
               <div className="ac-stage" key={name}>
@@ -286,7 +289,7 @@ export default function DashboardPage() {
 
         <AcCard
           title="Needs your attention"
-          subtitle={`${flagged.length} flagged by the Validator`}
+          subtitle={`${flagged.length} awaiting admin review`}
           action={(
             <Link className="ac-link-btn" to="/admin/approvals">
               Open queue <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />

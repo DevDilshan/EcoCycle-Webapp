@@ -63,9 +63,13 @@ public class ApprovalsController : ControllerBase
     [HttpPost("{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApproveApprovalDto? dto)
     {
+        dto ??= new ApproveApprovalDto();
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
         try
         {
-            var result = await _service.ApproveAsync(id, CurrentUserId, dto ?? new ApproveApprovalDto());
+            var result = await _service.ApproveAsync(id, CurrentUserId, dto);
             return result is null ? NotFound() : Ok(result);
         }
         catch (InvalidOperationException ex)
@@ -78,6 +82,9 @@ public class ApprovalsController : ControllerBase
     [HttpPost("{id:guid}/reject")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectApprovalDto dto)
     {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
         try
         {
             var result = await _service.RejectAsync(id, CurrentUserId, dto);

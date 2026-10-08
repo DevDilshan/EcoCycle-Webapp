@@ -1003,7 +1003,7 @@ export default function ResidentPickupsPage() {
                       {/* A refused pickup. Separate from a missed one because
                           nothing is coming: there is no new date to offer, and
                           showing it as "not collected yet" would be a lie. */}
-                      {isRefused(item) && (
+                      {isRefused(item) && !item.hasApprovalRequest && (
                         <div className="r-notice is-bad">
                           <strong>This request was not approved</strong>
                           <p>

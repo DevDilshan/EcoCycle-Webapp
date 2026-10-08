@@ -89,6 +89,14 @@ public class ValidationDto
     public bool IsValid { get; set; }
     public List<string> ViolatedRules { get; set; } = [];
     public bool RequiresApproval { get; set; }
+    public LlmReviewDto? LlmReview { get; set; }
+}
+
+public class LlmReviewDto
+{
+    public string? Reasoning { get; set; }
+    public bool Skipped { get; set; }
+    public string? Error { get; set; }
 }
 
 public class RoutingDto

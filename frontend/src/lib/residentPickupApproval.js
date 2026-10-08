@@ -5,13 +5,15 @@ export function residentApprovalNotice(pickup) {
   const status = pickup.approvalStatus
   const flagReason = pickup.flagReason?.trim()
   const reviewNotes = pickup.approvalReviewNotes?.trim()
+  const residentMessage = pickup.residentMessage?.trim()
 
   if (status === 'Rejected') {
     return {
       variant: 'rejected',
       title: 'Pickup not approved',
       body:
-        reviewNotes
+        residentMessage
+        || reviewNotes
         || 'This request was reviewed and cannot be scheduled as submitted.',
       flagReason,
       reviewedAt: pickup.approvalReviewedAt,
