@@ -8,7 +8,7 @@ import ZoneCard from '../../components/admin/ZoneCard'
 import CollectorSettingsCard from '../../components/admin/CollectorSettingsCard'
 import ZoneMap from '../../components/admin/ZoneMap'
 import ZoneBoundaryEditor from '../../components/admin/ZoneBoundaryEditor'
-import { useAdminCatalog } from '../../hooks/useAdminCatalog'
+import { catalogPickupsPending, catalogZonesPending, useAdminCatalog } from '../../hooks/useAdminCatalog'
 import { formatRequestId, shortProfileName } from '../../lib/adminUi'
 import { formatCompletionStatus } from '../../lib/collector'
 import { formatStopDay } from '../../lib/collectorUi'
@@ -53,7 +53,7 @@ function daysWaiting(scheduledDate) {
 }
 
 export default function RoutesPage() {
-  const catalog = useAdminCatalog(['Approved'])
+  const catalog = useAdminCatalog()
   const [loadReport, setLoadReport] = useState([])
   const [zoneLoad, setZoneLoad] = useState([])
   // Today's stops across every collector, so an admin can close off one
@@ -526,7 +526,7 @@ export default function RoutesPage() {
 
       {tab === 'zones' && (
         <AcCard title="Zone map" subtitle="Truck badges show pickups waiting. Tap one for details">
-          {catalog.loading ? (
+          {catalogZonesPending(catalog) ? (
             <p className="ac-empty">Loading zones…</p>
           ) : (
             <ZoneMap zones={catalog.zones} loadByZone={zoneStats} collectorName={collectorName} />
@@ -603,7 +603,7 @@ export default function RoutesPage() {
                 required
               />
             </div>
-            <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
+            <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalogPickupsPending(catalog)}>
               <Route size={16} strokeWidth={2} aria-hidden="true" />
               Create assignment
             </button>
@@ -768,9 +768,9 @@ export default function RoutesPage() {
           one of its own. */}
       {tab === 'zones' && <CollectorSettingsCard onSaved={loadReportData} />}
 
-      {tab === 'zones' && (loading || catalog.loading ? (
-        <p className="ac-empty">Loading zones…</p>
-      ) : catalog.zones.length === 0 ? (
+      {tab === 'zones' && (loading && catalog.zones.length === 0 ? (
+        <p className="ac-empty">Loading routes…</p>
+      ) : catalog.zones.length === 0 && !catalogZonesPending(catalog) ? (
         <AcCard><p className="ac-empty">No zones yet. Use “Add zone” to create one.</p></AcCard>
       ) : (
         <>

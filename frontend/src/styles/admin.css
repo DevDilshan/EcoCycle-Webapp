@@ -119,6 +119,27 @@
   color: rgba(255, 255, 240, 0.6);
 }
 
+/* Legacy .admin-theme a:hover recolors links dark green; keep sidebar brand
+   and account row on the ivory palette. */
+.admin-console .ac-side a.ac-brand:hover,
+.admin-console .ac-side a.ac-brand:focus-visible,
+.admin-console .ac-side a.ac-me:hover,
+.admin-console .ac-side a.ac-me:focus-visible {
+  color: var(--ivory);
+}
+
+.admin-console .ac-side a.ac-brand:hover small,
+.admin-console .ac-side a.ac-brand:focus-visible small,
+.admin-console .ac-side a.ac-me:hover small,
+.admin-console .ac-side a.ac-me:focus-visible small {
+  color: rgba(255, 255, 240, 0.6);
+}
+
+.admin-console .ac-side a.ac-brand:hover .ac-brand-mark,
+.admin-console .ac-side a.ac-brand:focus-visible .ac-brand-mark {
+  color: var(--green);
+}
+
 .admin-console .ac-nav-label {
   margin: 8px 10px 4px;
   font-size: 11px;
