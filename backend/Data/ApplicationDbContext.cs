@@ -26,7 +26,12 @@ public class ApplicationDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         // profiles already exists in Supabase — don't let migrations touch it
-        modelBuilder.Entity<Profile>().ToTable("profiles", t => t.ExcludeFromMigrations());
+        modelBuilder.Entity<Profile>(entity =>
+        {
+            entity.ToTable("profiles", t => t.ExcludeFromMigrations());
+            // role is PostgreSQL enum user_role; Npgsql must not send plain text on UPDATE.
+            entity.Property(p => p.Role).HasColumnType("user_role");
+        });
 
         modelBuilder.Entity<PickupRequest>()
             .HasOne(p => p.Resident)

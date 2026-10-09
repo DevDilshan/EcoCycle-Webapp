@@ -36,4 +36,6 @@ public sealed class ProfileRoleCache(IMemoryCache cache)
             _pending.TryRemove(userId, out _);
         }
     }
+
+    public void Invalidate(Guid userId) => cache.Remove($"role:{userId}");
 }
