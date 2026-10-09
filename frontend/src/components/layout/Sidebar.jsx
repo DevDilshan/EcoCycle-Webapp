@@ -10,6 +10,7 @@ import {
   MessageSquare,
   ShieldCheck,
   Trophy,
+  Users,
 } from 'lucide-react'
 import { EcoMark } from '../public/EcoLogo'
 import { useAuth } from '../../context/AuthContext'
@@ -22,6 +23,7 @@ const menuItems = [
   { to: '/admin', label: 'Dashboard', Icon: LayoutDashboard, end: true },
   { to: '/admin/pickup-requests', label: 'Requests', Icon: Inbox },
   { to: '/admin/approvals', label: 'Approvals', Icon: ShieldCheck, badge: true },
+  { to: '/admin/users', label: 'User management', Icon: Users },
   { to: '/admin/routes', label: 'Zones & Routes', Icon: Map },
   {
     to: '/admin/rewards',

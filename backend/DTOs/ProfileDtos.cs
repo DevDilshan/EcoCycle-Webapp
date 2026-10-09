@@ -13,3 +13,8 @@ public class ProfileQueryParams
 {
     public string? Role { get; set; }
 }
+
+public class UpdateProfileRoleDto
+{
+    public string Role { get; set; } = string.Empty;
+}
