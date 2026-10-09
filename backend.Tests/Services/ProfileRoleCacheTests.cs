@@ -46,4 +46,19 @@ public class ProfileRoleCacheTests
         memory.Remove($"role:{adminId}");
         Assert.Equal("resident", await cache.GetAsync(adminId, () => Task.FromResult("resident")));
     }
+
+    [Fact]
+    public async Task InvalidateForcesReloadOnNextLookup()
+    {
+        using var memory = new MemoryCache(new MemoryCacheOptions());
+        var cache = new ProfileRoleCache(memory);
+        var userId = Guid.NewGuid();
+        var calls = 0;
+        Task<string> Load() => Task.FromResult(Interlocked.Increment(ref calls) == 1 ? "resident" : "admin");
+
+        Assert.Equal("resident", await cache.GetAsync(userId, Load));
+        cache.Invalidate(userId);
+        Assert.Equal("admin", await cache.GetAsync(userId, Load));
+        Assert.Equal(2, calls);
+    }
 }

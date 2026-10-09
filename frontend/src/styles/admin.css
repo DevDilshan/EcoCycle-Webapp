@@ -614,6 +614,10 @@
 
 .admin-console .ac-table td { padding: 13px 20px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .admin-console .ac-table tbody tr { cursor: pointer; transition: background-color 150ms; }
+.admin-console .ac-table tbody tr.ac-table-static { cursor: default; }
+.admin-console .ac-table tbody tr.ac-table-static:hover { background: transparent; }
+.admin-console .ac-field.ac-field-inline { margin: 0; min-width: 10rem; }
+.admin-console .ac-table-users select { min-width: 9rem; }
 .admin-console .ac-table tbody tr:hover { background: rgba(240, 255, 240, 0.7); }
 .admin-console .ac-table tbody tr:last-child td { border-bottom: 0; }
 
