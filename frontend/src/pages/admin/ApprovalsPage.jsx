@@ -13,7 +13,10 @@ import {
   validateRejectionReason,
 } from '../../lib/approvalResidentMessage'
 import { apiRequest } from '../../lib/api'
+import { mapInBatches } from '../../lib/promiseBatch'
 import { pagedTotalCount } from '../../lib/paging'
+
+const DETAIL_BATCH_SIZE = 6
 
 const STATUS_TABS = [
   { key: 'Pending', label: 'Pending review' },
@@ -46,10 +49,11 @@ export default function ApprovalsPage() {
   const [busy, setBusy] = useState(false)
 
   const loadCounts = useCallback(async () => {
-    // Sequential calls: each auth + DB hit shares Supabase's small session pool.
-    const pending = await apiRequest('/approvals?status=Pending&pageSize=1')
-    const approved = await apiRequest('/approvals?status=Approved&pageSize=1')
-    const rejected = await apiRequest('/approvals?status=Rejected&pageSize=1')
+    const [pending, approved, rejected] = await Promise.all([
+      apiRequest('/approvals?status=Pending&pageSize=1'),
+      apiRequest('/approvals?status=Approved&pageSize=1'),
+      apiRequest('/approvals?status=Rejected&pageSize=1'),
+    ])
     const next = {
       Pending: pagedTotalCount(pending),
       Approved: pagedTotalCount(approved),
@@ -59,20 +63,23 @@ export default function ApprovalsPage() {
     return next
   }, [])
 
-  const loadDetails = useCallback(async (items) => {
+  const loadDetails = useCallback(async (items, priorityId = null) => {
     if (items.length === 0) return
+
+    let ids = items.map((item) => item.id)
+    if (priorityId && ids.includes(priorityId)) {
+      ids = [priorityId, ...ids.filter((id) => id !== priorityId)]
+    }
+
     setDetailsLoading(true)
     try {
-      const loaded = await Promise.all(
-        items.map((item) =>
-          apiRequest(`/approvals/${item.id}`).catch(() => null),
-        ),
-      )
-      const next = {}
-      items.forEach((item, index) => {
-        if (loaded[index]) next[item.id] = loaded[index]
+      await mapInBatches(ids, DETAIL_BATCH_SIZE, async (id) => {
+        const loaded = await apiRequest(`/approvals/${id}`).catch(() => null)
+        if (loaded) {
+          setDetails((prev) => (prev[id] ? prev : { ...prev, [id]: loaded }))
+        }
+        return loaded
       })
-      setDetails((prev) => ({ ...prev, ...next }))
     } finally {
       setDetailsLoading(false)
     }
@@ -86,16 +93,17 @@ export default function ApprovalsPage() {
       const page = await apiRequest(`/approvals?${query}`)
       const items = page.items ?? []
       setApprovals(items)
-      const counts = await loadCounts()
-      loadDetails(items)
-      return counts
+      setLoading(false)
+
+      void loadCounts()
+      void loadDetails(items, targetId)
+      return null
     } catch (err) {
       setError(err.message)
-      return null
-    } finally {
       setLoading(false)
+      return null
     }
-  }, [statusFilter, loadCounts, loadDetails])
+  }, [statusFilter, loadCounts, loadDetails, targetId])
 
   useEffect(() => {
     refreshApprovals()
@@ -115,6 +123,7 @@ export default function ApprovalsPage() {
       try {
         const detail = await apiRequest(`/approvals/${targetId}`)
         if (cancelled || !detail?.status) return
+        setDetails((prev) => ({ ...prev, [targetId]: detail }))
         resolvedTargetTab.current = true
         if (detail.status !== statusFilter && STATUS_TABS.some((t) => t.key === detail.status)) {
           setStatusFilter(detail.status)
@@ -217,8 +226,9 @@ export default function ApprovalsPage() {
         setSuccess('Approved and assigned to a collector.')
       }
       setApprovalForm({ approvalId: '', reason: '' })
-      const counts = await refreshApprovals()
-      if (counts) notifyApprovalsUpdated(counts.Pending)
+      await refreshApprovals()
+      const counts = await loadCounts()
+      notifyApprovalsUpdated(counts.Pending)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -242,8 +252,9 @@ export default function ApprovalsPage() {
       })
       setSuccess('Approval request rejected.')
       setApprovalForm({ approvalId: '', reason: '' })
-      const counts = await refreshApprovals()
-      if (counts) notifyApprovalsUpdated(counts.Pending)
+      await refreshApprovals()
+      const counts = await loadCounts()
+      notifyApprovalsUpdated(counts.Pending)
     } catch (err) {
       setError(err.message)
     } finally {

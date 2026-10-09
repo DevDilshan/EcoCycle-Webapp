@@ -4,11 +4,11 @@ import RewardsSubPage from '../../../components/admin/RewardsSubPage'
 import RewardHistoryEditor from '../../../components/admin/RewardHistoryEditor'
 import EntitySelect from '../../../components/admin/EntitySelect'
 import { AcCard, AcKpi } from '../../../components/admin/AcUi'
-import { useAdminCatalog } from '../../../hooks/useAdminCatalog'
+import { catalogProfilesPending, useAdminCatalog } from '../../../hooks/useAdminCatalog'
 import { apiRequest, formatDate } from '../../../lib/api'
 
 export default function RewardHistoryPage() {
-  const catalog = useAdminCatalog([])
+  const catalog = useAdminCatalog()
   const [residentId, setResidentId] = useState('')
   const [history, setHistory] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -79,7 +79,7 @@ export default function RewardHistoryPage() {
               required
             />
           </div>
-          <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalog.loading}>
+          <button type="submit" className="ac-btn ac-btn-primary" disabled={busy || catalogProfilesPending(catalog)}>
             Load history
           </button>
         </form>

@@ -25,6 +25,7 @@ const RewardCheckPage = lazy(() => import('./pages/admin/rewards/RewardCheckPage
 const ApprovalsPage = lazy(() => import('./pages/admin/ApprovalsPage'))
 const ComplaintsPage = lazy(() => import('./pages/admin/ComplaintsPage'))
 const CompliancePage = lazy(() => import('./pages/admin/CompliancePage'))
+const UserManagementPage = lazy(() => import('./pages/admin/UserManagementPage'))
 const AdminAccountPage = lazy(() => import('./pages/admin/AdminAccountPage'))
 const ResidentDashboardPage = lazy(() => import('./pages/resident/DashboardPage'))
 const ResidentPickupsPage = lazy(() => import('./pages/resident/PickupsPage'))
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="rewards/award" element={<RewardAwardPage />} />
             <Route path="rewards/check" element={<RewardCheckPage />} />
             <Route path="approvals" element={<ApprovalsPage />} />
+            <Route path="users" element={<UserManagementPage />} />
             <Route path="complaints" element={<ComplaintsPage />} />
             <Route path="compliance" element={<CompliancePage />} />
             <Route path="account" element={<AdminAccountPage />} />
