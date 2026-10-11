@@ -89,7 +89,8 @@ public class RoutingOptionBuilder
             if (category == WasteCategory.Bulk && !bulky) continue;
             if (category == WasteCategory.Hazardous && !hazardous) continue;
 
-            for (var offset = 1; offset <= HorizonDays; offset++)
+            // Today is offered until the same-day cut-off, then tomorrow onwards.
+            for (var offset = ServiceClock.EarliestBookingOffset; offset <= HorizonDays; offset++)
             {
                 var day = today.AddDays(offset);
 
