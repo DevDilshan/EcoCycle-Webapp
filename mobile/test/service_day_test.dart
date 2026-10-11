@@ -24,4 +24,23 @@ void main() {
     final lateOnTheLastDay = DateTime.utc(2026, 10, 31, 10); // 15:30 in Colombo
     expect(earliestBookingDay(lateOnTheLastDay), DateTime(2026, 11, 1));
   });
+
+  test('a chosen day is sent as that calendar day, not the evening before', () {
+    expect(serviceDayToApi(DateTime(2026, 10, 11)), '2026-10-11T00:00:00.000Z');
+    // Whatever time the picker hands back, only the date counts.
+    expect(
+      serviceDayToApi(DateTime(2026, 10, 11, 23, 59)),
+      '2026-10-11T00:00:00.000Z',
+    );
+  });
+
+  test('a stored day reads back as the same calendar day', () {
+    expect(serviceDayFromApi('2026-10-11T00:00:00Z'), DateTime(2026, 10, 11));
+    expect(
+      serviceDayFromApi(serviceDayToApi(DateTime(2026, 12, 31))),
+      DateTime(2026, 12, 31),
+    );
+    expect(serviceDayFromApi(null), isNull);
+    expect(serviceDayFromApi('not a date'), isNull);
+  });
 }

@@ -33,3 +33,23 @@ DateTime earliestBookingDay([DateTime? now]) {
       ? today
       : DateTime(today.year, today.month, today.day + 1);
 }
+
+/// A calendar day as the API stores it: midnight UTC of that date.
+///
+/// Converting a local midnight with toUtc() would move it to the evening
+/// before in Sri Lanka (18:30 the previous day), so the API would read the
+/// pickup as booked for a day earlier than the one the resident chose.
+String serviceDayToApi(DateTime day) =>
+    DateTime.utc(day.year, day.month, day.day).toIso8601String();
+
+/// Reads a day from the API back as a local-midnight calendar date.
+DateTime? serviceDayFromApi(String? value) {
+  final parsed = DateTime.tryParse(value ?? '');
+  if (parsed == null) return null;
+  final utc = parsed.toUtc();
+  final atMidnight = utc.hour == 0 && utc.minute == 0 && utc.second == 0;
+  // Days saved by older app versions carry a local midnight converted to
+  // UTC; reading those in local time gives back the day that was chosen.
+  final day = atMidnight ? utc : parsed.toLocal();
+  return DateTime(day.year, day.month, day.day);
+}

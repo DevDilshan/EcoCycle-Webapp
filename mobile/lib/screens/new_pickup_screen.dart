@@ -199,10 +199,8 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       _address.text = (existing['address'] as String?) ?? '';
       _zoneId = existing['zoneId'] as String?;
       _point = pickupPoint(existing);
-      final parsed = DateTime.tryParse(
-        existing['preferredDate'] as String? ?? '',
-      );
-      if (parsed != null) _date = parsed.toLocal();
+      final parsed = serviceDayFromApi(existing['preferredDate'] as String?);
+      if (parsed != null) _date = parsed;
       _recurring = existing['isRecurring'] == true;
       final interval = existing['recurrenceInterval'] as String?;
       if (interval != null && _allowedIntervals.contains(interval)) {
@@ -419,7 +417,8 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     if (phone.isEmpty) {
       if (!_isEditing) phoneErr = 'Please give a number the crew can call.';
     } else if (!_isDialable(phone)) {
-      phoneErr = 'Phone number must be 10 digits starting with 0, e.g. 0771234567.';
+      phoneErr =
+          'Phone number must be 10 digits starting with 0, e.g. 0771234567.';
     }
 
     setState(() {
@@ -501,7 +500,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       final phone = _contactPhone.text.trim();
       final body = {
         'description': _description.text.trim(),
-        'preferredDate': _date.toUtc().toIso8601String(),
+        'preferredDate': serviceDayToApi(_date),
         if (phone.isNotEmpty) 'contactPhone': phone,
         // UpdatePickupRequestDto carries neither, so both go on create only.
         if (!_isEditing) 'zoneId': _zoneId,
@@ -857,7 +856,8 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                   // be made about when the crew arrives.
                   _fieldHint(
                     'Collections run $_collectionWindowLabel. Please have it '
-                    'out by the start of that window.',
+                    'out by the start of that window. Book before '
+                    '$sameDayCutoffLabel for a collection today.',
                   ),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('What needs collecting?'),
