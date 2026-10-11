@@ -84,6 +84,27 @@ public static class ServiceClock
     public static int EarliestBookingOffsetAt(TimeSpan timeOfDay)
         => timeOfDay < SameDayCutoff ? 0 : 1;
 
+    /// <summary>
+    /// The calendar day a moment falls on for the service, as midnight UTC.
+    /// </summary>
+    /// <remarks>
+    /// Clients send a pickup's day in two shapes. The web sends midnight UTC of
+    /// the chosen date. Older mobile builds send the phone's local midnight
+    /// converted to UTC, which in Colombo is 18:30 on the day before. Taking
+    /// the UTC date of that second shape gives the wrong day, a day early.
+    /// Reading the moment in the service's timezone gives the chosen day for
+    /// both: 00:00 UTC is 05:30 that morning, and 18:30 UTC is midnight the
+    /// next day.
+    /// </remarks>
+    public static DateTime DayOf(DateTime moment)
+    {
+        var utc = moment.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(moment, DateTimeKind.Utc)
+            : moment.ToUniversalTime();
+        var local = TimeZoneInfo.ConvertTimeFromUtc(utc, Zone);
+        return DateTime.SpecifyKind(local.Date, DateTimeKind.Utc);
+    }
+
     /// <summary>Today plus <paramref name="days"/>, as midnight UTC.</summary>
     public static DateTime TodayPlus(int days) => Today.AddDays(days);
 
