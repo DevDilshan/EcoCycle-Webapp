@@ -123,6 +123,23 @@ class _ComplaintsListScreenState extends State<ComplaintsListScreen> {
                                 height: 1.5,
                               ),
                             ),
+                            if ((c['photoUrl'] as String?)?.isNotEmpty ?? false)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    c['photoUrl'] as String,
+                                    height: 140,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    semanticLabel:
+                                        'Photo attached to this complaint',
+                                    errorBuilder: (_, _, _) =>
+                                        const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       );

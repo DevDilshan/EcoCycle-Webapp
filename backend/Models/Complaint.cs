@@ -40,5 +40,9 @@ public class Complaint
     [MaxLength(2000)]
     public string? AdminNotes { get; set; }
 
+    // Optional photo the resident attached, as a public https link.
+    [MaxLength(2048)]
+    public string? PhotoUrl { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

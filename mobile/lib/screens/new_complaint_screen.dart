@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import '../app/eco_app_scope.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../services/api.dart';
+import '../services/pickup_photo_service.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
 import '../widgets/eco_feature.dart';
@@ -24,6 +29,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
   bool _submitting = false;
   String? _pickupError;
   String? _descriptionError;
+  XFile? _photo;
 
   static const _issues = ['Missed pickup', 'Late', 'Damage', 'Other'];
   static const _descriptionMin = 10;
@@ -63,7 +69,8 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
       if (mounted) {
         setState(() {
           _loadingPickups = false;
-          _pickupError = 'Could not load your pickups. Pull back and try again.';
+          _pickupError =
+              'Could not load your pickups. Pull back and try again.';
         });
       }
     }
@@ -73,6 +80,44 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
     final body = _description.text.trim();
     if (_issue == 'Other') return body;
     return '[$_issue] $body';
+  }
+
+  Future<void> _choosePhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from library'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    try {
+      final file = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 85,
+      );
+      if (file != null && mounted) setState(() => _photo = file);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the camera or photo library.'),
+        ),
+      );
+    }
   }
 
   Future<void> _submit() async {
@@ -95,11 +140,22 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
 
     setState(() => _submitting = true);
     try {
+      // The photo goes to storage first; the complaint keeps only its link.
+      String? photoUrl;
+      if (_photo != null) {
+        try {
+          photoUrl = await PickupPhotoService.upload(_photo!);
+        } catch (_) {
+          throw 'Could not upload the photo. Check your connection, or remove '
+              'the photo and send the complaint without it.';
+        }
+      }
       await _api.post(
         '/complaints',
         body: {
           'pickupRequestId': pickupId,
           'description': desc,
+          if (photoUrl != null) 'photoUrl': photoUrl,
         },
       );
       if (mounted) Navigator.pop(context);
@@ -259,8 +315,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                   EcoTextField(
                     controller: _description,
                     maxLines: 4,
-                    hint:
-                        'e.g. The crew missed my bags on the scheduled day…',
+                    hint: 'e.g. The crew missed my bags on the scheduled day…',
                   ),
                   if (_descriptionError != null) ...[
                     const SizedBox(height: 6),
@@ -275,7 +330,50 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                   ],
                   const SizedBox(height: 18),
                   const EcoFieldLabel('Add photo (optional)'),
-                  const StripedPhotoZone(height: 80, subtitle: 'tap to attach'),
+                  StripedPhotoZone(
+                    height: _photo == null ? 80 : 180,
+                    subtitle: 'tap to attach',
+                    onTap: _submitting ? null : _choosePhoto,
+                    child: _photo == null
+                        ? null
+                        : Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              kIsWeb
+                                  ? Image.network(
+                                      _photo!.path,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(_photo!.path),
+                                      fit: BoxFit.cover,
+                                    ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: IconButton.filled(
+                                  tooltip: 'Remove photo',
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.black54,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: _submitting
+                                      ? null
+                                      : () => setState(() => _photo = null),
+                                  icon: const Icon(Icons.close, size: 20),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                  if (_photo != null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Tap the photo to change it.',
+                        style: TextStyle(fontSize: 12, color: EcoColors.label),
+                      ),
+                    ),
                 ],
               ),
             ),
