@@ -34,12 +34,14 @@ public static class PickupRequestValidation
             yield return new ValidationResult("Description must be 1000 characters or fewer.", new[] { "description" });
 
         // Preferred date — required, not past, within a year
-        var today = DateTime.UtcNow.Date;
+        // The service's day, not UTC's: before 5:30 am in Colombo, UTC is still
+        // on yesterday and would let yesterday through.
+        var today = backend.Services.ServiceClock.Today;
         if (preferredDate == default)
             yield return new ValidationResult("Please choose a preferred date.", new[] { "preferredDate" });
-        else if (preferredDate.Date < today)
+        else if (backend.Services.ServiceClock.DayOf(preferredDate) < today)
             yield return new ValidationResult("Preferred date cannot be in the past.", new[] { "preferredDate" });
-        else if (preferredDate.Date > today.AddDays(MaxFutureDays))
+        else if (backend.Services.ServiceClock.DayOf(preferredDate) > today.AddDays(MaxFutureDays))
             yield return new ValidationResult("Preferred date must be within the next 12 months.", new[] { "preferredDate" });
 
         // Recurrence — interval required + allowed only when recurring

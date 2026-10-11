@@ -40,6 +40,11 @@ export default function ResidentComplaintList({ complaints, pickupById }) {
             {expanded && (
               <div className="r-item-body">
                 <p style={{ margin: 0, lineHeight: 1.55 }}>{item.description || '—'}</p>
+                {item.photoUrl && (
+                  <a href={item.photoUrl} target="_blank" rel="noreferrer" className="ac-complaint-photo">
+                    <img src={item.photoUrl} alt="Attached to this complaint" loading="lazy" />
+                  </a>
+                )}
 
                 <dl className="ac-kv">
                   <dt>Related pickup</dt>

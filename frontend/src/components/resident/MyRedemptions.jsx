@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Gift, Pencil, Trash2 } from 'lucide-react'
+import { Gift, Mail, Pencil, Store, Trash2 } from 'lucide-react'
 import { AcCard, AcModal } from '../admin/AcUi'
 import { AcStatusPill } from '../admin/AcPills'
 import { useConfirm } from '../../hooks/useConfirm'
@@ -160,9 +160,26 @@ export default function MyRedemptions({ canRequest, balance, showForm, onCloseFo
   function deliveryFields(id, rewardItemId, value, onChange) {
     const reward = catalog.find((c) => c.id === rewardItemId)
     if (!reward) return null
+    const delivery = deliveryOf(reward)
+    const DeliveryIcon = reward.delivery === 'Post' ? Mail : reward.delivery === 'Email' ? Mail : Store
     return (
       <>
-        <p className="ac-sub">How you get it: {deliveryOf(reward).option.toLowerCase()}.</p>
+        <div
+          className={`r-reward-delivery-callout${reward.delivery === 'Post' ? ' is-post' : ''}`}
+          role="note"
+          aria-label={`How you get it: ${delivery.option}`}
+        >
+          <span className="r-reward-delivery-callout-ic" aria-hidden="true">
+            <DeliveryIcon size={22} strokeWidth={2} />
+          </span>
+          <span className="r-reward-delivery-callout-copy">
+            <span className="r-reward-delivery-callout-kicker">How you get it</span>
+            <strong>{delivery.option}</strong>
+            {reward.delivery === 'Post' && (
+              <span className="r-reward-delivery-callout-hint">Enter your postal address below.</span>
+            )}
+          </span>
+        </div>
         {reward.delivery === 'Post' && (
           <div className="ac-field">
             <label htmlFor={id}>Address to post it to</label>

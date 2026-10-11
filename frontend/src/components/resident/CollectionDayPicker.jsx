@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { sameDayOpen, serviceToday } from '../../lib/serviceDay'
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const MONTH_FORMAT = { month: 'long', year: 'numeric' }
@@ -10,12 +11,6 @@ const MONTH_FORMAT = { month: 'long', year: 'numeric' }
 function toDateValue(date) {
   const pad = (n) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-function startOfDay(date) {
-  const out = new Date(date)
-  out.setHours(0, 0, 0, 0)
-  return out
 }
 
 /**
@@ -39,7 +34,10 @@ export default function CollectionDayPicker({
   maxDays = 365,
   id,
 }) {
-  const today = useMemo(() => startOfDay(new Date()), [])
+  // The service's day (Sri Lanka time), and whether today's round can still
+  // take a new pickup. Both are read once, when the calendar opens.
+  const today = useMemo(() => serviceToday(), [])
+  const todayOpen = useMemo(() => sameDayOpen(), [])
 
   // The month on show starts on the selected day's month so an existing choice
   // is visible straight away, rather than the resident having to page to it.
@@ -55,8 +53,9 @@ export default function CollectionDayPicker({
   }, [today, maxDays])
 
   const open = (day) => {
-    // Tomorrow at the earliest: the round for today is already out.
-    if (day <= today || day > last) return false
+    if (day < today || day > last) return false
+    // Today only until the same-day cut-off; after that the round is too far gone.
+    if (day.getTime() === today.getTime() && !todayOpen) return false
     return isDayOpen ? isDayOpen(day) : true
   }
 

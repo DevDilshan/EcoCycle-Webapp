@@ -52,7 +52,8 @@ public class PickupRequestService : IPickupRequestService
             ResidentId = residentId,
             PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl),
             Description = dto.Description,
-            PreferredDate = NormalizeToUtc(dto.PreferredDate),
+            // Stored as the calendar day chosen, whichever way the client sent it.
+            PreferredDate = ServiceClock.DayOf(dto.PreferredDate),
             Address = dto.Address?.Trim(),
             ContactPhone = dto.ContactPhone?.Trim(),
             Latitude = dto.Latitude,
@@ -642,7 +643,7 @@ public class PickupRequestService : IPickupRequestService
             entity.Latitude = dto.Latitude;
             entity.Longitude = dto.Longitude;
         }
-        entity.PreferredDate = NormalizeToUtc(dto.PreferredDate);
+        entity.PreferredDate = ServiceClock.DayOf(dto.PreferredDate);
         // Both only when supplied. An edit that leaves them out keeps what is
         // stored rather than wiping the two things the crew needs to find the
         // stop. UpdatePickupRequestDto has carried Address since it was added

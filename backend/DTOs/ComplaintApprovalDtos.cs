@@ -19,6 +19,10 @@ public class CreateComplaintDto
     [MinLength(10, ErrorMessage = "Description must be at least 10 characters.")]
     [MaxLength(2000, ErrorMessage = "Description must be 2000 characters or fewer.")]
     public string Description { get; set; } = string.Empty;
+
+    /// <summary>Optional. A photo already uploaded to storage, as an https link.</summary>
+    [MaxLength(2048)]
+    public string? PhotoUrl { get; set; }
 }
 
 public class UpdateComplaintDto
@@ -38,6 +42,7 @@ public class ComplaintResponseDto
     public string Description { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string? AdminNotes { get; set; }
+    public string? PhotoUrl { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }

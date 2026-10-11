@@ -131,7 +131,14 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(AlertDialog),
-        matching: find.textContaining('sent by post'),
+        matching: find.text('HOW YOU GET IT'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Sent by post'),
       ),
       findsOneWidget,
     );

@@ -89,7 +89,8 @@ public class RoutingOptionBuilder
             if (category == WasteCategory.Bulk && !bulky) continue;
             if (category == WasteCategory.Hazardous && !hazardous) continue;
 
-            for (var offset = 1; offset <= HorizonDays; offset++)
+            // Today is offered until the same-day cut-off, then tomorrow onwards.
+            for (var offset = ServiceClock.EarliestBookingOffset; offset <= HorizonDays; offset++)
             {
                 var day = today.AddDays(offset);
 
@@ -119,7 +120,11 @@ public class RoutingOptionBuilder
         {
             Category = category.ToString(),
             ZoneName = zone.Name,
-            PreferredDate = preferredDate?.ToUniversalTime().ToString("yyyy-MM-dd"),
+            // DayOf, so a day saved by an older mobile build still reads as the
+            // day the resident chose and not the one before.
+            PreferredDate = preferredDate is null
+                ? null
+                : ServiceClock.DayOf(preferredDate.Value).ToString("yyyy-MM-dd"),
             IsRestricted = category is WasteCategory.Hazardous or WasteCategory.Bulk,
             // Soonest first, then the emptiest day, so a truncated list still
             // holds the options most likely to be chosen.

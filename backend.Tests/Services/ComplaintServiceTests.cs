@@ -52,6 +52,33 @@ public class ComplaintServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_keeps_an_attached_photo_and_needs_none()
+    {
+        var withPhoto = ValidDto(AddPickup(_resident).Id);
+        withPhoto.PhotoUrl = "  https://example.supabase.co/storage/v1/object/public/pickup-photos/a/1.jpg  ";
+
+        var saved = await Service.CreateAsync(_resident, withPhoto);
+        var plain = await Service.CreateAsync(_resident, ValidDto(AddPickup(_resident).Id));
+
+        Assert.Equal("https://example.supabase.co/storage/v1/object/public/pickup-photos/a/1.jpg", saved.PhotoUrl);
+        Assert.Null(plain.PhotoUrl);
+    }
+
+    [Theory]
+    [InlineData("http://example.com/photo.jpg")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("not a link")]
+    [InlineData("https://user:secret@example.com/photo.jpg")]
+    public async Task CreateAsync_rejects_a_photo_link_that_is_not_plain_https(string photoUrl)
+    {
+        var dto = ValidDto(AddPickup(_resident).Id);
+        dto.PhotoUrl = photoUrl;
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => Service.CreateAsync(_resident, dto));
+        Assert.Contains("photo", ex.Message);
+    }
+
+    [Fact]
     public async Task CreateAsync_rejects_description_shorter_than_10_characters()
     {
         var pickup = AddPickup(_resident);

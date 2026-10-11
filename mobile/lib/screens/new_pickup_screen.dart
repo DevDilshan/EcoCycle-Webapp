@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/eco_app_scope.dart';
 import '../services/api.dart';
+import '../services/service_day.dart';
 import '../services/pickup_photo_service.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
@@ -70,17 +71,23 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     return days.contains(day.weekday % 7);
   }
 
-  /// The soonest collectable day from tomorrow on, or null when the zone has no
-  /// fixed days (any date will do) or none falls in the next four weeks.
+  /// The soonest collectable day from the earliest bookable day on (today
+  /// until the same-day cut-off, tomorrow after it), or null when the zone has
+  /// no fixed days (any date will do) or none falls in the next four weeks.
   DateTime? _nextCollectionDay() {
     if (_collectionDays.isEmpty) return null;
-    final today = DateTime.now();
-    for (var i = 1; i <= 28; i += 1) {
-      final day = DateTime(today.year, today.month, today.day + i);
+    final first = earliestBookingDay();
+    for (var i = 0; i < 28; i += 1) {
+      final day = DateTime(first.year, first.month, first.day + i);
       if (_isCollectionDay(day)) return day;
     }
     return null;
   }
+
+  /// A day the calendar lets the resident pick: a collection day for the
+  /// zone, and not before the earliest bookable day.
+  bool _isBookable(DateTime day) =>
+      !day.isBefore(earliestBookingDay()) && _isCollectionDay(day);
 
   /// "Dehiwala is collected on Mondays and Sundays." Null until a zone is
   /// chosen, so the hint does not appear before it means anything.
@@ -102,7 +109,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     return '$name is collected on $joined.';
   }
 
-  DateTime _date = DateTime.now().add(const Duration(days: 1));
+  DateTime _date = earliestBookingDay();
   late final TextEditingController _dateLabel;
   bool _recurring = false;
   String? _interval;
@@ -192,10 +199,8 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       _address.text = (existing['address'] as String?) ?? '';
       _zoneId = existing['zoneId'] as String?;
       _point = pickupPoint(existing);
-      final parsed = DateTime.tryParse(
-        existing['preferredDate'] as String? ?? '',
-      );
-      if (parsed != null) _date = parsed.toLocal();
+      final parsed = serviceDayFromApi(existing['preferredDate'] as String?);
+      if (parsed != null) _date = parsed;
       _recurring = existing['isRecurring'] == true;
       final interval = existing['recurrenceInterval'] as String?;
       if (interval != null && _allowedIntervals.contains(interval)) {
@@ -349,8 +354,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       descErr = 'Description must be 1000 characters or fewer.';
     }
 
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today = serviceToday();
     final picked = DateTime(_date.year, _date.month, _date.day);
     if (picked.isBefore(today)) {
       dateErr = 'Preferred date cannot be in the past.';
@@ -413,7 +417,8 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
     if (phone.isEmpty) {
       if (!_isEditing) phoneErr = 'Please give a number the crew can call.';
     } else if (!_isDialable(phone)) {
-      phoneErr = 'Phone number must be 10 digits starting with 0, e.g. 0771234567.';
+      phoneErr =
+          'Phone number must be 10 digits starting with 0, e.g. 0771234567.';
     }
 
     setState(() {
@@ -495,7 +500,7 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
       final phone = _contactPhone.text.trim();
       final body = {
         'description': _description.text.trim(),
-        'preferredDate': _date.toUtc().toIso8601String(),
+        'preferredDate': serviceDayToApi(_date),
         if (phone.isNotEmpty) 'contactPhone': phone,
         // UpdatePickupRequestDto carries neither, so both go on create only.
         if (!_isEditing) 'zoneId': _zoneId,
@@ -813,18 +818,20 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                       // are. A resident reads the calendar they already know and
                       // can see at a glance which days their zone is served; a
                       // list of eight dates hides that shape entirely.
-                      final initial = _isCollectionDay(_date)
+                      // Today is offered until the same-day cut-off, then
+                      // tomorrow at the earliest, on Sri Lanka time.
+                      final first = earliestBookingDay();
+                      final initial = _isBookable(_date)
                           ? _date
                           : _nextCollectionDay();
-                      final from = initial ?? DateTime.now();
                       final picked = await showDatePicker(
                         context: context,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                        initialDate: from.isBefore(DateTime.now())
-                            ? DateTime.now()
-                            : from,
-                        selectableDayPredicate: _isCollectionDay,
+                        firstDate: first,
+                        lastDate: first.add(const Duration(days: 365)),
+                        // Null leaves the calendar open with nothing chosen,
+                        // which is right when no day in view can be picked.
+                        initialDate: initial,
+                        selectableDayPredicate: _isBookable,
                       );
                       if (picked != null) {
                         setState(() {
@@ -849,7 +856,8 @@ class _NewPickupScreenState extends State<NewPickupScreen> {
                   // be made about when the crew arrives.
                   _fieldHint(
                     'Collections run $_collectionWindowLabel. Please have it '
-                    'out by the start of that window.',
+                    'out by the start of that window. Book before '
+                    '$sameDayCutoffLabel for a collection today.',
                   ),
                   const SizedBox(height: 20),
                   const EcoFieldLabel('What needs collecting?'),

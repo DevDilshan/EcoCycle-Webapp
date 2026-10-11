@@ -56,7 +56,7 @@ public class CreateRouteAssignmentDto : IValidatableObject
             yield break;
         }
 
-        var today = DateTime.UtcNow.Date;
+        var today = backend.Services.ServiceClock.Today;
         if (ScheduledDate.Date < today)
             yield return new ValidationResult(
                 "A stop cannot be scheduled in the past.", new[] { "scheduledDate" });

@@ -9,6 +9,118 @@ String rewardDeliveryLabel(Object? delivery) => switch (delivery) {
   _ => 'Collect in person',
 };
 
+/// Prominent delivery method on request confirmation (post, email, in person).
+class RewardHowYouGetItCallout extends StatelessWidget {
+  const RewardHowYouGetItCallout({super.key, required this.delivery});
+
+  final Object? delivery;
+
+  IconData get _icon => switch (delivery) {
+    'Post' => Icons.local_post_office_outlined,
+    'Email' => Icons.mark_email_unread_outlined,
+    _ => Icons.storefront_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final label = rewardDeliveryLabel(delivery);
+    final isPost = delivery == 'Post';
+    final accent = isPost ? EcoColors.primary : EcoColors.green;
+    return Semantics(
+      container: true,
+      label: 'How you get it: $label',
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: isPost ? const Color(0xFFFFF4D6) : EcoColors.honeydew,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: accent.withValues(alpha: isPost ? 0.65 : 0.28),
+            width: isPost ? 2 : 1.5,
+          ),
+          boxShadow: isPost
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.14),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 5, color: accent),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Icon(_icon, color: accent, size: 26),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'HOW YOU GET IT',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                                color: accent,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                height: 1.25,
+                                color: isPost ? EcoColors.green : EcoColors.ink,
+                              ),
+                            ),
+                            if (isPost) ...[
+                              const SizedBox(height: 6),
+                              const Text(
+                                'We’ll ask for your postal address right after you confirm.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.45,
+                                  color: EcoColors.body,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 String _morePoints(int value) =>
     '$value more ${value == 1 ? 'point' : 'points'}';
 
@@ -310,44 +422,23 @@ Future<bool?> showRewardDetails(
                 ),
               ],
               const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: EcoColors.honeydew,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      rewardDeliveryLabel(item['delivery']),
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      soldOut
-                          ? 'Currently out of stock'
-                          : stock == null
-                          ? 'Available to request'
-                          : '$stock available',
-                      style: const TextStyle(
-                        color: EcoColors.body,
-                        fontSize: 13,
-                      ),
-                    ),
-                    if (instructions != null && instructions.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        instructions,
-                        style: const TextStyle(
-                          color: EcoColors.body,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+              RewardHowYouGetItCallout(delivery: item['delivery']),
+              const SizedBox(height: 12),
+              Text(
+                soldOut
+                    ? 'Currently out of stock'
+                    : stock == null
+                    ? 'Available to request'
+                    : '$stock available',
+                style: const TextStyle(color: EcoColors.body, fontSize: 13),
               ),
+              if (instructions != null && instructions.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  instructions,
+                  style: const TextStyle(color: EcoColors.body, height: 1.5),
+                ),
+              ],
               const SizedBox(height: 16),
               Text(
                 'You have ${available < 0 ? 0 : available} available points. Requests wait for approval before points are spent.',

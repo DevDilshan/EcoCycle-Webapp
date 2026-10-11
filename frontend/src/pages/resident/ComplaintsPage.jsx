@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { resolveComplaintLookupId } from '../../lib/complaintLookup'
 import { pickupLabel } from '../../lib/catalog'
 import { apiRequest } from '../../lib/api'
+import { uploadPickupPhoto } from '../../lib/pickupPhoto'
 import {
   COMPLAINT_DESCRIPTION_MAX,
   COMPLAINT_DESCRIPTION_MIN,
@@ -32,6 +33,9 @@ function storeComplaintId(id) {
   }
 }
 
+// The storage bucket refuses anything larger.
+const MAX_COMPLAINT_PHOTO_BYTES = 5 * 1024 * 1024
+
 export default function ResidentComplaintsPage() {
   const { role } = useAuth()
   const [pickups, setPickups] = useState([])
@@ -40,6 +44,10 @@ export default function ResidentComplaintsPage() {
   const [lookupId, setLookupId] = useState('')
   const [form, setForm] = useState({ pickupRequestId: '', description: '' })
   const [formErrors, setFormErrors] = useState({})
+  // Optional photo for the complaint, and a local preview of it.
+  const [photo, setPhoto] = useState(null)
+  const photoPreview = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo])
+  useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview) }, [photoPreview])
   const [filter, setFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -118,16 +126,28 @@ export default function ResidentComplaintsPage() {
     setBusy(true)
     setError(null)
     try {
+      // The photo goes to storage first; the complaint keeps only its link.
+      let photoUrl
+      if (photo) {
+        try {
+          photoUrl = await uploadPickupPhoto(photo)
+        } catch {
+          setFormErrors({ photo: 'Could not upload the photo. Try again, or remove it and send the complaint without it.' })
+          return
+        }
+      }
       const created = await apiRequest('/complaints', {
         method: 'POST',
         body: JSON.stringify({
           pickupRequestId: form.pickupRequestId,
           description: form.description.trim(),
+          photoUrl,
         }),
       })
       storeComplaintId(created.id)
       setSuccess('Complaint filed. Support will pick it up from here.')
       setForm({ pickupRequestId: '', description: '' })
+      setPhoto(null)
       setFormErrors({})
       setShowForm(false)
       await loadComplaints()
@@ -292,7 +312,7 @@ export default function ResidentComplaintsPage() {
                   return next
                 })
               }}
-              placeholder="Describe the issue with this pickup…"
+              placeholder="e.g. The crew missed my bags on the scheduled day…"
               aria-invalid={Boolean(formErrors.description)}
               aria-describedby="complaint-description-hint complaint-description-error"
             />
@@ -305,6 +325,38 @@ export default function ResidentComplaintsPage() {
                 {formErrors.description}
               </p>
             )}
+          </div>
+          <div className="ac-field">
+            <label htmlFor="complaint-photo">Add photo (optional)</label>
+            <input
+              id="complaint-photo"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={busy}
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null
+                e.target.value = ''
+                if (file && file.size > MAX_COMPLAINT_PHOTO_BYTES) {
+                  setFormErrors((prev) => ({ ...prev, photo: 'Choose a photo of 5 MB or less.' }))
+                  return
+                }
+                setFormErrors((prev) => {
+                  const next = { ...prev }
+                  delete next.photo
+                  return next
+                })
+                setPhoto(file)
+              }}
+            />
+            {photoPreview && (
+              <div className="ac-complaint-photo">
+                <img src={photoPreview} alt="Photo to attach" />
+                <button type="button" className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setPhoto(null)} disabled={busy}>
+                  Remove photo
+                </button>
+              </div>
+            )}
+            {formErrors.photo && <p className="ac-field-error" role="alert">{formErrors.photo}</p>}
           </div>
           <div className="ac-actions">
             <button

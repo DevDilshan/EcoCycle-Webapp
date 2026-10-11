@@ -43,6 +43,7 @@ public class ComplaintService : IComplaintService
             ResidentId = residentId,
             PickupRequestId = dto.PickupRequestId,
             Description = description,
+            PhotoUrl = NormalizePhotoUrl(dto.PhotoUrl),
             Status = ComplaintStatus.Open
         };
 
@@ -122,6 +123,19 @@ public class ComplaintService : IComplaintService
         return true;
     }
 
+    // The link is shown to admins, so only a plain https address is kept.
+    private static string? NormalizePhotoUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        var trimmed = url.Trim();
+        if (trimmed.Length > 2048
+            || !Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(uri.UserInfo))
+            throw new ArgumentException("The attached photo link is not valid. Attach the photo again.");
+        return trimmed;
+    }
+
     private static ComplaintResponseDto ToDto(Complaint c) => new()
     {
         Id = c.Id,
@@ -130,6 +144,7 @@ public class ComplaintService : IComplaintService
         Description = c.Description,
         Status = c.Status.ToString(),
         AdminNotes = c.AdminNotes,
+        PhotoUrl = c.PhotoUrl,
         ResolvedAt = c.ResolvedAt,
         CreatedAt = c.CreatedAt
     };
