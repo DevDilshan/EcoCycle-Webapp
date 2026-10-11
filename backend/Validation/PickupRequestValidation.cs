@@ -39,9 +39,9 @@ public static class PickupRequestValidation
         var today = backend.Services.ServiceClock.Today;
         if (preferredDate == default)
             yield return new ValidationResult("Please choose a preferred date.", new[] { "preferredDate" });
-        else if (preferredDate.Date < today)
+        else if (backend.Services.ServiceClock.DayOf(preferredDate) < today)
             yield return new ValidationResult("Preferred date cannot be in the past.", new[] { "preferredDate" });
-        else if (preferredDate.Date > today.AddDays(MaxFutureDays))
+        else if (backend.Services.ServiceClock.DayOf(preferredDate) > today.AddDays(MaxFutureDays))
             yield return new ValidationResult("Preferred date must be within the next 12 months.", new[] { "preferredDate" });
 
         // Recurrence — interval required + allowed only when recurring
