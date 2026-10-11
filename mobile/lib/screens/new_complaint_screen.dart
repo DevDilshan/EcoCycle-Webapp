@@ -1,9 +1,16 @@
+import 'dart:io';
+
 import '../app/eco_app_scope.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../services/api.dart';
+import '../services/pickup_photo_service.dart';
 import '../theme/eco_theme.dart';
 import '../widgets/eco_components.dart';
+import '../widgets/eco_feature.dart';
+import '../widgets/eco_loading.dart';
 
 class NewComplaintScreen extends StatefulWidget {
   const NewComplaintScreen({super.key});
@@ -16,9 +23,22 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
   late final Api _api = EcoAppScope.apiOf(context);
   final _description = TextEditingController();
   String _issue = 'Missed pickup';
-  bool _loading = false;
+  String? _pickupRequestId;
+  List<Map<String, dynamic>> _pickups = [];
+  bool _loadingPickups = true;
+  bool _submitting = false;
+  String? _pickupError;
+  String? _descriptionError;
+  XFile? _photo;
 
   static const _issues = ['Missed pickup', 'Late', 'Damage', 'Other'];
+  static const _descriptionMin = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPickups();
+  }
 
   @override
   void dispose() {
@@ -26,12 +46,117 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    setState(() => _loading = true);
+  Future<void> _loadPickups() async {
     try {
+      final json = await _api.get('/pickuprequests', query: {'pageSize': '50'});
+      final items = json is Map ? json['items'] : json;
+      final list = (items as List?)?.cast<Map<String, dynamic>>() ?? [];
+      list.sort((a, b) {
+        final ad = DateTime.tryParse(a['preferredDate'] as String? ?? '');
+        final bd = DateTime.tryParse(b['preferredDate'] as String? ?? '');
+        if (ad == null && bd == null) return 0;
+        if (ad == null) return 1;
+        if (bd == null) return -1;
+        return bd.compareTo(ad);
+      });
+      if (mounted) {
+        setState(() {
+          _pickups = list;
+          _loadingPickups = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingPickups = false;
+          _pickupError =
+              'Could not load your pickups. Pull back and try again.';
+        });
+      }
+    }
+  }
+
+  String _buildDescription() {
+    final body = _description.text.trim();
+    if (_issue == 'Other') return body;
+    return '[$_issue] $body';
+  }
+
+  Future<void> _choosePhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from library'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    try {
+      final file = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 85,
+      );
+      if (file != null && mounted) setState(() => _photo = file);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the camera or photo library.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _submit() async {
+    final pickupId = _pickupRequestId;
+    final desc = _buildDescription();
+
+    setState(() {
+      _pickupError = null;
+      _descriptionError = null;
+      if (pickupId == null || pickupId.isEmpty) {
+        _pickupError = 'Choose the pickup this complaint is about.';
+      }
+      if (desc.length < _descriptionMin) {
+        _descriptionError =
+            'Use at least $_descriptionMin characters so support can help.';
+      }
+    });
+
+    if (_pickupError != null || _descriptionError != null) return;
+
+    setState(() => _submitting = true);
+    try {
+      // The photo goes to storage first; the complaint keeps only its link.
+      String? photoUrl;
+      if (_photo != null) {
+        try {
+          photoUrl = await PickupPhotoService.upload(_photo!);
+        } catch (_) {
+          throw 'Could not upload the photo. Check your connection, or remove '
+              'the photo and send the complaint without it.';
+        }
+      }
       await _api.post(
         '/complaints',
-        body: {'issueType': _issue, 'description': _description.text.trim()},
+        body: {
+          'pickupRequestId': pickupId,
+          'description': desc,
+          if (photoUrl != null) 'photoUrl': photoUrl,
+        },
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -41,12 +166,91 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
         ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Widget _pickupSelector() {
+    if (_loadingPickups) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: EcoLoadingState(
+          title: 'Loading pickups',
+          message: 'Finding requests on your account.',
+          compact: true,
+        ),
+      );
+    }
+
+    if (_pickups.isEmpty) {
+      return Text(
+        'You need at least one pickup request before filing a complaint.',
+        style: TextStyle(fontSize: 13, color: EcoColors.muted, height: 1.45),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: EcoColors.surface,
+            border: Border.all(
+              color: _pickupError != null
+                  ? EcoColors.danger
+                  : EcoColors.green.withValues(alpha: 0.12),
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _pickupRequestId,
+              isExpanded: true,
+              hint: const Text(
+                'Select a pickup request…',
+                style: TextStyle(fontSize: 14, color: EcoColors.muted),
+              ),
+              items: _pickups
+                  .map(
+                    (pickup) => DropdownMenuItem<String>(
+                      value: pickup['id'] as String?,
+                      child: Text(
+                        pickupComplaintLabel(pickup),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: EcoColors.ink,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() {
+                _pickupRequestId = value;
+                _pickupError = null;
+              }),
+            ),
+          ),
+        ),
+        if (_pickupError != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            _pickupError!,
+            style: const TextStyle(
+              fontSize: 12,
+              color: EcoColors.danger,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final canSubmit = !_loadingPickups && _pickups.isNotEmpty && !_submitting;
+
     return EcoScreen(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -59,6 +263,9 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const EcoFieldLabel('Which pickup is it about?'),
+                  _pickupSelector(),
+                  const SizedBox(height: 18),
                   const EcoFieldLabel('Issue type'),
                   Wrap(
                     spacing: 8,
@@ -105,10 +312,68 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                   ),
                   const SizedBox(height: 18),
                   const EcoFieldLabel('What happened?'),
-                  EcoTextField(controller: _description, maxLines: 4),
+                  EcoTextField(
+                    controller: _description,
+                    maxLines: 4,
+                    hint: 'e.g. The crew missed my bags on the scheduled day…',
+                  ),
+                  if (_descriptionError != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      _descriptionError!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: EcoColors.danger,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   const EcoFieldLabel('Add photo (optional)'),
-                  const StripedPhotoZone(height: 80, subtitle: 'tap to attach'),
+                  StripedPhotoZone(
+                    height: _photo == null ? 80 : 180,
+                    subtitle: 'tap to attach',
+                    onTap: _submitting ? null : _choosePhoto,
+                    child: _photo == null
+                        ? null
+                        : Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              kIsWeb
+                                  ? Image.network(
+                                      _photo!.path,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(_photo!.path),
+                                      fit: BoxFit.cover,
+                                    ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: IconButton.filled(
+                                  tooltip: 'Remove photo',
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.black54,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: _submitting
+                                      ? null
+                                      : () => setState(() => _photo = null),
+                                  icon: const Icon(Icons.close, size: 20),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                  if (_photo != null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Tap the photo to change it.',
+                        style: TextStyle(fontSize: 12, color: EcoColors.label),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -117,8 +382,8 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
             child: EcoPrimaryButton(
               label: 'Submit complaint',
-              loading: _loading,
-              onPressed: _submit,
+              loading: _submitting,
+              onPressed: canSubmit ? _submit : null,
             ),
           ),
         ],

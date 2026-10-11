@@ -183,6 +183,11 @@ export default function ComplaintsPage() {
             <div>
               <h3 className="ac-drawer-sub">What the resident said</h3>
               <p className="ac-drawer-text">{editing.description || 'No description given.'}</p>
+              {editing.photoUrl && (
+                <a href={editing.photoUrl} target="_blank" rel="noreferrer" className="ac-complaint-photo">
+                  <img src={editing.photoUrl} alt="Attached by the resident" loading="lazy" />
+                </a>
+              )}
             </div>
 
             <form className="ac-form" onSubmit={handleUpdate}>

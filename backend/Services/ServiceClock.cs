@@ -62,6 +62,28 @@ public static class ServiceClock
     /// </remarks>
     public static DateTime Today => DateTime.SpecifyKind(Now.Date, DateTimeKind.Utc);
 
+    /// <summary>
+    /// The latest time of day a pickup can still be booked onto today's round.
+    /// </summary>
+    /// <remarks>
+    /// Crews are out from 8:30 am to 4:00 pm. A request that arrives by noon can
+    /// still be reached the same day; one that arrives later goes on tomorrow's
+    /// round at the earliest. The web and mobile date pickers use the same hour
+    /// (SAME_DAY_CUTOFF_HOUR in frontend/src/lib/serviceDay.js and
+    /// sameDayCutoffHour in mobile/lib/services/service_day.dart).
+    /// </remarks>
+    public static readonly TimeSpan SameDayCutoff = new(12, 0, 0);
+
+    /// <summary>
+    /// How many days from today the earliest bookable round is: 0 while today's
+    /// round can still take work, 1 once the cut-off has passed.
+    /// </summary>
+    public static int EarliestBookingOffset => EarliestBookingOffsetAt(Now.TimeOfDay);
+
+    /// <summary>The same rule for a given time of day, so it can be tested.</summary>
+    public static int EarliestBookingOffsetAt(TimeSpan timeOfDay)
+        => timeOfDay < SameDayCutoff ? 0 : 1;
+
     /// <summary>Today plus <paramref name="days"/>, as midnight UTC.</summary>
     public static DateTime TodayPlus(int days) => Today.AddDays(days);
 

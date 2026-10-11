@@ -106,6 +106,10 @@ namespace backend.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("PhotoUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<Guid>("PickupRequestId")
                         .HasColumnType("uuid");
 
@@ -242,7 +246,7 @@ namespace backend.Migrations
 
                     b.Property<string>("Role")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("user_role")
                         .HasColumnName("role");
 
                     b.Property<DateTime>("UpdatedAt")
