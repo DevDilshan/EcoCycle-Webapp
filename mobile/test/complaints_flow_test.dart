@@ -24,6 +24,18 @@ class _ComplaintsApi extends Api {
         ],
       };
     }
+    if (path == '/pickuprequests') {
+      return {
+        'items': [
+          {
+            'id': 'pickup-001',
+            'status': 'Completed',
+            'preferredDate': '2026-10-08T00:00:00Z',
+            'description': 'Mixed recyclables',
+          },
+        ],
+      };
+    }
     return null;
   }
 
@@ -62,7 +74,7 @@ void main() {
     expect(find.text('Open'), findsOneWidget);
   });
 
-  testWidgets('New complaint submits issue type and description', (tester) async {
+  testWidgets('New complaint requires pickup and sends description', (tester) async {
     final api = _ComplaintsApi();
     await tester.pumpWidget(
       MaterialApp(
@@ -76,6 +88,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Submit complaint'));
+    await tester.pumpAndSettle();
+    expect(api.posts, isEmpty);
+
+    await tester.tap(find.text('Select a pickup request…'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Mixed recyclables').last);
+    await tester.pumpAndSettle();
+
     await tester.enterText(find.byType(TextField), 'The crew never came on Tuesday morning.');
     await tester.tap(find.text('Submit complaint'));
     await tester.pumpAndSettle();
@@ -83,8 +104,8 @@ void main() {
     expect(api.posts, hasLength(1));
     expect(api.posts.first['path'], '/complaints');
     expect(api.posts.first['body'], {
-      'issueType': 'Missed pickup',
-      'description': 'The crew never came on Tuesday morning.',
+      'pickupRequestId': 'pickup-001',
+      'description': '[Missed pickup] The crew never came on Tuesday morning.',
     });
   });
 }

@@ -569,6 +569,57 @@
    and leaving the resident to work out why. */
 .admin-console .r-reward-short { color: var(--faint); font-size: 12px; font-weight: 700; }
 
+.admin-console .r-reward-delivery-callout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--honeydew, rgba(240, 255, 240, 0.85));
+  box-shadow: inset 0 0 0 1.5px rgba(26, 77, 46, 0.22);
+}
+
+.admin-console .r-reward-delivery-callout.is-post {
+  background: #fff8e7;
+  box-shadow: inset 0 0 0 2px rgba(26, 77, 46, 0.45);
+}
+
+.admin-console .r-reward-delivery-callout-ic {
+  flex-shrink: 0;
+  color: var(--green);
+  margin-top: 2px;
+}
+
+.admin-console .r-reward-delivery-callout-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-console .r-reward-delivery-callout-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-console .r-reward-delivery-callout-copy strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--green);
+}
+
+.admin-console .r-reward-delivery-callout-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--body);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
 /* ---------- Sidebar footer link ---------- */
 
 .admin-console .r-side-link {

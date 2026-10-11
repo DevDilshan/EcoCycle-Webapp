@@ -107,13 +107,42 @@ class _RedeemScreenState extends State<RedeemScreen> {
   }
 
   Future<void> _request(Map<String, dynamic> item) async {
-    final confirmed = await _confirm(
-      title: 'Request ${item['name']}?',
-      body:
-          '${item['pointsCost']} points will be set aside until an admin decides. '
-          'You can change or cancel it until then.\n\n'
-          'How you get it: ${_deliveryWords(item['delivery']).option}.',
-      yes: 'Send request',
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: EcoColors.ivory,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Request ${item['name']}?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${item['pointsCost']} points will be set aside until an admin decides. '
+                'You can change or cancel it until then.',
+                style: const TextStyle(height: 1.5, color: EcoColors.body),
+              ),
+              const SizedBox(height: 18),
+              RewardHowYouGetItCallout(delivery: item['delivery']),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: EcoColors.green,
+              textStyle: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            child: const Text('Send request'),
+          ),
+        ],
+      ),
     );
     if (confirmed != true) return;
     String? address;
