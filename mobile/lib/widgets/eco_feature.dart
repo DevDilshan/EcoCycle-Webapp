@@ -198,6 +198,16 @@ String pickupDate(Map<String, dynamic> pickup) {
       : DateFormat('EEE, d MMM').format(date.toLocal());
 }
 
+/// Short label for complaint / picker dropdowns (matches the web resident form).
+String pickupComplaintLabel(Map<String, dynamic> pickup) {
+  final raw = (pickup['description'] as String? ?? '').trim();
+  final snippet = raw.isEmpty
+      ? 'Recycling pickup'
+      : (raw.length > 50 ? '${raw.substring(0, 50)}…' : raw);
+  final status = pickup['status'] as String? ?? 'Pending';
+  return '${pickupDate(pickup)} · $status · $snippet';
+}
+
 bool activePickup(Map<String, dynamic> pickup) => ![
   'completed',
   'cancelled',

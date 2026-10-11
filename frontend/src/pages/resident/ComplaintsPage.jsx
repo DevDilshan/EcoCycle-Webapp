@@ -292,7 +292,7 @@ export default function ResidentComplaintsPage() {
                   return next
                 })
               }}
-              placeholder="Describe the issue with this pickup…"
+              placeholder="e.g. The crew missed my bags on the scheduled day…"
               aria-invalid={Boolean(formErrors.description)}
               aria-describedby="complaint-description-hint complaint-description-error"
             />
