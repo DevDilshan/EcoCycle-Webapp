@@ -74,7 +74,9 @@ void main() {
     expect(find.text('Open'), findsOneWidget);
   });
 
-  testWidgets('New complaint requires pickup and sends description', (tester) async {
+  testWidgets('New complaint requires pickup and sends description', (
+    tester,
+  ) async {
     final api = _ComplaintsApi();
     await tester.pumpWidget(
       MaterialApp(
@@ -97,7 +99,10 @@ void main() {
     await tester.tap(find.textContaining('Mixed recyclables').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'The crew never came on Tuesday morning.');
+    await tester.enterText(
+      find.byType(TextField),
+      'The crew never came on Tuesday morning.',
+    );
     await tester.tap(find.text('Submit complaint'));
     await tester.pumpAndSettle();
 
@@ -107,5 +112,28 @@ void main() {
       'pickupRequestId': 'pickup-001',
       'description': '[Missed pickup] The crew never came on Tuesday morning.',
     });
+  });
+
+  testWidgets('The photo box offers the camera and the library', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildEcoTheme(),
+        home: EcoAppScope(
+          api: _ComplaintsApi(),
+          user: _resident(),
+          child: const NewComplaintScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('tap to attach'));
+    await tester.tap(find.text('tap to attach'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Take photo'), findsOneWidget);
+    expect(find.text('Choose from library'), findsOneWidget);
   });
 }

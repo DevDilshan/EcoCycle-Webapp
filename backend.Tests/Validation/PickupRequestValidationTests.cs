@@ -35,7 +35,7 @@ public class PickupRequestValidationTests
 
     // --- Validate: description, preferred date and recurrence together. ---
 
-    private static readonly DateTime ValidDate = DateTime.UtcNow.Date.AddDays(7);
+    private static readonly DateTime ValidDate = backend.Services.ServiceClock.Today.AddDays(7);
 
     [Fact]
     public void Validate_accepts_a_well_formed_request()
@@ -66,12 +66,12 @@ public class PickupRequestValidationTests
     [Fact]
     public void Validate_rejects_a_past_date()
         => AssertHasError("preferredDate",
-            PickupRequestValidation.Validate("plastic bottles", DateTime.UtcNow.Date.AddDays(-1), false, null));
+            PickupRequestValidation.Validate("plastic bottles", backend.Services.ServiceClock.Today.AddDays(-1), false, null));
 
     [Fact]
     public void Validate_rejects_a_date_more_than_a_year_out()
         => AssertHasError("preferredDate",
-            PickupRequestValidation.Validate("plastic bottles", DateTime.UtcNow.Date.AddDays(400), false, null));
+            PickupRequestValidation.Validate("plastic bottles", backend.Services.ServiceClock.Today.AddDays(400), false, null));
 
     [Fact]
     public void Validate_rejects_recurring_without_an_interval()

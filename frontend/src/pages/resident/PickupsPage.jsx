@@ -25,6 +25,7 @@ import { zoneContains } from '../../lib/zoneBoundary'
 import ResidentApprovalNotice from '../../components/resident/ResidentApprovalNotice'
 import { residentPickupStatusPillKey } from '../../lib/residentPickupApproval'
 import { COLLECTION_WINDOW_LABEL } from '../../lib/collectorUi'
+import { SAME_DAY_CUTOFF_LABEL, serviceToday } from '../../lib/serviceDay'
 
 /**
  * Whether this request was refused.
@@ -148,8 +149,9 @@ function validatePickupForm(form, { requireZone = false, collectionDays = [], bu
   if (!form.preferredDate) {
     errors.preferredDate = 'Please choose a preferred date.'
   } else {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const picked = new Date(form.preferredDate); picked.setHours(0, 0, 0, 0)
+    const today = serviceToday()
+    // Read as a calendar day: new Date('yyyy-MM-dd') alone would mean midnight UTC.
+    const picked = new Date(`${form.preferredDate}T00:00:00`)
     const max = new Date(today); max.setDate(max.getDate() + MAX_FUTURE_DAYS)
     if (Number.isNaN(picked.getTime())) errors.preferredDate = 'Please choose a valid date.'
     else if (picked < today) errors.preferredDate = 'Preferred date cannot be in the past.'
@@ -790,7 +792,8 @@ export default function ResidentPickupsPage() {
                 made about when the crew arrives. */}
             <p className="ac-field-hint">
               Collections run {COLLECTION_WINDOW_LABEL}. Please have it out by
-              the start of that window.
+              the start of that window. Book before {SAME_DAY_CUTOFF_LABEL} for
+              a collection today.
             </p>
           </div>
 
